@@ -1,0 +1,471 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+} 
+
+// =====================
+// STRUCTURE
+// =====================
+
+model Structure {
+  id          Int      @id @default(autoincrement())
+  nom         String
+  code        String   @unique
+  type        String   // PRISON, COMMISSARIAT, SPIP, TRIBUNAL, MAIRIE
+  juridiction String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users       User[]
+
+  @@map("structures")
+}
+
+// =====================
+// ROLES & USERS
+// =====================
+
+model Role {
+  id  Int    @id @default(autoincrement())
+  nom String
+
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id          Int       @id @default(autoincrement())
+  nom         String
+  prenom      String
+  email       String    @unique
+  telephone   String?
+  motDePasse  String    @map("mot_de_passe")
+  roleId      Int       @map("role_id")
+  structureId Int       @map("structure_id")
+  statut      String    // ACTIF, INACTIF, SUSPENDU
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  role        Role      @relation(fields: [roleId], references: [id])
+  structure   Structure @relation(fields: [structureId], references: [id])
+
+  pointages            Pointage[]
+  demandesTraitees     DemandeAutorisation[]
+  justificatifsValides Justificatif[]
+  rapports             Rapport[]
+  notifications        Notification[]
+  historiquesActions   HistoriqueAction[]
+
+  @@map("users")
+}
+
+// =====================
+// DOSSIER (source métier — fournie par API externe)
+// =====================
+
+model Dossier {
+  id                  Int       @id @default(autoincrement())
+  numeroDossier       String    @unique @map("numero_dossier")
+  juridictionId       Int?      @map("juridiction_id")
+  prisonId            Int?      @map("prison_id")
+  nom                 String
+  prenom              String
+  dateNaissance       DateTime? @map("date_naissance") @db.Date
+  lieuNaissance       String?   @map("lieu_naissance")
+  nationalite         String?
+  sexe                String?   // M, F
+  profession          String?
+  adresse             String?
+  telephoneContact    String?   @map("telephone_contact")
+  infractions         String?
+  numeroMandatDepot   String    @map("numero_mandat_depot")
+  dateMandatDepot     DateTime  @map("date_mandat_depot") @db.Date
+  condamnation        String?
+  dateFinPeine        DateTime  @map("date_fin_peine") @db.Date
+  dureePeineMois      Int       @map("duree_peine_mois")
+  obligations         String?   // texte brut DAPG — source d'extraction
+  observations        String?
+  othersData          Json?     @map("others_data")
+  statut              String    
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  deletedAt           DateTime? @map("deleted_at")
+
+  beneficiaire        Beneficiaire? @relation("DossierToBeneficiaire")
+  obligationsDossier  Obligation[]
+
+  @@map("dossiers")
+}
+
+// =====================
+// BENEFICIAIRE (couche technique)
+// =====================
+
+model Beneficiaire {
+  id        Int      @id @default(autoincrement())
+  dossierId Int      @unique @map("dossier_id")
+  statut    String   // ACTIF, SUSPENDU, REVOQUE, TERMINE
+  qrCode    String   @unique @map("qr_code")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  dossier              Dossier               @relation( "DossierToBeneficiaire", fields: [dossierId], references: [id])
+
+  obligations          Obligation[]
+  pointages            Pointage[]
+  demandesAutorisation DemandeAutorisation[]
+  justificatifs        Justificatif[]
+  alertes              Alerte[]
+  notifications        Notification[]
+  rapports             Rapport[]
+  affectationsBracelet AffectationBracelet[]
+  positionsGPS         PositionGPS[]
+  zones                Zone[]
+  reglesHoraires       RegleHoraire[]
+  incidentsBracelet    IncidentBracelet[]
+  historiquesStatut    HistoriqueStatut[]
+
+  @@map("beneficiaires")
+}
+
+// =====================
+// CATEGORIE OBLIGATION
+// =====================
+
+model CategorieObligation {
+  id          Int     @id @default(autoincrement())
+  nom         String  // POINTAGE, COUVRE_FEU, INTERDICTION_ZONE, SUIVI_MEDICAL
+  description String?
+
+  obligations Obligation[]
+
+  @@map("categories_obligations")
+}
+
+// =====================
+// OBLIGATION
+// =====================
+
+model Obligation {
+  id                  Int       @id @default(autoincrement())
+  beneficiaireId      Int       @map("beneficiaire_id")
+  dossierId           Int       @map("dossier_id")
+  categorieId         Int       @map("categorie_id")
+  description         String?   // texte brut extrait de Dossier.obligations
+  type                String?   // POINTAGE, COUVRE_FEU, INTERDICTION_ZONE...
+  frequence           String?   // QUOTIDIEN, HEBDOMADAIRE, MENSUEL...
+  jourSemaine         String?   @map("jour_semaine")
+  heure               DateTime? @db.Time
+  lieu                String?
+  metadata            Json?
+  statutStructuration String?   @map("statut_structuration") // NON_STRUCTUREE, A_VERIFIER, VALIDE
+  dateDebut           DateTime? @map("date_debut") @db.Date
+  dateFin             DateTime? @map("date_fin") @db.Date
+  statut              String?   // EN_COURS, RESPECTEE, NON_RESPECTEE, SUSPENDUE
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  beneficiaire        Beneficiaire        @relation(fields: [beneficiaireId], references: [id])
+  dossier             Dossier             @relation(fields: [dossierId], references: [id])
+  categorie           CategorieObligation @relation(fields: [categorieId], references: [id])
+  pointages           Pointage[]
+  reglesHoraires      RegleHoraire[]
+
+  @@map("obligations")
+}
+
+// =====================
+// POINTAGE
+// =====================
+
+model Pointage {
+  id             Int      @id @default(autoincrement())
+  beneficiaireId Int      @map("beneficiaire_id")
+  obligationId   Int      @map("obligation_id")
+  agentId        Int      @map("agent_id")
+  dateHeure      DateTime @map("date_heure")
+  lieu           String?
+  type           String   // QR_CODE, BIOMETRIE, VALIDATION_AGENT
+  statut         String   // VALIDE, REFUSE, ABSENT, ANOMALIE
+  commentaire    String?
+
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  obligation     Obligation   @relation(fields: [obligationId], references: [id])
+  agent          User         @relation(fields: [agentId], references: [id])
+
+  @@map("pointages")
+}
+
+// =====================
+// DEMANDE AUTORISATION
+// =====================
+
+model DemandeAutorisation {
+  id             Int       @id @default(autoincrement())
+  beneficiaireId Int       @map("beneficiaire_id")
+  type           String    // DEPLACEMENT, ABSENCE, AUTRE
+  motif          String?
+  dateDebut      DateTime  @map("date_debut")
+  dateFin        DateTime  @map("date_fin")
+  statut         String    // EN_ATTENTE, APPROUVEE, REFUSEE
+  traiteepar     Int?      @map("traitee_par")
+  dateTraitement DateTime? @map("date_traitement")
+  commentaire    String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  traitePar      User?        @relation(fields: [traiteepar], references: [id])
+
+  @@map("demandes_autorisation")
+}
+
+// =====================
+// JUSTIFICATIF
+// =====================
+
+model Justificatif {
+  id             Int       @id @default(autoincrement())
+  beneficiaireId Int       @map("beneficiaire_id")
+  type           String    // TRAVAIL, FORMATION, MEDICAL, AUTRE
+  fichierUrl     String?   @map("fichier_url")
+  statut         String    // EN_ATTENTE, VALIDE, REJETE
+  validePar      Int?      @map("valide_par")
+  dateValidation DateTime? @map("date_validation")
+  commentaire    String?
+
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  validateur     User?        @relation(fields: [validePar], references: [id])
+
+  @@map("justificatifs")
+}
+
+// =====================
+// ALERTE
+// =====================
+
+model Alerte {
+  id             Int      @id @default(autoincrement())
+  beneficiaireId Int      @map("beneficiaire_id")
+  type           String   // ABSENCE_POINTAGE, SORTIE_ZONE, RETRAIT_BRACELET, BATTERIE_FAIBLE, POWER_FAIL
+  niveau         String   // CRITIQUE, NORMALE
+  message        String
+  source         String   // SYSTEME, AGENT, BRACELET
+  statut         String   // OUVERTE, TRAITEE, IGNOREE
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  beneficiaire   Beneficiaire   @relation(fields: [beneficiaireId], references: [id])
+  notifications  Notification[]
+
+  @@map("alertes")
+}
+
+// =====================
+// NOTIFICATION
+// =====================
+
+model Notification {
+  id             Int       @id @default(autoincrement())
+  userId         Int?      @map("user_id")
+  beneficiaireId Int?      @map("beneficiaire_id")
+  alerteId       Int?      @map("alerte_id")
+  canal          String    // SMS, EMAIL, INTERFACE
+  message        String
+  statut         String    // ENVOYE, ECHEC, EN_ATTENTE
+  lu             Boolean   @default(false)
+  dateEnvoi      DateTime? @map("date_envoi")
+
+  user           User?         @relation(fields: [userId], references: [id])
+  beneficiaire   Beneficiaire? @relation(fields: [beneficiaireId], references: [id])
+  alerte         Alerte?       @relation(fields: [alerteId], references: [id])
+
+  @@map("notifications")
+}
+
+// =====================
+// RAPPORT
+// =====================
+
+model Rapport {
+  id             Int      @id @default(autoincrement())
+  beneficiaireId Int      @map("beneficiaire_id")
+  generepar      Int      @map("genere_par")
+  type           String   // MENSUEL, URGENCE, VISITE
+  fichierUrl     String?  @map("fichier_url")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  generePar      User         @relation(fields: [generepar], references: [id])
+
+  @@map("rapports")
+}
+
+// =====================
+// BRACELET
+// =====================
+
+model Bracelet {
+  id                 Int       @id @default(autoincrement())
+  codeImei           String    @unique @map("code_imei")       // = device_id payload IoT
+  identifiantPorteur String?   @map("identifiant_porteur")     // = user_id payload IoT (ex: "DET-2024-883")
+  numeroSim          String?   @map("numero_sim")
+  modele             String?
+  fabricant          String?
+  statut             String    // DISPONIBLE, AFFECTE, EN_PANNE, RETIRE
+  dateActivation     DateTime? @map("date_activation")
+
+  affectations       AffectationBracelet[]
+  positionsGPS       PositionGPS[]
+  incidents          IncidentBracelet[]
+
+  @@map("bracelets")
+}
+
+model AffectationBracelet {
+  id             Int       @id @default(autoincrement())
+  braceletId     Int       @map("bracelet_id")
+  beneficiaireId Int       @map("beneficiaire_id")
+  dateDebut      DateTime  @map("date_debut")
+  dateFin        DateTime? @map("date_fin")
+
+  bracelet       Bracelet     @relation(fields: [braceletId], references: [id])
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+
+  @@map("affectations_bracelets")
+}
+
+// =====================
+// POSITION GPS
+// =====================
+// ⚡ Activer TimescaleDB après migration :
+//    SELECT create_hypertable('positions_gps', 'date_heure');
+// Index composite déjà défini ci-dessous.
+
+model PositionGPS {
+  id             Int      @id @default(autoincrement())
+  braceletId     Int      @map("bracelet_id")
+  beneficiaireId Int      @map("beneficiaire_id")
+
+  // Bloc localisation
+  latitude       Decimal
+  longitude      Decimal
+  precision      Decimal?
+  presenceFlag   Boolean? @map("presence_flag") // bracelet en contact avec son boîtier
+  rssiDbm        Int?     @map("rssi_dbm")      // puissance signal RF
+
+  // Bloc santé
+  batterie       Int?                           // battery_pct %
+  powerSource    String?  @map("power_source")  // "battery" | "mains"
+
+  // Bloc alertes
+  strapStatus    Int?     @map("strap_status")    // 0 = intact | 1 = boucle coupée
+  caseTamper     Boolean? @map("case_tamper")
+  geofenceBreach Boolean? @map("geofence_breach")
+  powerLoss      Boolean? @map("power_loss")
+
+  // Résumé état — valeurs CDC : OK | TAMPER | ZONE_EXIT | LOW_BATTERY | POWER_FAIL
+  statutBracelet String?  @map("statut_bracelet")
+  heartbeat      Boolean?
+
+  // Note V1 : latitude/longitude = coordonnées fixes du domicile
+  // pas de vrai GPS avant V2
+  dateHeure      DateTime @map("date_heure")
+
+  bracelet       Bracelet     @relation(fields: [braceletId], references: [id])
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+
+  @@index([braceletId, dateHeure(sort: Desc)])
+  @@map("positions_gps")
+}
+
+// =====================
+// ZONE
+// =====================
+
+model Zone {
+  id             Int     @id @default(autoincrement())
+  beneficiaireId Int     @map("beneficiaire_id")
+  nom            String
+  type           String  // AUTORISEE, INTERDITE
+  geometrie      Json?   // → geometry PostGIS en production
+  rayon          Int?    // mètres — zones circulaires
+
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+
+  @@map("zones")
+}
+
+// =====================
+// REGLE HORAIRE
+// =====================
+
+model RegleHoraire {
+  id             Int      @id @default(autoincrement())
+  beneficiaireId Int      @map("beneficiaire_id")
+  obligationId   Int      @map("obligation_id")
+  jourSemaine    String   @map("jour_semaine")
+  heureDebut     DateTime @map("heure_debut") @db.Time
+  heureFin       DateTime @map("heure_fin") @db.Time
+  type           String   // PRESENCE_OBLIGATOIRE, COUVRE_FEU
+
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  obligation     Obligation   @relation(fields: [obligationId], references: [id])
+
+  @@map("regles_horaires")
+}
+
+// =====================
+// INCIDENT BRACELET
+// =====================
+
+model IncidentBracelet {
+  id             Int      @id @default(autoincrement())
+  beneficiaireId Int      @map("beneficiaire_id")
+  braceletId     Int      @map("bracelet_id")
+  type           String   // RETRAIT, PERTE_SIGNAL, BATTERIE_FAIBLE, ANOMALIE, POWER_FAIL
+  description    String?
+  dateHeure      DateTime @map("date_heure")
+  statut         String   // OUVERT, TRAITE, CLOS
+
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  bracelet       Bracelet     @relation(fields: [braceletId], references: [id])
+
+  @@map("incidents_bracelet")
+}
+
+// =====================
+// HISTORIQUE GLOBAL (AUDIT TRAIL)
+// =====================
+
+model HistoriqueAction {
+  id             Int      @id @default(autoincrement())
+  userId         Int      @map("user_id")
+  action         String   // CREATE, UPDATE, DELETE, LOGIN...
+  entite         String   // nom de la table concernée
+  entiteId       Int      @map("entite_id")
+  description    String?
+  ancienneValeur Json?    @map("ancienne_valeur")
+  nouvelleValeur Json?    @map("nouvelle_valeur")
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  dateAction     DateTime @default(now()) @map("date_action")
+
+  user           User @relation(fields: [userId], references: [id])
+
+  @@map("historique_actions")
+}
+
+// =====================
+// HISTORIQUE STATUT
+// =====================
+
+model HistoriqueStatut {
+  id             Int      @id @default(autoincrement())
+  beneficiaireId Int      @map("beneficiaire_id")
+  ancienStatut   String   @map("ancien_statut")
+  nouveauStatut  String   @map("nouveau_statut")
+  date           DateTime @default(now())
+
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+
+  @@map("historique_statuts")
+}
