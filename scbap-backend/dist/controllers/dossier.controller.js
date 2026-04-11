@@ -1,0 +1,103 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createDossierController = createDossierController;
+exports.getDossiersController = getDossiersController;
+exports.getDossierByIdController = getDossierByIdController;
+exports.updateDossierController = updateDossierController;
+exports.softDeleteDossierController = softDeleteDossierController;
+const errorHandler_1 = require("../errorHandler");
+const dossier_service_1 = require("../services/dossier.service");
+function parseDossierId(idParam) {
+    if (typeof idParam !== "string") {
+        throw new errorHandler_1.HttpError(400, "Identifiant de dossier invalide");
+    }
+    const id = Number(idParam);
+    if (!Number.isInteger(id) || id <= 0) {
+        throw new errorHandler_1.HttpError(400, "Identifiant de dossier invalide");
+    }
+    return id;
+}
+function parsePaginationParam(value, paramName, defaultValue) {
+    if (value === undefined) {
+        return defaultValue;
+    }
+    if (typeof value !== "string") {
+        throw new errorHandler_1.HttpError(400, `Le parametre "${paramName}" est invalide`);
+    }
+    const parsedValue = Number(value);
+    if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
+        throw new errorHandler_1.HttpError(400, `Le parametre "${paramName}" doit etre un entier positif`);
+    }
+    return parsedValue;
+}
+async function createDossierController(req, res, next) {
+    try {
+        const dossier = await (0, dossier_service_1.createDossier)(req.body);
+        res.status(201).json({
+            message: "Dossier cree avec succes",
+            data: dossier,
+        });
+    }
+    catch (error) {
+        next(error);
+        console.error("Erreur lors de la creation du dossier:", error);
+    }
+}
+async function getDossiersController(req, res, next) {
+    try {
+        const page = parsePaginationParam(req.query.page, "page", 1);
+        const limit = parsePaginationParam(req.query.limit, "limit", 10);
+        const dossiers = await (0, dossier_service_1.getDossiers)(page, limit);
+        res.status(200).json({
+            message: "Liste des dossiers recuperee avec succes",
+            data: dossiers,
+        });
+    }
+    catch (error) {
+        next(error);
+        console.error("Erreur lors de la recuperation des dossiers:", error);
+    }
+}
+async function getDossierByIdController(req, res, next) {
+    try {
+        const id = parseDossierId(req.params.id);
+        const dossier = await (0, dossier_service_1.getDossierById)(id);
+        res.status(200).json({
+            message: "Dossier recupere avec succes",
+            data: dossier,
+        });
+    }
+    catch (error) {
+        next(error);
+        console.error("Erreur lors de la recuperation du dossier:", error);
+    }
+}
+async function updateDossierController(req, res, next) {
+    try {
+        const id = parseDossierId(req.params.id);
+        const dossier = await (0, dossier_service_1.updateDossier)(id, req.body);
+        res.status(200).json({
+            message: "Dossier mis a jour avec succes",
+            data: dossier,
+        });
+    }
+    catch (error) {
+        next(error);
+        console.error("Erreur lors de la mise a jour du dossier:", error);
+    }
+}
+async function softDeleteDossierController(req, res, next) {
+    try {
+        const id = parseDossierId(req.params.id);
+        const dossier = await (0, dossier_service_1.softDeleteDossier)(id);
+        res.status(200).json({
+            message: "Dossier supprime logiquement avec succes",
+            data: dossier,
+        });
+    }
+    catch (error) {
+        next(error);
+        console.error("Erreur lors de la suppression logique du dossier:", error);
+    }
+}
+//# sourceMappingURL=dossier.controller.js.map

@@ -1,0 +1,55 @@
+import { z } from "zod";
+export declare const DossierSchema: z.ZodObject<{
+    numero_dossier: z.ZodString;
+    juridiction_id: z.ZodOptional<z.ZodNumber>;
+    prison_id: z.ZodOptional<z.ZodNumber>;
+    nom: z.ZodString;
+    prenom: z.ZodString;
+    date_naissance: z.ZodOptional<z.ZodString>;
+    lieu_naissance: z.ZodOptional<z.ZodString>;
+    nationalite: z.ZodOptional<z.ZodString>;
+    sexe: z.ZodOptional<z.ZodEnum<{
+        M: "M";
+        F: "F";
+    }>>;
+    profession: z.ZodOptional<z.ZodString>;
+    adresse: z.ZodOptional<z.ZodString>;
+    telephone_contact: z.ZodOptional<z.ZodString>;
+    infractions: z.ZodOptional<z.ZodString>;
+    numero_mandat_depot: z.ZodString;
+    date_mandat_depot: z.ZodOptional<z.ZodString>;
+    condamnation: z.ZodOptional<z.ZodString>;
+    date_fin_peine: z.ZodOptional<z.ZodString>;
+    duree_peine_mois: z.ZodOptional<z.ZodNumber>;
+    observations: z.ZodOptional<z.ZodString>;
+    obligations: z.ZodOptional<z.ZodString>;
+    others_data: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodAny>>;
+    statut: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+export declare const UpdateDossierSchema: z.ZodObject<{
+    numero_dossier: z.ZodOptional<z.ZodString>;
+    juridiction_id: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
+    prison_id: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
+    nom: z.ZodOptional<z.ZodString>;
+    prenom: z.ZodOptional<z.ZodString>;
+    date_naissance: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    lieu_naissance: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    nationalite: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    sexe: z.ZodOptional<z.ZodOptional<z.ZodEnum<{
+        M: "M";
+        F: "F";
+    }>>>;
+    profession: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    adresse: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    telephone_contact: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    infractions: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    numero_mandat_depot: z.ZodOptional<z.ZodString>;
+    date_mandat_depot: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    condamnation: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    date_fin_peine: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    duree_peine_mois: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
+    observations: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    obligations: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    others_data: z.ZodOptional<z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodAny>>>;
+    statut: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+}, z.core.$strip>;
