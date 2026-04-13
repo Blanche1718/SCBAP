@@ -7,7 +7,6 @@ const dossierRouter = (0, express_1.Router)();
 dossierRouter.get("/", dossier_controller_1.getDossiersController);
 dossierRouter.get("/:id", dossier_controller_1.getDossierByIdController);
 dossierRouter.get("/:dossierId/obligations", obligation_controller_1.getObligationsByDossierController);
-dossierRouter.post("/", dossier_controller_1.createDossierController);
 dossierRouter.post("/:dossierId/obligations", obligation_controller_1.createObligationController);
 dossierRouter.put("/:id", dossier_controller_1.updateDossierController);
 dossierRouter.delete("/:id", dossier_controller_1.softDeleteDossierController);

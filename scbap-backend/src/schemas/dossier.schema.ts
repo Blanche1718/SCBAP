@@ -2,14 +2,20 @@ import { z } from "zod";
 
 export const DossierSchema = z.object({
   numero_dossier: z.string(),
-  juridiction_id: z.number().optional(),
-  prison_id: z.number().optional(),
+  juridiction_id: z.preprocess(
+    (value) => (value === undefined || value === null ? undefined : String(value)),
+    z.string().optional(),
+  ),
+  prison_id: z.preprocess(
+    (value) => (value === undefined || value === null ? undefined : String(value)),
+    z.string().optional(),
+  ),
   nom: z.string(),
   prenom: z.string(),
   date_naissance: z.string().optional(),
   lieu_naissance: z.string().optional(),
   nationalite: z.string().optional(),
- sexe: z.enum(["M", "F"]).optional(),
+  sexe: z.enum(["M", "F"]).optional(),
   profession: z.string().optional(),
   adresse: z.string().optional(),
   telephone_contact: z.string().optional(),

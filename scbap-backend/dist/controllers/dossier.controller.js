@@ -1,6 +1,5 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createDossierController = createDossierController;
 exports.getDossiersController = getDossiersController;
 exports.getDossierByIdController = getDossierByIdController;
 exports.updateDossierController = updateDossierController;
@@ -29,19 +28,6 @@ function parsePaginationParam(value, paramName, defaultValue) {
         throw new errorHandler_1.HttpError(400, `Le parametre "${paramName}" doit etre un entier positif`);
     }
     return parsedValue;
-}
-async function createDossierController(req, res, next) {
-    try {
-        const dossier = await (0, dossier_service_1.createDossier)(req.body);
-        res.status(201).json({
-            message: "Dossier cree avec succes",
-            data: dossier,
-        });
-    }
-    catch (error) {
-        next(error);
-        console.error("Erreur lors de la creation du dossier:", error);
-    }
 }
 async function getDossiersController(req, res, next) {
     try {

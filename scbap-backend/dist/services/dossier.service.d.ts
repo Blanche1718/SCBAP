@@ -1,52 +1,14 @@
-import { DossierSchema, UpdateDossierSchema } from "../schemas/dossier.schema";
+import { UpdateDossierSchema } from "../schemas/dossier.schema";
 import { z } from "zod";
-type CreateDossierInput = z.infer<typeof DossierSchema>;
 type UpdateDossierInput = z.infer<typeof UpdateDossierSchema>;
-export declare function createDossier(input: CreateDossierInput): Promise<{
-    dossier: {
-        nom: string;
-        id: number;
-        obligations: string | null;
-        prenom: string;
-        nationalite: string | null;
-        sexe: string | null;
-        profession: string | null;
-        adresse: string | null;
-        infractions: string | null;
-        condamnation: string | null;
-        observations: string | null;
-        statut: string | null;
-        numeroDossier: string;
-        juridictionId: number | null;
-        prisonId: number | null;
-        dateNaissance: Date | null;
-        lieuNaissance: string | null;
-        telephoneContact: string | null;
-        numeroMandatDepot: string;
-        dateMandatDepot: Date | null;
-        dateFinPeine: Date | null;
-        dureePeineMois: number | null;
-        othersData: import("@prisma/client/runtime/client").JsonValue | null;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-    };
-    beneficiaire: {
-        id: number;
-        statut: string;
-        createdAt: Date;
-        qrCode: string;
-        dossierId: number;
-    };
-}>;
 export declare function getDossiers(page?: number, limit?: number): Promise<{
     data: ({
         beneficiaire: {
             id: number;
             statut: string;
             createdAt: Date;
-            qrCode: string;
             dossierId: number;
+            qrCode: string;
         } | null;
     } & {
         nom: string;
@@ -88,8 +50,8 @@ export declare function getDossierById(id: number): Promise<{
         id: number;
         statut: string;
         createdAt: Date;
-        qrCode: string;
         dossierId: number;
+        qrCode: string;
     } | null;
 } & {
     nom: string;
@@ -124,8 +86,8 @@ export declare function updateDossier(id: number, input: UpdateDossierInput): Pr
         id: number;
         statut: string;
         createdAt: Date;
-        qrCode: string;
         dossierId: number;
+        qrCode: string;
     } | null;
 } & {
     nom: string;
@@ -160,8 +122,8 @@ export declare function softDeleteDossier(id: number): Promise<{
         id: number;
         statut: string;
         createdAt: Date;
-        qrCode: string;
         dossierId: number;
+        qrCode: string;
     } | null;
 } & {
     nom: string;

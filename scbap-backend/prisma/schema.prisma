@@ -11,10 +11,10 @@ datasource db {
 // =====================
 
 model Structure {
-  id          Int      @id @default(autoincrement())
+  id          String @id @default(uuid())
   nom         String
   code        String   @unique
-  type        String   // PRISON, COMMISSARIAT, SPIP, TRIBUNAL, MAIRIE
+  type        String   // PRISON, COMMISSARIAT, SPIP, TRIBUNAL, MAIRIE...
   juridiction String?
   createdAt   DateTime @default(now()) @map("created_at")
 
@@ -28,7 +28,7 @@ model Structure {
 // =====================
 
 model Role {
-  id  Int    @id @default(autoincrement())
+  id  String @id @default(uuid())
   nom String
 
   users User[]
@@ -37,14 +37,14 @@ model Role {
 }
 
 model User {
-  id          Int       @id @default(autoincrement())
+  id          String @id @default(uuid())
   nom         String
   prenom      String
   email       String    @unique
   telephone   String?
   motDePasse  String    @map("mot_de_passe")
-  roleId      Int       @map("role_id")
-  structureId Int       @map("structure_id")
+  roleId String       @map("role_id")
+  structureId String       @map("structure_id")
   statut      String    // ACTIF, INACTIF, SUSPENDU
   createdAt   DateTime  @default(now()) @map("created_at")
 
@@ -57,6 +57,7 @@ model User {
   rapports             Rapport[]
   notifications        Notification[]
   historiquesActions   HistoriqueAction[]
+  obligationsModifiees Obligation[] @relation("ObligationModifiePar")
 
   @@map("users")
 }
@@ -66,10 +67,10 @@ model User {
 // =====================
 
 model Dossier {
-  id                  Int       @id @default(autoincrement())
+  id                  String @id @default(uuid())
   numeroDossier       String    @unique @map("numero_dossier")
-  juridictionId       Int?      @map("juridiction_id")
-  prisonId            Int?      @map("prison_id")
+  juridictionId String?      @map("juridiction_id")
+  prisonId String?      @map("prison_id")
   nom                 String
   prenom              String
   dateNaissance       DateTime? @map("date_naissance") @db.Date
@@ -104,8 +105,8 @@ model Dossier {
 // =====================
 
 model Beneficiaire {
-  id        Int      @id @default(autoincrement())
-  dossierId Int      @unique @map("dossier_id")
+  id        String @id @default(uuid())
+  dossierId String      @unique @map("dossier_id")
   statut    String   // ACTIF, SUSPENDU, REVOQUE, TERMINE
   qrCode    String   @unique @map("qr_code")
   createdAt DateTime @default(now()) @map("created_at")
@@ -134,7 +135,7 @@ model Beneficiaire {
 // =====================
 
 model CategorieObligation {
-  id          Int     @id @default(autoincrement())
+  id          String @id @default(uuid())
   nom         String  // POINTAGE, COUVRE_FEU, INTERDICTION_ZONE, SUIVI_MEDICAL
   description String?
 
@@ -148,10 +149,10 @@ model CategorieObligation {
 // =====================
 
 model Obligation {
-  id                  Int       @id @default(autoincrement())
-  beneficiaireId      Int       @map("beneficiaire_id")
-  dossierId           Int       @map("dossier_id")
-  categorieId         Int       @map("categorie_id")
+  id                  String @id @default(uuid())
+  beneficiaireId String       @map("beneficiaire_id")
+  dossierId String       @map("dossier_id")
+  categorieId String       @map("categorie_id")
   description         String?   // texte brut extrait de Dossier.obligations
   type                String?   // POINTAGE, COUVRE_FEU, INTERDICTION_ZONE...
   frequence           String?   // QUOTIDIEN, HEBDOMADAIRE, MENSUEL...
@@ -163,11 +164,16 @@ model Obligation {
   dateDebut           DateTime? @map("date_debut") @db.Date
   dateFin             DateTime? @map("date_fin") @db.Date
   statut              String?   // EN_COURS, RESPECTEE, NON_RESPECTEE, SUSPENDUE
+  raisonModification  String?   @map("raison_modification")
+  raisonAutre         String?   @map("raison_autre")
+  modifieLe           DateTime? @map("modifie_le")
+  modifiePar          String?   @map("modifie_par")
   createdAt           DateTime  @default(now()) @map("created_at")
 
   beneficiaire        Beneficiaire        @relation(fields: [beneficiaireId], references: [id])
   dossier             Dossier             @relation(fields: [dossierId], references: [id])
   categorie           CategorieObligation @relation(fields: [categorieId], references: [id])
+  modifieParUser      User?               @relation("ObligationModifiePar", fields: [modifiePar], references: [id])
   pointages           Pointage[]
   reglesHoraires      RegleHoraire[]
 
@@ -179,10 +185,10 @@ model Obligation {
 // =====================
 
 model Pointage {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
-  obligationId   Int      @map("obligation_id")
-  agentId        Int      @map("agent_id")
+  id             String @id @default(uuid())
+  beneficiaireId String      @map("beneficiaire_id")
+  obligationId String      @map("obligation_id")
+  agentId String      @map("agent_id")
   dateHeure      DateTime @map("date_heure")
   lieu           String?
   type           String   // QR_CODE, BIOMETRIE, VALIDATION_AGENT
@@ -201,14 +207,14 @@ model Pointage {
 // =====================
 
 model DemandeAutorisation {
-  id             Int       @id @default(autoincrement())
-  beneficiaireId Int       @map("beneficiaire_id")
+  id             String @id @default(uuid())
+  beneficiaireId String       @map("beneficiaire_id")
   type           String    // DEPLACEMENT, ABSENCE, AUTRE
   motif          String?
   dateDebut      DateTime  @map("date_debut")
   dateFin        DateTime  @map("date_fin")
   statut         String    // EN_ATTENTE, APPROUVEE, REFUSEE
-  traiteepar     Int?      @map("traitee_par")
+  traiteepar     String?   @map("traitee_par")
   dateTraitement DateTime? @map("date_traitement")
   commentaire    String?
   createdAt      DateTime  @default(now()) @map("created_at")
@@ -224,12 +230,12 @@ model DemandeAutorisation {
 // =====================
 
 model Justificatif {
-  id             Int       @id @default(autoincrement())
-  beneficiaireId Int       @map("beneficiaire_id")
+  id             String @id @default(uuid())
+  beneficiaireId String       @map("beneficiaire_id")
   type           String    // TRAVAIL, FORMATION, MEDICAL, AUTRE
   fichierUrl     String?   @map("fichier_url")
   statut         String    // EN_ATTENTE, VALIDE, REJETE
-  validePar      Int?      @map("valide_par")
+  validePar      String?   @map("valide_par")
   dateValidation DateTime? @map("date_validation")
   commentaire    String?
 
@@ -244,8 +250,8 @@ model Justificatif {
 // =====================
 
 model Alerte {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
+  id             String @id @default(uuid())
+  beneficiaireId String      @map("beneficiaire_id")
   type           String   // ABSENCE_POINTAGE, SORTIE_ZONE, RETRAIT_BRACELET, BATTERIE_FAIBLE, POWER_FAIL
   niveau         String   // CRITIQUE, NORMALE
   message        String
@@ -264,10 +270,10 @@ model Alerte {
 // =====================
 
 model Notification {
-  id             Int       @id @default(autoincrement())
-  userId         Int?      @map("user_id")
-  beneficiaireId Int?      @map("beneficiaire_id")
-  alerteId       Int?      @map("alerte_id")
+  id             String @id @default(uuid())
+  userId String?      @map("user_id")
+  beneficiaireId String?      @map("beneficiaire_id")
+  alerteId String?      @map("alerte_id")
   canal          String    // SMS, EMAIL, INTERFACE
   message        String
   statut         String    // ENVOYE, ECHEC, EN_ATTENTE
@@ -286,9 +292,9 @@ model Notification {
 // =====================
 
 model Rapport {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
-  generepar      Int      @map("genere_par")
+  id             String @id @default(uuid())
+  beneficiaireId String      @map("beneficiaire_id")
+  generepar      String   @map("genere_par")
   type           String   // MENSUEL, URGENCE, VISITE
   fichierUrl     String?  @map("fichier_url")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -304,7 +310,7 @@ model Rapport {
 // =====================
 
 model Bracelet {
-  id                 Int       @id @default(autoincrement())
+  id                 String @id @default(uuid())
   codeImei           String    @unique @map("code_imei")       // = device_id payload IoT
   identifiantPorteur String?   @map("identifiant_porteur")     // = user_id payload IoT (ex: "DET-2024-883")
   numeroSim          String?   @map("numero_sim")
@@ -321,9 +327,9 @@ model Bracelet {
 }
 
 model AffectationBracelet {
-  id             Int       @id @default(autoincrement())
-  braceletId     Int       @map("bracelet_id")
-  beneficiaireId Int       @map("beneficiaire_id")
+  id             String @id @default(uuid())
+  braceletId String       @map("bracelet_id")
+  beneficiaireId String       @map("beneficiaire_id")
   dateDebut      DateTime  @map("date_debut")
   dateFin        DateTime? @map("date_fin")
 
@@ -341,9 +347,9 @@ model AffectationBracelet {
 // Index composite déjà défini ci-dessous.
 
 model PositionGPS {
-  id             Int      @id @default(autoincrement())
-  braceletId     Int      @map("bracelet_id")
-  beneficiaireId Int      @map("beneficiaire_id")
+  id             String @id @default(uuid())
+  braceletId String      @map("bracelet_id")
+  beneficiaireId String      @map("beneficiaire_id")
 
   // Bloc localisation
   latitude       Decimal
@@ -382,8 +388,8 @@ model PositionGPS {
 // =====================
 
 model Zone {
-  id             Int     @id @default(autoincrement())
-  beneficiaireId Int     @map("beneficiaire_id")
+  id             String @id @default(uuid())
+  beneficiaireId String     @map("beneficiaire_id")
   nom            String
   type           String  // AUTORISEE, INTERDITE
   geometrie      Json?   // → geometry PostGIS en production
@@ -399,9 +405,9 @@ model Zone {
 // =====================
 
 model RegleHoraire {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
-  obligationId   Int      @map("obligation_id")
+  id             String @id @default(uuid())
+  beneficiaireId String      @map("beneficiaire_id")
+  obligationId String      @map("obligation_id")
   jourSemaine    String   @map("jour_semaine")
   heureDebut     DateTime @map("heure_debut") @db.Time
   heureFin       DateTime @map("heure_fin") @db.Time
@@ -418,9 +424,9 @@ model RegleHoraire {
 // =====================
 
 model IncidentBracelet {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
-  braceletId     Int      @map("bracelet_id")
+  id             String @id @default(uuid())
+  beneficiaireId String      @map("beneficiaire_id")
+  braceletId String      @map("bracelet_id")
   type           String   // RETRAIT, PERTE_SIGNAL, BATTERIE_FAIBLE, ANOMALIE, POWER_FAIL
   description    String?
   dateHeure      DateTime @map("date_heure")
@@ -437,11 +443,11 @@ model IncidentBracelet {
 // =====================
 
 model HistoriqueAction {
-  id             Int      @id @default(autoincrement())
-  userId         Int      @map("user_id")
+  id             String @id @default(uuid())
+  userId String      @map("user_id")
   action         String   // CREATE, UPDATE, DELETE, LOGIN...
   entite         String   // nom de la table concernée
-  entiteId       Int      @map("entite_id")
+  entiteId String      @map("entite_id")
   description    String?
   ancienneValeur Json?    @map("ancienne_valeur")
   nouvelleValeur Json?    @map("nouvelle_valeur")
@@ -459,8 +465,8 @@ model HistoriqueAction {
 // =====================
 
 model HistoriqueStatut {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
+  id             String @id @default(uuid())
+  beneficiaireId String      @map("beneficiaire_id")
   ancienStatut   String   @map("ancien_statut")
   nouveauStatut  String   @map("nouveau_statut")
   date           DateTime @default(now())

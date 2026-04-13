@@ -51,7 +51,7 @@ function removeUndefinedValues<T extends Record<string, unknown>>(data: T) {
 }
 
 // fonction pour s'assurer que la catégorie d'obligation existe
-async function ensureCategorieExists(categorieId: number) {
+async function ensureCategorieExists(categorieId: string) {
   const categorie = await prisma.categorieObligation.findUnique({
     where: { id: categorieId },
   });
@@ -62,7 +62,7 @@ async function ensureCategorieExists(categorieId: number) {
 }
 // fonction pour récupérer un dossier avec son bénéficiaire ou lancer une erreur si le dossier n'existe pas ou n'a pas de bénéficiaire
 async function getDossierWithBeneficiaireOrThrow(
-  dossierId: number,
+  dossierId: string,
 ): Promise<DossierWithBeneficiaire> {
   const dossier = await prisma.dossier.findFirstOrThrow({
     where: {
@@ -84,8 +84,8 @@ async function getDossierWithBeneficiaireOrThrow(
 function buildObligationCreateData(
   data: CreateObligationInput,
   options: {
-    dossierId: number;
-    beneficiaireId: number;
+    dossierId: string;
+    beneficiaireId: string;
     statutStructuration: string;
   },
 ): Prisma.ObligationUncheckedCreateInput {
@@ -104,6 +104,9 @@ function buildObligationCreateData(
     dateDebut: parseDate(data.date_debut),
     dateFin: parseDate(data.date_fin),
     statut: data.statut,
+    raisonModification: data.raison_modification,
+    raisonAutre: data.raison_autre,
+    modifiePar: data.modifie_par,
   };
 }
 // Fonction pour construire les données de mise à jour d'une obligation en filtrant les propriétés undefined
@@ -123,6 +126,9 @@ function buildObligationUpdateData(
     dateDebut: data.date_debut !== undefined ? parseDate(data.date_debut) : undefined,
     dateFin: data.date_fin !== undefined ? parseDate(data.date_fin) : undefined,
     statut: data.statut,
+    raisonModification: data.raison_modification,
+    raisonAutre: data.raison_autre,
+    modifiePar: data.modifie_par,
   };
 
   return removeUndefinedValues(
@@ -131,7 +137,7 @@ function buildObligationUpdateData(
 }
 
 // Fonction pour récupérer les obligations d'un dossier
-export async function getObligationsByDossier(dossierId: number) {
+export async function getObligationsByDossier(dossierId: string) {
   await getDossierWithBeneficiaireOrThrow(dossierId);
 
   return prisma.obligation.findMany({
@@ -149,7 +155,7 @@ export async function getObligationsByDossier(dossierId: number) {
   });
 }
 // Fonction pour récupérer une obligation par son id
-export async function getObligationById(id: number) {
+export async function getObligationById(id: string) {
   return prisma.obligation.findUniqueOrThrow({
     where: { id },
     include: {
@@ -160,7 +166,7 @@ export async function getObligationById(id: number) {
   });
 }
 // Fonction pour créer une obligation
-export async function createObligation(dossierId: number, input: CreateObligationInput) {
+export async function createObligation(dossierId: string, input: CreateObligationInput) {
   const data = CreateObligationSchema.parse(input);
   const dossier = await getDossierWithBeneficiaireOrThrow(dossierId);
 
@@ -180,7 +186,7 @@ export async function createObligation(dossierId: number, input: CreateObligatio
   });
 }
 // Fonctyion pour mettre à jour une obligation
-export async function updateObligation(id: number, input: UpdateObligationInput) {
+export async function updateObligation(id: string, input: UpdateObligationInput) {
   const data = UpdateObligationSchema.parse(input);
 
   await prisma.obligation.findUniqueOrThrow({
@@ -191,9 +197,18 @@ export async function updateObligation(id: number, input: UpdateObligationInput)
     await ensureCategorieExists(data.categorie_id);
   }
 
+  const updateData = buildObligationUpdateData(data);
+  const shouldValidate =
+    data.statut_structuration === undefined &&
+    (data.raison_modification !== undefined || data.raison_autre !== undefined);
+
   return prisma.obligation.update({
     where: { id },
-    data: buildObligationUpdateData(data),
+    data: {
+      ...updateData,
+      statutStructuration: shouldValidate ? "VALIDE" : updateData.statutStructuration,
+      modifieLe: new Date(),
+    },
     include: {
       beneficiaire: true,
       categorie: true,
@@ -203,7 +218,7 @@ export async function updateObligation(id: number, input: UpdateObligationInput)
 }
 // Fonction pour valider une obligation
 export async function validateObligation(
-  id: number,
+  id: string,
   input: ValidateObligationInput,
 ) {
   const data = ValidateObligationSchema.parse(input);
@@ -221,6 +236,7 @@ export async function validateObligation(
     data: {
       ...buildObligationUpdateData(data),
       statutStructuration: "VALIDE",
+      modifieLe: new Date(),
     },
     include: {
       beneficiaire: true,

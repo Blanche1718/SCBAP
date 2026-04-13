@@ -18,11 +18,11 @@ export declare function getCategorieObligationById(id: number): Promise<{
         id: number;
         statut: string | null;
         createdAt: Date;
-        dossierId: number;
         frequence: string | null;
         heure: Date | null;
         lieu: string | null;
         metadata: import("@prisma/client/runtime/client").JsonValue | null;
+        dossierId: number;
         categorieId: number;
         jourSemaine: string | null;
         statutStructuration: string | null;

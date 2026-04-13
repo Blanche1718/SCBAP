@@ -16,10 +16,25 @@ export const DEFAULT_CATEGORIES_OBLIGATION = [
     nom: "POINTAGE",
     description: "Obligation de se presenter a une structure a une frequence definie.",
   },
- 
+  {
+    nom: "COUVRE_FEU",
+    description: "Restriction horaire de presence obligatoire au domicile.",
+  },
+  {
+    nom: "INTERDICTION_ZONE",
+    description: "Interdiction d'acceder a une zone specifique.",
+  },
+  {
+    nom: "SUIVI_MEDICAL",
+    description: "Obligation de suivi medical regulier.",
+  },
+  {
+    nom: "OBLIGATION_TRAVAIL",
+    description: "Obligation d'activite professionnelle ou de formation.",
+  },
 ];
 
-async function ensureCategoryNameAvailable(nom: string, excludeId?: number) {
+async function ensureCategoryNameAvailable(nom: string, excludeId?: string) {
   const existingCategory = await prisma.categorieObligation.findFirst({
     where: {
       nom: {
@@ -50,7 +65,7 @@ export async function getCategoriesObligation() {
   });
 }
 
-export async function getCategorieObligationById(id: number) {
+export async function getCategorieObligationById(id: string) {
   return prisma.categorieObligation.findUniqueOrThrow({
     where: { id },
     include: {
@@ -72,7 +87,7 @@ export async function createCategorieObligation(
 }
 
 export async function updateCategorieObligation(
-  id: number,
+  id: string,
   input: UpdateCategorieObligationInput,
 ) {
   const data = UpdateCategorieObligationSchema.parse(input);
@@ -91,7 +106,7 @@ export async function updateCategorieObligation(
   });
 }
 
-export async function deleteCategorieObligation(id: number) {
+export async function deleteCategorieObligation(id: string) {
   await prisma.categorieObligation.findUniqueOrThrow({
     where: { id },
   });
@@ -109,11 +124,11 @@ export async function seedCategoriesObligation() {
   });
 
   const existingNames = new Set(
-    existingCategories.map((category) => category.nom.toLowerCase()),
+    existingCategories.map((category: { nom: string }) => category.nom.toLowerCase()),
   );
 
   const categoriesToCreate = DEFAULT_CATEGORIES_OBLIGATION.filter(
-    (category) => !existingNames.has(category.nom.toLowerCase()),
+    (category: { nom: string }) => !existingNames.has(category.nom.toLowerCase()),
   );
 
   if (categoriesToCreate.length === 0) {

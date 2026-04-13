@@ -37,8 +37,8 @@ export declare function getObligationsByDossier(dossierId: number): Promise<({
         id: number;
         statut: string;
         createdAt: Date;
-        qrCode: string;
         dossierId: number;
+        qrCode: string;
     };
     categorie: {
         nom: string;
@@ -51,11 +51,11 @@ export declare function getObligationsByDossier(dossierId: number): Promise<({
     id: number;
     statut: string | null;
     createdAt: Date;
-    dossierId: number;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
+    dossierId: number;
     categorieId: number;
     jourSemaine: string | null;
     statutStructuration: string | null;
@@ -96,8 +96,8 @@ export declare function getObligationById(id: number): Promise<{
         id: number;
         statut: string;
         createdAt: Date;
-        qrCode: string;
         dossierId: number;
+        qrCode: string;
     };
     categorie: {
         nom: string;
@@ -110,11 +110,11 @@ export declare function getObligationById(id: number): Promise<{
     id: number;
     statut: string | null;
     createdAt: Date;
-    dossierId: number;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
+    dossierId: number;
     categorieId: number;
     jourSemaine: string | null;
     statutStructuration: string | null;
@@ -155,8 +155,8 @@ export declare function createObligation(dossierId: number, input: CreateObligat
         id: number;
         statut: string;
         createdAt: Date;
-        qrCode: string;
         dossierId: number;
+        qrCode: string;
     };
     categorie: {
         nom: string;
@@ -169,11 +169,11 @@ export declare function createObligation(dossierId: number, input: CreateObligat
     id: number;
     statut: string | null;
     createdAt: Date;
-    dossierId: number;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
+    dossierId: number;
     categorieId: number;
     jourSemaine: string | null;
     statutStructuration: string | null;
@@ -214,8 +214,8 @@ export declare function updateObligation(id: number, input: UpdateObligationInpu
         id: number;
         statut: string;
         createdAt: Date;
-        qrCode: string;
         dossierId: number;
+        qrCode: string;
     };
     categorie: {
         nom: string;
@@ -228,11 +228,11 @@ export declare function updateObligation(id: number, input: UpdateObligationInpu
     id: number;
     statut: string | null;
     createdAt: Date;
-    dossierId: number;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
+    dossierId: number;
     categorieId: number;
     jourSemaine: string | null;
     statutStructuration: string | null;
@@ -273,8 +273,8 @@ export declare function validateObligation(id: number, input: ValidateObligation
         id: number;
         statut: string;
         createdAt: Date;
-        qrCode: string;
         dossierId: number;
+        qrCode: string;
     };
     categorie: {
         nom: string;
@@ -287,11 +287,11 @@ export declare function validateObligation(id: number, input: ValidateObligation
     id: number;
     statut: string | null;
     createdAt: Date;
-    dossierId: number;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
+    dossierId: number;
     categorieId: number;
     jourSemaine: string | null;
     statutStructuration: string | null;

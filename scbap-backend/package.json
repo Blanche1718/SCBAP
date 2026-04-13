@@ -6,13 +6,21 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "seed:categories-obligations": "ts-node src/scripts/seed-categories-obligations.ts"
+    "seed:categories-obligations": "ts-node src/scripts/seed-categories-obligations.ts",
+    "seed:dossiers": "ts-node src/scripts/seed-dossiers.ts",
+    "seed:dossiers:reset": "RESET_SEED=1 ts-node src/scripts/seed-dossiers.ts",
+    "seed:dossiers:reset:all": "RESET_ALL=1 ts-node src/scripts/seed-dossiers.ts",
+    "seed:pointages": "ts-node src/scripts/seed-pointages.ts",
+    "seed:pointages:reset": "RESET_SEED=1 ts-node src/scripts/seed-pointages.ts",
+    "seed:alertes": "ts-node src/scripts/seed-alertes.ts",
+    "seed:alertes:reset": "RESET_SEED=1 ts-node src/scripts/seed-alertes.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.1",
     "nodemon": "^3.1.14",
@@ -24,6 +32,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.6.0",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.0",
     "express": "^5.2.1",
     "pg": "^8.20.0",

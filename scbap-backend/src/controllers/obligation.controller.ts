@@ -8,18 +8,15 @@ import {
   validateObligation,
 } from "../services/obligation.service";
 
-function parseNumericId(value: unknown, label: string) {
-  if (typeof value !== "string") {
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseUuid(value: unknown, label: string) {
+  if (typeof value !== "string" || !UUID_REGEX.test(value)) {
     throw new HttpError(400, `Identifiant de ${label} invalide`);
   }
 
-  const id = Number(value);
-
-  if (!Number.isInteger(id) || id <= 0) {
-    throw new HttpError(400, `Identifiant de ${label} invalide`);
-  }
-
-  return id;
+  return value;
 }
 
 export async function getObligationsByDossierController(
@@ -28,7 +25,7 @@ export async function getObligationsByDossierController(
   next: NextFunction,
 ) {
   try {
-    const dossierId = parseNumericId(req.params.dossierId, "dossier");
+    const dossierId = parseUuid(req.params.dossierId, "dossier");
     const obligations = await getObligationsByDossier(dossierId);
 
     res.status(200).json({
@@ -46,7 +43,7 @@ export async function createObligationController(
   next: NextFunction,
 ) {
   try {
-    const dossierId = parseNumericId(req.params.dossierId, "dossier");
+    const dossierId = parseUuid(req.params.dossierId, "dossier");
     const obligation = await createObligation(dossierId, req.body);
 
     res.status(201).json({
@@ -64,7 +61,7 @@ export async function getObligationByIdController(
   next: NextFunction,
 ) {
   try {
-    const id = parseNumericId(req.params.id, "obligation");
+    const id = parseUuid(req.params.id, "obligation");
     const obligation = await getObligationById(id);
 
     res.status(200).json({
@@ -82,7 +79,7 @@ export async function updateObligationController(
   next: NextFunction,
 ) {
   try {
-    const id = parseNumericId(req.params.id, "obligation");
+    const id = parseUuid(req.params.id, "obligation");
     const obligation = await updateObligation(id, req.body);
 
     res.status(200).json({
@@ -100,7 +97,7 @@ export async function validateObligationController(
   next: NextFunction,
 ) {
   try {
-    const id = parseNumericId(req.params.id, "obligation");
+    const id = parseUuid(req.params.id, "obligation");
     const obligation = await validateObligation(id, req.body);
 
     res.status(200).json({

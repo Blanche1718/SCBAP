@@ -8,18 +8,15 @@ import {
   updateCategorieObligation,
 } from "../services/categorie-obligation.service";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function parseCategoryId(value: unknown) {
-  if (typeof value !== "string") {
+  if (typeof value !== "string" || !UUID_REGEX.test(value)) {
     throw new HttpError(400, "Identifiant de categorie invalide");
   }
 
-  const id = Number(value);
-
-  if (!Number.isInteger(id) || id <= 0) {
-    throw new HttpError(400, "Identifiant de categorie invalide");
-  }
-
-  return id;
+  return value;
 }
 
 export async function getCategoriesObligationController(

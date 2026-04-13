@@ -1,25 +1,21 @@
 import type { NextFunction, Request, Response } from "express";
 import { HttpError } from "../errorHandler";
 import {
-  createDossier,
   getDossierById,
   getDossiers,
   softDeleteDossier,
   updateDossier,
 } from "../services/dossier.service";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function parseDossierId(idParam: string | string[] | undefined) {
-  if (typeof idParam !== "string") {
+  if (typeof idParam !== "string" || !UUID_REGEX.test(idParam)) {
     throw new HttpError(400, "Identifiant de dossier invalide");
   }
 
-  const id = Number(idParam);
-
-  if (!Number.isInteger(id) || id <= 0) {
-    throw new HttpError(400, "Identifiant de dossier invalide");
-  }
-
-  return id;
+  return idParam;
 }
 
 function parsePaginationParam(
@@ -45,25 +41,6 @@ function parsePaginationParam(
   }
 
   return parsedValue;
-}
-
-
-export async function createDossierController(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    const dossier = await createDossier(req.body);
-
-    res.status(201).json({
-      message: "Dossier cree avec succes",
-      data: dossier,
-    });
-  } catch (error) {
-    next(error);
-    console.error("Erreur lors de la creation du dossier:", error);
-  }
 }
 
 export async function getDossiersController(
