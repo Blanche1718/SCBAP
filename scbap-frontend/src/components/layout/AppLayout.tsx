@@ -75,6 +75,7 @@ export default function AppLayout() {
 
         {/* Bouton de fermeture (mobile uniquement) */}
         <button
+          title="Fermer la barre latérale"
           className="absolute top-4 right-4 p-2 text-white/50 hover:text-white md:hidden"
           onClick={() => setIsSidebarOpen(false)}
         >
@@ -138,7 +139,7 @@ export default function AppLayout() {
               <p className="text-white text-xs font-semibold truncate">Agent Pénitentiaire</p>
               <p className="text-white/40 text-xs truncate">SPIP Cotonou</p>
             </div>
-            <button className="text-white/30 hover:text-white/70 transition-colors">
+            <button className="text-white/30 hover:text-white/70 transition-colors" title="Se déconnecter">
               <LogOut size={14} />
             </button>
           </div>
@@ -154,6 +155,7 @@ export default function AppLayout() {
             <span className="font-bold text-primary tracking-tight">SCBAP</span>
           </div>
           <button
+            title="Ouvrir la barre latérale"
             onClick={() => setIsSidebarOpen(true)}
             className="p-2 text-on-surface-variant hover:bg-surface-low rounded-md"
           >

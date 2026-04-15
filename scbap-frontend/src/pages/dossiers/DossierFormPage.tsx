@@ -94,7 +94,7 @@ export default function DossierFormPage() {
           <InputField label="Prénom" name="prenom" value={formData.prenom} onChange={handleChange} required />
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Sexe</label>
-            <select name="sexe" value={formData.sexe} onChange={handleChange} className="w-full px-3 py-2 rounded-md border border-outline-variant bg-surface text-sm">
+            <select name="sexe" value={formData.sexe} onChange={handleChange} title="Sexe" className="w-full px-3 py-2 rounded-md border border-outline-variant bg-surface text-sm">
               <option value="M">Masculin</option>
               <option value="F">Féminin</option>
             </select>
@@ -113,7 +113,7 @@ export default function DossierFormPage() {
         <FormSection title="Notes" icon={FileText}>
           <div className="col-span-full space-y-1.5">
             <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Observations</label>
-            <textarea name="observations" value={formData.observations || ""} onChange={handleChange} rows={3} className="w-full px-3 py-2 rounded-md border border-outline-variant bg-surface text-sm" />
+            <textarea name="observations" value={formData.observations || ""} onChange={handleChange} rows={3} title="Observations" className="w-full px-3 py-2 rounded-md border border-outline-variant bg-surface text-sm" />
           </div>
         </FormSection>
 

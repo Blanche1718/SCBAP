@@ -29,7 +29,7 @@ export async function syncDapgLiberationConditionnelle(dapgId: string | number) 
     await prisma.beneficiaire.create({
       data: {
         dossierId: dossier.id,
-        statut: "ACTIF",
+        statut: "A_CONFIGURER",
         qrCode: `BEN-${dossier.numeroDossier}-${randomUUID().slice(0, 8)}`,
       },
     });
@@ -68,7 +68,7 @@ async function syncPayload(payload: Awaited<ReturnType<typeof getDapgLiberationC
     await prisma.beneficiaire.create({
       data: {
         dossierId: dossier.id,
-        statut: "ACTIF",
+        statut: "A_CONFIGURER",
         qrCode: `BEN-${dossier.numeroDossier}-${randomUUID().slice(0, 8)}`,
       },
     });
@@ -87,11 +87,11 @@ export async function syncAllDapgLiberationConditionnelles() {
   let updatedCount = 0;
   let totalSynced = 0;
 
-  const pagePayloads = [firstPage, ...(await Promise.all(
-    Array.from({ length: pages - 1 }, async (_, index) =>
-      listDapgLiberationConditionnelles(index + 2, 50),
-    ),
-  ))];
+  const pagePayloads = [firstPage];
+
+  for (let pageNumber = 2; pageNumber <= pages; pageNumber += 1) {
+    pagePayloads.push(await listDapgLiberationConditionnelles(pageNumber, 50));
+  }
 
   for (const page of pagePayloads) {
     for (const payload of page.data) {

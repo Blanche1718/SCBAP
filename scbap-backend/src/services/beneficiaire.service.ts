@@ -70,6 +70,12 @@ export async function getBeneficiaireById(id: string) {
         where: { id },
         include: {
             dossier: true,
+            documents: {
+                where: {
+                    statut: "UPLOADED",
+                },
+                orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            },
             obligations: {
                 orderBy: [
                     { createdAt: "asc" },
@@ -121,6 +127,7 @@ export async function confirmBeneficiaireProfil(id: string) {
     return prisma.beneficiaire.update({
         where: { id },
         data: {
+            statut: "ACTIF",
             profilConfirme: true,
             profilConfirmeLe: new Date(),
         },
@@ -233,6 +240,7 @@ export async function updateBeneficiaireProfilLock(id: string, confirmed: boolea
     return prisma.beneficiaire.update({
         where: { id },
         data: {
+            statut: confirmed ? "ACTIF" : "A_CONFIGURER",
             profilConfirme: confirmed,
             profilConfirmeLe: confirmed ? new Date() : null,
         },

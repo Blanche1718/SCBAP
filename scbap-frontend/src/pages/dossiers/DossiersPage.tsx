@@ -176,7 +176,13 @@ export default function DossiersPage() {
 
   useEffect(() => {
     if (hasAutoSyncedRef.current) return;
+    const lastSyncAt = Number(localStorage.getItem("scbap:last-dapg-sync-at") || "0");
+    const now = Date.now();
+    const syncInterval = 30 * 1000; // 30 secondes entre les synchros automatiques
+    if (now - lastSyncAt < syncInterval) return;
+
     hasAutoSyncedRef.current = true;
+    localStorage.setItem("scbap:last-dapg-sync-at", String(now));
     void handleSyncDapg();
   }, []);
 

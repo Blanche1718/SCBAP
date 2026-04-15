@@ -14,9 +14,31 @@ export interface Beneficiaire {
   profilConfirmeLe?: string | null;
   createdAt: string;
   dossier?: Dossier;
+  documents?: Document[];
   obligations?: Obligation[];
   pointages?: Pointage[];
   alertes?: Alerte[];
+}
+
+export interface Document {
+  id: string;
+  beneficiaireId: string;
+  dossierId: string;
+  typeDocument: string;
+  titre: string;
+  description?: string | null;
+  source: string;
+  statut: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  bucket: string;
+  objectKey: string;
+  externalUrl?: string | null;
+  uploadedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  downloadUrl?: string;
 }
 
 export interface Obligation {
@@ -58,6 +80,8 @@ export interface Pointage {
   type: string;
   statut: string;
   commentaire?: string | null;
+  beneficiaire?: Beneficiaire;
+  obligation?: Obligation;
 }
 
 export interface Alerte {
@@ -117,6 +141,12 @@ export interface PaginationMeta {
   page: number;
   limit: number;
   totalPages: number;
+  globalStats?: {
+    valide: number;
+    absent: number;
+    en_retard: number;
+    anomalie: number;
+  };
 }
 
 export interface PaginatedData<T> {

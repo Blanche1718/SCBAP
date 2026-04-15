@@ -6,6 +6,8 @@ import DossierDetailPage from "./pages/dossiers/DossierDetailPage";
 import { PlaceholderPage } from "./pages/Placeholder";
 import BeneficiairesPage from "./pages/beneficiaires/BeneficiairesPage";
 import BeneficiaireDetailPage from "./pages/beneficiaires/BeneficiaireDetailPage";
+import PointagesPage from "./pages/pointages/PointagesPage";
+import PointageDetailPage from "./pages/pointages/PointageDetailPage";
 
 export default function App() {
   return (
@@ -18,7 +20,8 @@ export default function App() {
           <Route path="dossiers/:id" element={<DossierDetailPage />} />
           <Route path="beneficiaires" element={<BeneficiairesPage />} />
           <Route path="beneficiaires/:id" element={<BeneficiaireDetailPage />} />
-          <Route path="pointages" element={<PlaceholderPage title="Pointages" />} />
+          <Route path="pointages" element={<PointagesPage />} />
+          <Route path="pointages/:id" element={<PointageDetailPage />} />
           <Route path="surveillance" element={<PlaceholderPage title="Surveillance GPS" />} />
           <Route path="alertes" element={<PlaceholderPage title="Alertes" />} />
           <Route path="rapports" element={<PlaceholderPage title="Rapports" />} />

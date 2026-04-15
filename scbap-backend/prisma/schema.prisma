@@ -100,6 +100,7 @@ model Dossier {
 
   beneficiaire        Beneficiaire? @relation("DossierToBeneficiaire")
   obligationsDossier  Obligation[]
+  documents          Document[]
 
   @@map("dossiers")
 }
@@ -119,6 +120,7 @@ model Beneficiaire {
 
   dossier              Dossier               @relation( "DossierToBeneficiaire", fields: [dossierId], references: [id])
 
+  documents            Document[]
   obligations          Obligation[]
   pointages            Pointage[]
   demandesAutorisation DemandeAutorisation[]
@@ -134,6 +136,36 @@ model Beneficiaire {
   historiquesStatut    HistoriqueStatut[]
 
   @@map("beneficiaires")
+}
+
+// =====================
+// DOCUMENT
+// =====================
+
+model Document {
+  id             String @id @default(uuid())
+  beneficiaireId String @map("beneficiaire_id")
+  dossierId      String @map("dossier_id")
+  typeDocument   String @map("type_document")
+  titre          String
+  description    String?
+  source         String
+  statut         String
+  fileName       String? @map("file_name")
+  mimeType       String? @map("mime_type")
+  sizeBytes      Int?    @map("size_bytes")
+  bucket         String
+  objectKey      String  @unique @map("object_key")
+  externalUrl    String? @map("external_url")
+  uploadedAt     DateTime? @map("uploaded_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  dossier        Dossier      @relation(fields: [dossierId], references: [id])
+
+  @@index([beneficiaireId, createdAt(sort: Desc)])
+  @@map("documents")
 }
 
 // =====================

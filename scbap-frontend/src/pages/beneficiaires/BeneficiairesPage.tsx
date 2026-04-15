@@ -21,14 +21,14 @@ import { useBeneficiaires } from "../../hooks/useBeneficiaires";
 import { api } from "../../lib/api";
 import type { Beneficiaire } from "../../types";
 
-type ComplianceStatus = "NON_CONFORME" | "ACTIF" | "TERMINE";
+type ComplianceStatus = "NON_CONFORME" | "ACTIF" | "TERMINE" | "A_CONFIGURER";
 type RiskLevel = "Faible" | "Moyen" | "Eleve";
 
 function getComplianceStatus(beneficiaire: Beneficiaire): ComplianceStatus {
   const dossierStatut = beneficiaire.dossier?.statut;
   if (dossierStatut === "REVOQUE") return "NON_CONFORME";
   if (dossierStatut === "TERMINE") return "TERMINE";
-  return "ACTIF";
+  return beneficiaire.profilConfirme ? "ACTIF" : "A_CONFIGURER";
 }
 
 function getRiskLevel(beneficiaire: Beneficiaire): RiskLevel {
@@ -95,6 +95,8 @@ function StatusBadge({ status }: { status: ComplianceStatus }) {
       ? "bg-error-container text-on-error-container"
       : status === "TERMINE"
         ? "bg-surface-high text-on-secondary-container"
+        : status === "A_CONFIGURER"
+          ? "bg-[#ffe9c7] text-[#6b3d00]"
         : "bg-primary-fixed text-[#2e4d44]";
 
   const label =
@@ -102,6 +104,8 @@ function StatusBadge({ status }: { status: ComplianceStatus }) {
       ? "NON-CONFORME"
       : status === "TERMINE"
         ? "TERMINE"
+        : status === "A_CONFIGURER"
+          ? "A CONFIGURER"
         : "ACTIF";
 
   return (
@@ -227,6 +231,15 @@ export default function BeneficiairesPage() {
   }
 
   useEffect(() => {
+    const lastSyncAt = Number(localStorage.getItem("scbap:last-dapg-sync-at") || "0");
+    const now = Date.now();
+    const syncInterval = 30 * 1000; // 30 secondes entre les synchros automatiques
+
+    if (now - lastSyncAt < syncInterval) {
+      return;
+    }
+
+    localStorage.setItem("scbap:last-dapg-sync-at", String(now));
     void syncDapgDossiers();
   }, []);
 
@@ -325,6 +338,7 @@ export default function BeneficiairesPage() {
               className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="TOUS">Tous les statuts</option>
+              <option value="A_CONFIGURER">A configurer</option>
               <option value="ACTIF">Actif</option>
               <option value="NON_CONFORME">Non-conforme</option>
               <option value="TERMINE">Termine</option>
