@@ -198,7 +198,7 @@ function KpiCard({
   }[variant];
 
   return (
-    <div className="rounded-lg bg-white p-5 flex flex-col gap-4">
+    <div className="rounded-lg bg-white p-4 sm:p-5 flex flex-col gap-4">
       <div className="flex items-start justify-between">
         <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">{label}</p>
         <div className={`w-9 h-9 rounded-md flex items-center justify-center ${iconBg}`}>
@@ -206,7 +206,7 @@ function KpiCard({
         </div>
       </div>
       <div>
-        <p className={`text-5xl font-bold leading-none ${valueCls}`}>{value}</p>
+        <p className={`text-4xl sm:text-5xl font-bold leading-none ${valueCls}`}>{value}</p>
         {sub && (
           <p className={`text-xs mt-2 font-medium ${variant === "alert" ? "text-on-error-container" : "text-on-surface-variant"}`}>
             {sub}
@@ -246,7 +246,7 @@ function EvenementRow({ ev }: { ev: EvenementTempsReel }) {
   const IconEv = cfg.icon;
 
   return (
-    <div className="flex items-start gap-4 py-4 relative">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 py-4 relative">
       <div className={`absolute left-0 top-0 bottom-0 w-0.5 ${cfg.bar}`} />
       <div className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ml-3 ${cfg.bg}`}>
         <IconEv size={14} className={cfg.color} />
@@ -258,7 +258,7 @@ function EvenementRow({ ev }: { ev: EvenementTempsReel }) {
         </p>
         <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">{ev.message}</p>
       </div>
-      <div className="text-right shrink-0">
+      <div className="pl-11 sm:pl-0 sm:text-right shrink-0">
         <p className="text-xs font-mono text-on-surface-variant">{ev.heure}</p>
         <p className={`text-xs font-bold mt-1 ${cfg.color}`}>{cfg.label}</p>
       </div>
@@ -336,8 +336,8 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="p-8 min-h-full bg-surface">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 sm:p-8 min-h-full bg-surface">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-xl font-bold text-on-surface flex items-center gap-2">
             <Activity size={19} className="text-primary" />
@@ -346,8 +346,8 @@ export default function DashboardPage() {
           <p className="text-sm text-on-surface-variant mt-0.5 capitalize">{dateStr}</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-white text-sm font-mono text-on-surface-variant">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-white text-sm font-mono text-on-surface-variant shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
             {heureStr}
           </div>
@@ -375,7 +375,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="rounded-lg p-5 mb-6 flex items-center justify-between bg-linear-to-br from-primary to-[#2e4d44]">
+      <div className="rounded-lg p-5 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-linear-to-br from-primary to-[#2e4d44]">
         <div className="flex items-center gap-3">
           <Shield size={18} className="text-primary-fixed" />
           <div>
@@ -385,15 +385,15 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-8">
-          <div className="text-right">
+        <div className="flex flex-wrap items-center gap-4 md:gap-8">
+          <div className="text-left md:text-right">
             <p className="text-xs text-white/50 uppercase tracking-wider">Risques actifs</p>
             <p className="text-error-container font-bold text-lg leading-tight">
               {statut?.nonConformes ?? "—"} Critiques
             </p>
           </div>
-          <div className="w-px h-8 bg-white/15" />
-          <div className="text-right">
+          <div className="hidden md:block w-px h-8 bg-white/15" />
+          <div className="text-left md:text-right">
             <p className="text-xs text-white/50 uppercase tracking-wider">Rapports en attente</p>
             <p className="text-white font-bold text-lg leading-tight">
               {String(statut?.rapportsEnAttente ?? "—").padStart(2, "0")} En cours
@@ -402,7 +402,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <KpiCard
           label="Total actifs"
           value={statut?.totalActifs ?? "—"}
@@ -426,8 +426,8 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <div className="col-span-2 rounded-lg bg-white p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div className="lg:col-span-2 rounded-lg bg-white p-6">
           <div className="flex items-center justify-between mb-1">
             <div>
               <h2 className="text-sm font-bold text-on-surface">

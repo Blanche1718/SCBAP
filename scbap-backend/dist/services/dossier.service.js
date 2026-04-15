@@ -22,6 +22,9 @@ function parseDate(date) {
 }
 // SERVICE DE RECUPERATION DES DOSSIERS
 async function getDossiers(page = 1, limit = 10) {
+    if (page <= 0 || limit <= 0) {
+        throw new errorHandler_1.HttpError(400, "Parametres de pagination invalides");
+    }
     const skip = (page - 1) * limit;
     const [dossiers, total] = await prisma_1.default.$transaction([
         prisma_1.default.dossier.findMany({
@@ -77,6 +80,7 @@ async function updateDossier(id, input) {
         numeroDossier: data.numero_dossier,
         juridictionId: data.juridiction_id,
         prisonId: data.prison_id,
+        prisonName: data.prison_name,
         nom: data.nom,
         prenom: data.prenom,
         dateNaissance: data.date_naissance
@@ -98,6 +102,11 @@ async function updateDossier(id, input) {
             ? parseDate(data.date_fin_peine)
             : undefined,
         dureePeineMois: data.duree_peine_mois,
+        decisionDapg: data.decision_dapg,
+        dateDecisionDapg: data.date_decision_dapg
+            ? parseDate(data.date_decision_dapg)
+            : undefined,
+        dureeTempsEpreuve: data.duree_temps_epreuve,
         observations: data.observations,
         obligations: data.obligations,
         othersData: data.others_data,

@@ -14,6 +14,7 @@ import {
   Loader2,
   AlertCircle,
   Pencil,
+  Lock,
 } from "lucide-react";
 import { useBeneficiaire } from "../../hooks/useBeneficiaires";
 import { api } from "../../lib/api";
@@ -90,6 +91,35 @@ function Section({
   );
 }
 
+function isNewBeneficiaire(beneficiaire: {
+  profilConfirme?: boolean;
+  dossier?: { othersData?: { source?: string } | null; createdAt?: string } | null;
+}) {
+  const dossier = beneficiaire.dossier;
+  if (beneficiaire.profilConfirme) return false;
+  if (!dossier || dossier.othersData?.source !== "dapg") return false;
+  if (!dossier.createdAt) return false;
+
+  const createdAt = new Date(dossier.createdAt);
+  if (Number.isNaN(createdAt.getTime())) return false;
+
+  return Date.now() - createdAt.getTime() < 72 * 60 * 60 * 1000;
+}
+
+function formatCreatedAt(dateStr?: string | null) {
+  if (!dateStr) return "—";
+  const parsed = new Date(dateStr);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return parsed.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Africa/Porto-Novo",
+  });
+}
+
 export default function BeneficiaireDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { beneficiaire, loading, error, refetch } = useBeneficiaire(id);
@@ -133,6 +163,7 @@ export default function BeneficiaireDetailPage() {
 
   const dossier = beneficiaire.dossier;
   const fullName = dossier ? `${dossier.nom} ${dossier.prenom}` : "—";
+  const profilConfirme = Boolean(beneficiaire.profilConfirme);
   const riskLevel = dossier?.statut === "REVOQUE" ? "Elevé" : dossier?.statut === "TERMINE" ? "Faible" : "Moyen";
   const compliance = dossier?.statut === "REVOQUE" ? "Non conforme" : dossier?.statut === "TERMINE" ? "Terminé" : "Actif";
   const lastPointage = beneficiaire.pointages?.[0]?.dateHeure ?? null;
@@ -142,8 +173,13 @@ export default function BeneficiaireDetailPage() {
     if (aTime !== bTime) return aTime - bTime;
     return (a.id || "").localeCompare(b.id || "");
   });
+  const newBeneficiaire = isNewBeneficiaire(beneficiaire);
 
   function handleOpenModify(obligation: Obligation) {
+    if (profilConfirme) {
+      setSaveError("Le profil est deja confirme, les obligations sont verrouillees.");
+      return;
+    }
     setSelectedObligation(obligation);
     setForm({
       type: obligation.type ?? "",
@@ -168,6 +204,10 @@ export default function BeneficiaireDetailPage() {
   }
 
   async function handleConfirm(obligationId: string) {
+    if (profilConfirme) {
+      setSaveError("Le profil est deja confirme, les obligations sont verrouillees.");
+      return;
+    }
     try {
       setActioningId(obligationId);
       setSaveError(null);
@@ -180,9 +220,27 @@ export default function BeneficiaireDetailPage() {
     }
   }
 
+  async function handleConfirmProfil() {
+    try {
+      setSaving(true);
+      setSaveError(null);
+      await api.patch(`/beneficiaires/${id}/profil/confirmer`, {});
+      await refetch();
+    } catch (err) {
+      setSaveError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedObligation) return;
+    if (!selectedObligation || profilConfirme) {
+      if (profilConfirme) {
+        setSaveError("Le profil est deja confirme, les obligations sont verrouillees.");
+      }
+      return;
+    }
 
     const payload = {
       type: form.type || undefined,
@@ -213,10 +271,10 @@ export default function BeneficiaireDetailPage() {
   }
 
   return (
-    <div className="p-8 min-h-full bg-surface">
+    <div className="p-4 sm:p-8 min-h-full bg-surface">
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3 min-w-0">
           <Link
             to="/beneficiaires"
             className="flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-on-surface transition-colors"
@@ -225,7 +283,7 @@ export default function BeneficiaireDetailPage() {
             Beneficiaires
           </Link>
           <span className="text-outline-variant">/</span>
-          <span className="text-sm font-semibold text-on-surface">{fullName}</span>
+          <span className="text-sm font-semibold text-on-surface truncate">{fullName}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -237,7 +295,7 @@ export default function BeneficiaireDetailPage() {
           </button>
           <button
             type="button"
-            className="flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold text-on-error-container bg-error-container hover:bg-error-container/80 transition-colors uppercase tracking-wider"
+            className="flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold text-on-error-container bg-error-container hover:bg-error-container/80 transition-colors uppercase tracking-wider flex-1 sm:flex-none"
           >
             <AlertTriangle size={14} />
             Alerte d&apos;urgence
@@ -245,9 +303,36 @@ export default function BeneficiaireDetailPage() {
         </div>
       </div>
 
+      {newBeneficiaire && (
+        <div className="mb-6 rounded-lg border border-primary-fixed bg-[#eef8f4] p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-[#ffe9c7] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#6b3d00]">
+                  Nouveau
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-error-container px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-on-error-container">
+                  <AlertTriangle size={10} />
+                  A configurer
+                </span>
+              </div>
+              <h2 className="mt-3 text-sm font-bold text-primary">
+                Nouveau beneficiaire importé depuis la DAPG
+              </h2>
+              <p className="mt-1 text-sm text-on-secondary-container">
+                Ce profil vient d&apos;être généré automatiquement. Vérifie les informations, complète les champs manquants et valide les obligations structurées.
+              </p>
+            </div>
+            <div className="rounded-md bg-white px-3 py-2 text-xs font-medium text-on-secondary-container">
+              Importé le {formatCreatedAt(dossier?.createdAt)}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-12 gap-6">
         {/* Left column */}
-        <div className="col-span-12 xl:col-span-4 flex flex-col gap-4">
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-4">
           <div className="rounded-lg bg-white overflow-hidden">
             <div className="h-24 bg-primary" />
             <div className="p-5 -mt-8">
@@ -260,7 +345,7 @@ export default function BeneficiaireDetailPage() {
                   .join("")
                   .toUpperCase() || "—"}
               </div>
-              <h1 className="text-lg font-bold text-on-surface mt-3">{fullName}</h1>
+              <h1 className="text-lg font-bold text-on-surface mt-3 truncate">{fullName}</h1>
               <p className="text-xs text-on-secondary-container font-mono mt-1">
                 {dossier?.numeroDossier ?? "—"}
               </p>
@@ -323,35 +408,35 @@ export default function BeneficiaireDetailPage() {
         </div>
 
         {/* Right column */}
-        <div className="col-span-12 xl:col-span-8 flex flex-col gap-4">
-          <div className="rounded-lg bg-white p-4 flex items-center justify-between">
-            <div className="flex items-center gap-6 text-xs text-on-secondary-container">
+        <div className="col-span-12 lg:col-span-8 flex flex-col gap-4">
+          <div className="rounded-lg bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div className="grid grid-cols-2 sm:flex items-center gap-x-4 gap-y-6 sm:gap-6 text-xs text-on-secondary-container">
               <div>
                 <p className="uppercase tracking-wider text-[10px] font-bold text-on-surface-variant">Conformité</p>
                 <p className="text-sm font-semibold text-on-surface">{compliance}</p>
               </div>
               <div>
-                <p className="uppercase tracking-wider text-[10px] font-bold text-on-surface-variant">Risque actuel</p>
+                <p className="uppercase tracking-wider text-[10px] font-bold text-on-surface-variant">Risque</p>
                 <p className="text-sm font-semibold text-on-surface">{riskLevel}</p>
               </div>
-              <div>
+              <div className="col-span-2 sm:col-span-1">
                 <p className="uppercase tracking-wider text-[10px] font-bold text-on-surface-variant">Dernier pointage</p>
                 <p className="text-sm font-semibold text-on-surface">
                   {formatLastPointage(lastPointage)}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button className="px-3 py-2 rounded-md bg-surface-low text-xs font-bold text-[#2e4d44] hover:bg-surface-high transition-colors">
+            <div className="flex flex-col xs:flex-row items-stretch gap-2">
+              <button className="px-3 py-2 rounded-md bg-surface-low text-xs font-bold text-[#2e4d44] hover:bg-surface-high transition-colors whitespace-nowrap">
                 Mettre à jour le risque
               </button>
-              <button className="px-3 py-2 rounded-md bg-primary text-xs font-bold text-white hover:bg-[#2e4d44] transition-colors">
+              <button className="px-3 py-2 rounded-md bg-primary text-xs font-bold text-white hover:bg-[#2e4d44] transition-colors whitespace-nowrap">
                 Ajouter un rapport
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 xs:grid-cols-3 gap-3">
             <button className="py-2 rounded-md bg-primary-fixed text-xs font-bold text-[#2e4d44]">
               Obligations
             </button>
@@ -363,22 +448,28 @@ export default function BeneficiaireDetailPage() {
             </button>
           </div>
 
-          <Section title="Exigences légales actives">
+          <Section title={profilConfirme ? "Obligations spécifiques verrouillées" : "Obligations spécifiques à configurer"}>
             {saveError && (
               <div className="mb-3 rounded-md bg-error-container px-3 py-2 text-xs font-semibold text-on-error-container">
                 {saveError}
               </div>
             )}
+            {profilConfirme && (
+              <div className="mb-3 flex items-center gap-2 rounded-md border border-primary-fixed bg-primary-fixed/15 px-3 py-2 text-xs font-semibold text-on-surface-variant">
+                <Lock size={14} className="text-primary" />
+                Profil confirmé le {formatCreatedAt(beneficiaire.profilConfirmeLe)}
+              </div>
+            )}
             <div className="space-y-3">
               {orderedObligations.length > 0 ? (
                 orderedObligations.map((obligation) => (
-                  <div key={obligation.id} className="flex items-start gap-3 p-3 rounded-md bg-surface-low">
+                  <div key={obligation.id} className="flex flex-col sm:flex-row items-start gap-4 p-3 rounded-md bg-surface-low">
                     <div className="w-8 h-8 rounded-md bg-primary-fixed flex items-center justify-center text-[#2e4d44]">
                       <Shield size={14} />
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-on-surface">
-                        {obligation.type || "Obligation"}
+                        {obligation.categorie?.nom || obligation.type || "Obligation"}
                       </p>
                       <p className="text-xs text-on-secondary-container mt-1">
                         {obligation.description}
@@ -391,38 +482,41 @@ export default function BeneficiaireDetailPage() {
                         </p>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-2">
+                    <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start w-full sm:w-auto gap-2">
                       <span
                         className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${
-                          obligation.statutStructuration === "VALIDE"
+                          profilConfirme || obligation.statutStructuration === "VALIDE"
                             ? "bg-primary-fixed text-[#2e4d44]"
                             : "bg-error-container text-on-error-container"
                         }`}
                       >
-                        {obligation.statutStructuration === "VALIDE" ? "Validé" : "A valider"}
+                        {profilConfirme || obligation.statutStructuration === "VALIDE" ? "Validé" : "A valider"}
                       </span>
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleConfirm(obligation.id)}
-                          disabled={obligation.statutStructuration === "VALIDE" || actioningId === obligation.id || saving}
-                          className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                            obligation.statutStructuration === "VALIDE"
-                              ? "bg-primary-fixed text-[#2e4d44] cursor-not-allowed"
-                              : "bg-[#ffb86b] text-[#2b1600] hover:bg-[#ffa94d]"
-                          }`}
-                        >
-                          <Check size={12} />
-                          Confirmer
-                        </button>
+                        {!profilConfirme && obligation.statutStructuration !== "VALIDE" && (
+                          <button
+                            type="button"
+                            onClick={() => handleConfirm(obligation.id)}
+                            disabled={actioningId === obligation.id || saving}
+                            className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors bg-[#ffb86b] text-[#2b1600] hover:bg-[#ffa94d]"
+                          >
+                            <Check size={12} />
+                            Confirmer
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => handleOpenModify(obligation)}
-                          disabled={actioningId === obligation.id || saving}
-                          className="inline-flex items-center gap-1 rounded-md bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-surface-high transition-colors"
+                          disabled={profilConfirme || actioningId === obligation.id || saving}
+                          className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                            profilConfirme
+                              ? "bg-surface-high text-outline-variant cursor-not-allowed"
+                              : "bg-white text-primary hover:bg-surface-high"
+                          }`}
                         >
                           <Pencil size={12} />
-                          Modifier
+                          Configurer
                         </button>
                       </div>
                     </div>
@@ -434,9 +528,33 @@ export default function BeneficiaireDetailPage() {
                 </div>
               )}
             </div>
+            <div className="mt-4 flex flex-col gap-3 rounded-md border border-surface-low bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-on-surface">Confirmer le profil</p>
+                <p className="mt-1 text-xs text-on-secondary-container">
+                  Une fois confirmé, le profil et ses obligations ne pourront plus être modifiés.
+                </p>
+              </div>
+              {profilConfirme ? (
+                <span className="inline-flex items-center gap-2 self-start rounded-full bg-primary-fixed px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#2e4d44]">
+                  <Lock size={12} />
+                  Profil confirmé
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleConfirmProfil}
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#2e4d44] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  Confirmer profil
+                </button>
+              )}
+            </div>
           </Section>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Section title="Chronologie d’activité">
               {beneficiaire.pointages && beneficiaire.pointages.length > 0 ? (
                 <div className="space-y-4 text-xs text-on-secondary-container">
@@ -559,15 +677,15 @@ export default function BeneficiaireDetailPage() {
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-on-secondary-container">
-                    Modification d&apos;obligation
+                    Configuration d&apos;obligation
                   </p>
                   <p className="text-base font-bold text-on-surface">
-                    {selectedObligation.type || "Obligation"}
+                    {selectedObligation.categorie?.nom || selectedObligation.type || "Obligation"}
                   </p>
                 </div>
               </div>
               <span className="inline-flex items-center rounded-full bg-surface-high px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-on-secondary-container">
-                Edition
+                Configuration
               </span>
               <button
                 type="button"
@@ -587,7 +705,7 @@ export default function BeneficiaireDetailPage() {
                   </span>
                   Champs principaux
                 </p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <label className="text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
                   Type
                   <input
@@ -691,7 +809,7 @@ export default function BeneficiaireDetailPage() {
                   </span>
                   Traçabilité
                 </p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <label className="text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
                     Motif (optionnel)
                     <select

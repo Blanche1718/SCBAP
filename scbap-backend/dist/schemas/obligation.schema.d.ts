@@ -1,6 +1,6 @@
 import { z } from "zod";
 export declare const CreateObligationSchema: z.ZodObject<{
-    categorie_id: z.ZodNumber;
+    categorie_id: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
     type: z.ZodOptional<z.ZodString>;
     frequence: z.ZodOptional<z.ZodString>;
@@ -16,9 +16,16 @@ export declare const CreateObligationSchema: z.ZodObject<{
     date_debut: z.ZodOptional<z.ZodString>;
     date_fin: z.ZodOptional<z.ZodString>;
     statut: z.ZodOptional<z.ZodString>;
+    raison_modification: z.ZodOptional<z.ZodEnum<{
+        NON_CONFORME: "NON_CONFORME";
+        ORDONNE_PAR_DAPG: "ORDONNE_PAR_DAPG";
+        AUTRE: "AUTRE";
+    }>>;
+    raison_autre: z.ZodOptional<z.ZodString>;
+    modifie_par: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export declare const UpdateObligationSchema: z.ZodObject<{
-    categorie_id: z.ZodOptional<z.ZodNumber>;
+    categorie_id: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     type: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     frequence: z.ZodOptional<z.ZodOptional<z.ZodString>>;
@@ -34,9 +41,16 @@ export declare const UpdateObligationSchema: z.ZodObject<{
     date_debut: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     date_fin: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     statut: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    raison_modification: z.ZodOptional<z.ZodOptional<z.ZodEnum<{
+        NON_CONFORME: "NON_CONFORME";
+        ORDONNE_PAR_DAPG: "ORDONNE_PAR_DAPG";
+        AUTRE: "AUTRE";
+    }>>>;
+    raison_autre: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    modifie_par: z.ZodOptional<z.ZodOptional<z.ZodString>>;
 }, z.core.$strip>;
 export declare const ValidateObligationSchema: z.ZodObject<{
-    categorie_id: z.ZodOptional<z.ZodNumber>;
+    categorie_id: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     type: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     frequence: z.ZodOptional<z.ZodOptional<z.ZodString>>;
@@ -52,4 +66,11 @@ export declare const ValidateObligationSchema: z.ZodObject<{
     date_debut: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     date_fin: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     statut: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    raison_modification: z.ZodOptional<z.ZodOptional<z.ZodEnum<{
+        NON_CONFORME: "NON_CONFORME";
+        ORDONNE_PAR_DAPG: "ORDONNE_PAR_DAPG";
+        AUTRE: "AUTRE";
+    }>>>;
+    raison_autre: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    modifie_par: z.ZodOptional<z.ZodOptional<z.ZodString>>;
 }, z.core.$strip>;

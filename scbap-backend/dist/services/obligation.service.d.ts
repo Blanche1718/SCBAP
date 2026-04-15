@@ -4,10 +4,10 @@ import { z } from "zod";
 type CreateObligationInput = z.infer<typeof CreateObligationSchema>;
 type UpdateObligationInput = z.infer<typeof UpdateObligationSchema>;
 type ValidateObligationInput = z.infer<typeof ValidateObligationSchema>;
-export declare function getObligationsByDossier(dossierId: number): Promise<({
+export declare function getObligationsByDossier(dossierId: string): Promise<({
     dossier: {
         nom: string;
-        id: number;
+        id: string;
         obligations: string | null;
         prenom: string;
         nationalite: string | null;
@@ -19,8 +19,9 @@ export declare function getObligationsByDossier(dossierId: number): Promise<({
         observations: string | null;
         statut: string | null;
         numeroDossier: string;
-        juridictionId: number | null;
-        prisonId: number | null;
+        juridictionId: string | null;
+        prisonId: string | null;
+        prisonName: string | null;
         dateNaissance: Date | null;
         lieuNaissance: string | null;
         telephoneContact: string | null;
@@ -28,45 +29,55 @@ export declare function getObligationsByDossier(dossierId: number): Promise<({
         dateMandatDepot: Date | null;
         dateFinPeine: Date | null;
         dureePeineMois: number | null;
+        decisionDapg: string | null;
+        dateDecisionDapg: Date | null;
+        dureeTempsEpreuve: string | null;
         othersData: Prisma.JsonValue | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
     };
     beneficiaire: {
-        id: number;
+        id: string;
         statut: string;
         createdAt: Date;
-        dossierId: number;
+        dossierId: string;
         qrCode: string;
+        profilConfirme: boolean;
+        profilConfirmeLe: Date | null;
     };
     categorie: {
         nom: string;
         description: string | null;
-        id: number;
+        id: string;
     };
 } & {
     type: string | null;
     description: string | null;
-    id: number;
+    id: string;
     statut: string | null;
     createdAt: Date;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
-    dossierId: number;
-    categorieId: number;
+    dossierId: string;
+    beneficiaireId: string;
+    categorieId: string;
+    source: string | null;
     jourSemaine: string | null;
     statutStructuration: string | null;
     dateDebut: Date | null;
     dateFin: Date | null;
-    beneficiaireId: number;
+    raisonModification: string | null;
+    raisonAutre: string | null;
+    modifieLe: Date | null;
+    modifiePar: string | null;
 })[]>;
-export declare function getObligationById(id: number): Promise<{
+export declare function getObligationById(id: string): Promise<{
     dossier: {
         nom: string;
-        id: number;
+        id: string;
         obligations: string | null;
         prenom: string;
         nationalite: string | null;
@@ -78,8 +89,9 @@ export declare function getObligationById(id: number): Promise<{
         observations: string | null;
         statut: string | null;
         numeroDossier: string;
-        juridictionId: number | null;
-        prisonId: number | null;
+        juridictionId: string | null;
+        prisonId: string | null;
+        prisonName: string | null;
         dateNaissance: Date | null;
         lieuNaissance: string | null;
         telephoneContact: string | null;
@@ -87,45 +99,55 @@ export declare function getObligationById(id: number): Promise<{
         dateMandatDepot: Date | null;
         dateFinPeine: Date | null;
         dureePeineMois: number | null;
+        decisionDapg: string | null;
+        dateDecisionDapg: Date | null;
+        dureeTempsEpreuve: string | null;
         othersData: Prisma.JsonValue | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
     };
     beneficiaire: {
-        id: number;
+        id: string;
         statut: string;
         createdAt: Date;
-        dossierId: number;
+        dossierId: string;
         qrCode: string;
+        profilConfirme: boolean;
+        profilConfirmeLe: Date | null;
     };
     categorie: {
         nom: string;
         description: string | null;
-        id: number;
+        id: string;
     };
 } & {
     type: string | null;
     description: string | null;
-    id: number;
+    id: string;
     statut: string | null;
     createdAt: Date;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
-    dossierId: number;
-    categorieId: number;
+    dossierId: string;
+    beneficiaireId: string;
+    categorieId: string;
+    source: string | null;
     jourSemaine: string | null;
     statutStructuration: string | null;
     dateDebut: Date | null;
     dateFin: Date | null;
-    beneficiaireId: number;
+    raisonModification: string | null;
+    raisonAutre: string | null;
+    modifieLe: Date | null;
+    modifiePar: string | null;
 }>;
-export declare function createObligation(dossierId: number, input: CreateObligationInput): Promise<{
+export declare function createObligation(dossierId: string, input: CreateObligationInput): Promise<{
     dossier: {
         nom: string;
-        id: number;
+        id: string;
         obligations: string | null;
         prenom: string;
         nationalite: string | null;
@@ -137,8 +159,9 @@ export declare function createObligation(dossierId: number, input: CreateObligat
         observations: string | null;
         statut: string | null;
         numeroDossier: string;
-        juridictionId: number | null;
-        prisonId: number | null;
+        juridictionId: string | null;
+        prisonId: string | null;
+        prisonName: string | null;
         dateNaissance: Date | null;
         lieuNaissance: string | null;
         telephoneContact: string | null;
@@ -146,45 +169,55 @@ export declare function createObligation(dossierId: number, input: CreateObligat
         dateMandatDepot: Date | null;
         dateFinPeine: Date | null;
         dureePeineMois: number | null;
+        decisionDapg: string | null;
+        dateDecisionDapg: Date | null;
+        dureeTempsEpreuve: string | null;
         othersData: Prisma.JsonValue | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
     };
     beneficiaire: {
-        id: number;
+        id: string;
         statut: string;
         createdAt: Date;
-        dossierId: number;
+        dossierId: string;
         qrCode: string;
+        profilConfirme: boolean;
+        profilConfirmeLe: Date | null;
     };
     categorie: {
         nom: string;
         description: string | null;
-        id: number;
+        id: string;
     };
 } & {
     type: string | null;
     description: string | null;
-    id: number;
+    id: string;
     statut: string | null;
     createdAt: Date;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
-    dossierId: number;
-    categorieId: number;
+    dossierId: string;
+    beneficiaireId: string;
+    categorieId: string;
+    source: string | null;
     jourSemaine: string | null;
     statutStructuration: string | null;
     dateDebut: Date | null;
     dateFin: Date | null;
-    beneficiaireId: number;
+    raisonModification: string | null;
+    raisonAutre: string | null;
+    modifieLe: Date | null;
+    modifiePar: string | null;
 }>;
-export declare function updateObligation(id: number, input: UpdateObligationInput): Promise<{
+export declare function updateObligation(id: string, input: UpdateObligationInput): Promise<{
     dossier: {
         nom: string;
-        id: number;
+        id: string;
         obligations: string | null;
         prenom: string;
         nationalite: string | null;
@@ -196,8 +229,9 @@ export declare function updateObligation(id: number, input: UpdateObligationInpu
         observations: string | null;
         statut: string | null;
         numeroDossier: string;
-        juridictionId: number | null;
-        prisonId: number | null;
+        juridictionId: string | null;
+        prisonId: string | null;
+        prisonName: string | null;
         dateNaissance: Date | null;
         lieuNaissance: string | null;
         telephoneContact: string | null;
@@ -205,45 +239,55 @@ export declare function updateObligation(id: number, input: UpdateObligationInpu
         dateMandatDepot: Date | null;
         dateFinPeine: Date | null;
         dureePeineMois: number | null;
+        decisionDapg: string | null;
+        dateDecisionDapg: Date | null;
+        dureeTempsEpreuve: string | null;
         othersData: Prisma.JsonValue | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
     };
     beneficiaire: {
-        id: number;
+        id: string;
         statut: string;
         createdAt: Date;
-        dossierId: number;
+        dossierId: string;
         qrCode: string;
+        profilConfirme: boolean;
+        profilConfirmeLe: Date | null;
     };
     categorie: {
         nom: string;
         description: string | null;
-        id: number;
+        id: string;
     };
 } & {
     type: string | null;
     description: string | null;
-    id: number;
+    id: string;
     statut: string | null;
     createdAt: Date;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
-    dossierId: number;
-    categorieId: number;
+    dossierId: string;
+    beneficiaireId: string;
+    categorieId: string;
+    source: string | null;
     jourSemaine: string | null;
     statutStructuration: string | null;
     dateDebut: Date | null;
     dateFin: Date | null;
-    beneficiaireId: number;
+    raisonModification: string | null;
+    raisonAutre: string | null;
+    modifieLe: Date | null;
+    modifiePar: string | null;
 }>;
-export declare function validateObligation(id: number, input: ValidateObligationInput): Promise<{
+export declare function validateObligation(id: string, input: ValidateObligationInput): Promise<{
     dossier: {
         nom: string;
-        id: number;
+        id: string;
         obligations: string | null;
         prenom: string;
         nationalite: string | null;
@@ -255,8 +299,9 @@ export declare function validateObligation(id: number, input: ValidateObligation
         observations: string | null;
         statut: string | null;
         numeroDossier: string;
-        juridictionId: number | null;
-        prisonId: number | null;
+        juridictionId: string | null;
+        prisonId: string | null;
+        prisonName: string | null;
         dateNaissance: Date | null;
         lieuNaissance: string | null;
         telephoneContact: string | null;
@@ -264,39 +309,49 @@ export declare function validateObligation(id: number, input: ValidateObligation
         dateMandatDepot: Date | null;
         dateFinPeine: Date | null;
         dureePeineMois: number | null;
+        decisionDapg: string | null;
+        dateDecisionDapg: Date | null;
+        dureeTempsEpreuve: string | null;
         othersData: Prisma.JsonValue | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
     };
     beneficiaire: {
-        id: number;
+        id: string;
         statut: string;
         createdAt: Date;
-        dossierId: number;
+        dossierId: string;
         qrCode: string;
+        profilConfirme: boolean;
+        profilConfirmeLe: Date | null;
     };
     categorie: {
         nom: string;
         description: string | null;
-        id: number;
+        id: string;
     };
 } & {
     type: string | null;
     description: string | null;
-    id: number;
+    id: string;
     statut: string | null;
     createdAt: Date;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
-    dossierId: number;
-    categorieId: number;
+    dossierId: string;
+    beneficiaireId: string;
+    categorieId: string;
+    source: string | null;
     jourSemaine: string | null;
     statutStructuration: string | null;
     dateDebut: Date | null;
     dateFin: Date | null;
-    beneficiaireId: number;
+    raisonModification: string | null;
+    raisonAutre: string | null;
+    modifieLe: Date | null;
+    modifiePar: string | null;
 }>;
 export {};

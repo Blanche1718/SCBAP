@@ -9,46 +9,51 @@ export declare const DEFAULT_CATEGORIES_OBLIGATION: {
 export declare function getCategoriesObligation(): Promise<{
     nom: string;
     description: string | null;
-    id: number;
+    id: string;
 }[]>;
-export declare function getCategorieObligationById(id: number): Promise<{
+export declare function getCategorieObligationById(id: string): Promise<{
     obligations: {
         type: string | null;
         description: string | null;
-        id: number;
+        id: string;
         statut: string | null;
         createdAt: Date;
         frequence: string | null;
         heure: Date | null;
         lieu: string | null;
         metadata: import("@prisma/client/runtime/client").JsonValue | null;
-        dossierId: number;
-        categorieId: number;
+        dossierId: string;
+        beneficiaireId: string;
+        categorieId: string;
+        source: string | null;
         jourSemaine: string | null;
         statutStructuration: string | null;
         dateDebut: Date | null;
         dateFin: Date | null;
-        beneficiaireId: number;
+        raisonModification: string | null;
+        raisonAutre: string | null;
+        modifieLe: Date | null;
+        modifiePar: string | null;
     }[];
 } & {
     nom: string;
     description: string | null;
-    id: number;
+    id: string;
 }>;
 export declare function createCategorieObligation(input: CreateCategorieObligationInput): Promise<{
     nom: string;
     description: string | null;
-    id: number;
+    id: string;
 }>;
-export declare function updateCategorieObligation(id: number, input: UpdateCategorieObligationInput): Promise<{
+export declare function updateCategorieObligation(id: string, input: UpdateCategorieObligationInput): Promise<{
     nom: string;
     description: string | null;
-    id: number;
+    id: string;
 }>;
-export declare function deleteCategorieObligation(id: number): Promise<{
+export declare function deleteCategorieObligation(id: string): Promise<{
     nom: string;
     description: string | null;
-    id: number;
+    id: string;
 }>;
 export declare function seedCategoriesObligation(): Promise<{
     createdCount: number;

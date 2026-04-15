@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Search,
@@ -16,9 +16,11 @@ import {
   Calendar,
   BadgeCheck,
   UserRound,
+  RefreshCw,
 } from "lucide-react";
 import { useDossiers } from "../../hooks/useDossiers";
 import { Button } from "../../components/ui";
+import { api } from "../../lib/api";
 import type { Dossier } from "../../types";
 
 function formatDate(dateStr?: string | null) {
@@ -34,7 +36,7 @@ function DossierRow({ dossier }: { dossier: Dossier }) {
   return (
     <Link
       to={`/dossiers/${dossier.id}`}
-      className="grid grid-cols-[36px_minmax(0,1fr)_170px_130px_190px_60px_16px] items-center gap-4 px-5 py-4 rounded-lg bg-white hover:bg-surface transition-colors group border border-transparent hover:border-surface-low"
+      className="grid grid-cols-[36px_1fr_40px_16px] sm:grid-cols-[36px_minmax(0,1fr)_170px_130px_190px_60px_16px] items-center gap-3 sm:gap-4 px-4 sm:px-5 py-4 rounded-lg bg-white hover:bg-surface transition-colors group border border-transparent hover:border-surface-low"
     >
       {/* Avatar initials */}
       <div className="w-9 h-9 rounded-md flex items-center justify-center shrink-0 text-xs font-bold bg-[#6f0015] text-error-container">
@@ -93,7 +95,10 @@ export default function DossiersPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const { dossiers, meta, loading, error } = useDossiers(page, limit);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const hasAutoSyncedRef = useRef(false);
+  const { dossiers, meta, loading, error, refetch } = useDossiers(page, limit);
 
   const query = search.trim().toLowerCase();
   const filtered = dossiers.filter((d) => {
@@ -135,11 +140,51 @@ export default function DossiersPage() {
     setPage(1);
   }
 
+  async function handleSyncDapg() {
+    setSyncing(true);
+    setSyncMessage(null);
+
+    try {
+      const response = await api.post<{
+        message: string;
+        data: {
+          totalSynced: number;
+          createdCount: number;
+          updatedCount: number;
+          lastPage: number;
+        };
+      }>("/dossiers/dapg/sync", {});
+
+      const { createdCount, updatedCount, totalSynced } = response.data;
+      setSyncMessage(
+        totalSynced === 0
+          ? "Aucun nouveau dossier DAPG à synchroniser."
+          : `${createdCount} nouveau(x) dossier(s), ${updatedCount} mis à jour.`
+      );
+
+      if (page === 1) {
+        await refetch();
+      } else {
+        setPage(1);
+      }
+    } catch (e) {
+      setSyncMessage((e as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  useEffect(() => {
+    if (hasAutoSyncedRef.current) return;
+    hasAutoSyncedRef.current = true;
+    void handleSyncDapg();
+  }, []);
+
   return (
-    <div className="p-8 min-h-full">
+    <div className="p-4 sm:p-8 min-h-full bg-surface">
       {/* ── Summary ribbon ── */}
       <div
-        className="rounded-lg px-6 py-5 mb-8 flex items-center gap-8 text-white"
+        className="rounded-lg px-6 py-5 mb-8 grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-center gap-6 lg:gap-8 text-white"
         style={{ background: "linear-gradient(135deg, #17362e 0%, #2e4d44 60%, #93000a 160%)" }}
       >
         <div className="flex items-center gap-3">
@@ -147,41 +192,41 @@ export default function DossiersPage() {
             <Shield size={16} className="text-primary-fixed" />
           </div>
           <div>
-            <p className="text-on-secondary-containerxl font-bold">{counts.total}</p>
+            <p className="text-xl font-bold">{counts.total}</p>
             <p className="text-xs text-white/70 font-medium">Dossiers total</p>
           </div>
         </div>
-        <div className="w-px h-10 bg-white/15" />
+        <div className="hidden lg:block w-px h-10 bg-white/15" />
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-md bg-white/15 flex items-center justify-center">
             <Activity size={16} className="text-primary-fixed" />
           </div>
           <div>
-            <p className="text-on-secondary-containerxl font-bold">{counts.affiches}</p>
+            <p className="text-xl font-bold">{counts.affiches}</p>
             <p className="text-xs text-white/70 font-medium">Affichés sur la page</p>
           </div>
         </div>
-        <div className="w-px h-10 bg-white/15" />
+        <div className="hidden lg:block w-px h-10 bg-white/15" />
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-md bg-primary-fixed flex items-center justify-center">
             <CheckCircle2 size={16} className="text-primary" />
           </div>
           <div>
-            <p className="text-on-secondary-containerxl font-bold">{counts.actifs}</p>
+            <p className="text-xl font-bold">{counts.actifs}</p>
             <p className="text-xs text-white/70 font-medium">Actifs sur la page</p>
           </div>
         </div>
-        <div className="w-px h-10 bg-white/15" />
+        <div className="hidden lg:block w-px h-10 bg-white/15" />
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-md bg-error-container flex items-center justify-center">
             <XCircle size={16} className="text-on-error-container" />
           </div>
           <div>
-            <p className="text-on-secondary-containerxl font-bold">{counts.alertes}</p>
+            <p className="text-xl font-bold">{counts.alertes}</p>
             <p className="text-xs text-white/70 font-medium">Révoqués sur la page</p>
           </div>
         </div>
-        <div className="ml-auto text-right text-xs text-white/70">
+        <div className="sm:col-span-2 lg:ml-auto text-left lg:text-right text-xs text-white/70">
           <p>
             Page {meta.page} / {Math.max(meta.totalPages, 1)}
           </p>
@@ -196,7 +241,7 @@ export default function DossiersPage() {
       </div>
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-on-surface flex items-center gap-2">
             <FileText size={20} className="text-primary" />
@@ -206,7 +251,7 @@ export default function DossiersPage() {
             Dossiers synchronises depuis l&apos;API judiciaire externe
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-2 rounded-full bg-error-container px-3 py-1 text-[11px] font-bold text-on-error-container uppercase tracking-wider">
             <AlertCircle size={12} />
             Alertes actives
@@ -215,8 +260,23 @@ export default function DossiersPage() {
             <CheckCircle2 size={12} />
             Suivi stable
           </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={syncing}
+            onClick={handleSyncDapg}
+            className="ml-1"
+          >
+            <RefreshCw size={14} />
+            Synchroniser
+          </Button>
         </div>
       </div>
+      {syncMessage && (
+        <p className="mb-4 text-xs font-medium text-on-secondary-container">
+          {syncMessage}
+        </p>
+      )}
 
       {/* ── Search ── */}
       <div className="relative mb-4">
@@ -226,7 +286,7 @@ export default function DossiersPage() {
           placeholder="Rechercher par nom, prénom ou numéro de dossier…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 rounded-sm bg-surface-highest text-sm placeholder:text-outline-variant outline-none focus:border-b-2 focus:border-primary transition-all"
+          className="w-full pl-9 pr-4 py-2.5 rounded-md bg-surface-highest text-sm placeholder:text-outline-variant outline-none focus:border-b-2 focus:border-primary transition-all"
         />
       </div>
       <p className="mb-5 text-xs text-on-secondary-container">
@@ -234,7 +294,7 @@ export default function DossiersPage() {
       </p>
 
       {/* ── Column headers ── */}
-      <div className="grid grid-cols-[36px_minmax(0,1fr)_170px_130px_190px_60px_16px] items-center gap-4 px-5 py-2 mb-2">
+      <div className="hidden sm:grid grid-cols-[36px_minmax(0,1fr)_170px_130px_190px_60px_16px] items-center gap-4 px-5 py-2 mb-2">
         <div className="w-9 shrink-0" />
         <div className="text-xs font-semibold uppercase tracking-wider text-on-error-container flex items-center gap-2">
           <User size={12} className="text-on-error-container shrink-0" />
@@ -299,7 +359,7 @@ export default function DossiersPage() {
       )}
 
       {!loading && !error && (
-        <div className="mt-6 rounded-lg bg-white px-5 py-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mt-6 rounded-lg bg-white p-4 sm:px-5 sm:py-4 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="text-sm text-on-surface-variant">
             {meta.total === 0 ? (
               "Aucun dossier a afficher"
@@ -312,7 +372,7 @@ export default function DossiersPage() {
             )}
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
               Par page
               <select

@@ -80,6 +80,21 @@ async function getDossierWithBeneficiaireOrThrow(
 
   return dossier as DossierWithBeneficiaire;
 }
+
+async function ensureObligationEditable(id: string) {
+  const obligation = await prisma.obligation.findUniqueOrThrow({
+    where: { id },
+    include: {
+      beneficiaire: true,
+    },
+  });
+
+  if (obligation.beneficiaire.profilConfirme) {
+    throw new HttpError(409, "Le profil du beneficiaire est deja confirme");
+  }
+
+  return obligation;
+}
 // Fonctions pour construire les données de création et de mise à jour d'une obligation en filtrant les propriétés undefined
 function buildObligationCreateData(
   data: CreateObligationInput,
@@ -189,9 +204,7 @@ export async function createObligation(dossierId: string, input: CreateObligatio
 export async function updateObligation(id: string, input: UpdateObligationInput) {
   const data = UpdateObligationSchema.parse(input);
 
-  await prisma.obligation.findUniqueOrThrow({
-    where: { id },
-  });
+  await ensureObligationEditable(id);
 
   if (data.categorie_id !== undefined) {
     await ensureCategorieExists(data.categorie_id);
@@ -223,9 +236,7 @@ export async function validateObligation(
 ) {
   const data = ValidateObligationSchema.parse(input);
 
-  await prisma.obligation.findUniqueOrThrow({
-    where: { id },
-  });
+  await ensureObligationEditable(id);
 
   if (data.categorie_id !== undefined) {
     await ensureCategorieExists(data.categorie_id);

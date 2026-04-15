@@ -10,6 +10,7 @@ export const DossierSchema = z.object({
     (value) => (value === undefined || value === null ? undefined : String(value)),
     z.string().optional(),
   ),
+  prison_name: z.string().optional(),
   nom: z.string(),
   prenom: z.string(),
   date_naissance: z.string().optional(),
@@ -25,6 +26,12 @@ export const DossierSchema = z.object({
   condamnation: z.string().optional(),
   date_fin_peine: z.string().optional(),
   duree_peine_mois: z.number().optional(),
+  decision_dapg: z.string().optional(),
+  date_decision_dapg: z.string().optional(),
+  duree_temps_epreuve: z.preprocess(
+    (value) => (value === undefined || value === null ? undefined : String(value)),
+    z.string().optional(),
+  ),
   observations: z.string().optional(),
   obligations: z.string().optional(), // texte brut venant de la DAPG
   others_data: z.record(z.string(), z.any()).optional(), // pour stocker des données supplémentaires sous forme de clé-valeur

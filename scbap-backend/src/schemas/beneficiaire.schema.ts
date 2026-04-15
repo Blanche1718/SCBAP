@@ -4,6 +4,7 @@ export const BeneficiaireSchema = z.object({
   dossierId: z.string().uuid(),
   statut: z.string(),
   qrCode: z.string(),
+  profilConfirme: z.boolean().optional(),
 });
 
 export const UpdateBeneficiaireSchema = BeneficiaireSchema.partial().refine(

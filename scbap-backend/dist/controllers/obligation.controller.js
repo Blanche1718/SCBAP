@@ -7,19 +7,16 @@ exports.updateObligationController = updateObligationController;
 exports.validateObligationController = validateObligationController;
 const errorHandler_1 = require("../errorHandler");
 const obligation_service_1 = require("../services/obligation.service");
-function parseNumericId(value, label) {
-    if (typeof value !== "string") {
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function parseUuid(value, label) {
+    if (typeof value !== "string" || !UUID_REGEX.test(value)) {
         throw new errorHandler_1.HttpError(400, `Identifiant de ${label} invalide`);
     }
-    const id = Number(value);
-    if (!Number.isInteger(id) || id <= 0) {
-        throw new errorHandler_1.HttpError(400, `Identifiant de ${label} invalide`);
-    }
-    return id;
+    return value;
 }
 async function getObligationsByDossierController(req, res, next) {
     try {
-        const dossierId = parseNumericId(req.params.dossierId, "dossier");
+        const dossierId = parseUuid(req.params.dossierId, "dossier");
         const obligations = await (0, obligation_service_1.getObligationsByDossier)(dossierId);
         res.status(200).json({
             message: "Liste des obligations recuperee avec succes",
@@ -32,7 +29,7 @@ async function getObligationsByDossierController(req, res, next) {
 }
 async function createObligationController(req, res, next) {
     try {
-        const dossierId = parseNumericId(req.params.dossierId, "dossier");
+        const dossierId = parseUuid(req.params.dossierId, "dossier");
         const obligation = await (0, obligation_service_1.createObligation)(dossierId, req.body);
         res.status(201).json({
             message: "Obligation creee avec succes",
@@ -45,7 +42,7 @@ async function createObligationController(req, res, next) {
 }
 async function getObligationByIdController(req, res, next) {
     try {
-        const id = parseNumericId(req.params.id, "obligation");
+        const id = parseUuid(req.params.id, "obligation");
         const obligation = await (0, obligation_service_1.getObligationById)(id);
         res.status(200).json({
             message: "Obligation recuperee avec succes",
@@ -58,7 +55,7 @@ async function getObligationByIdController(req, res, next) {
 }
 async function updateObligationController(req, res, next) {
     try {
-        const id = parseNumericId(req.params.id, "obligation");
+        const id = parseUuid(req.params.id, "obligation");
         const obligation = await (0, obligation_service_1.updateObligation)(id, req.body);
         res.status(200).json({
             message: "Obligation mise a jour avec succes",
@@ -71,7 +68,7 @@ async function updateObligationController(req, res, next) {
 }
 async function validateObligationController(req, res, next) {
     try {
-        const id = parseNumericId(req.params.id, "obligation");
+        const id = parseUuid(req.params.id, "obligation");
         const obligation = await (0, obligation_service_1.validateObligation)(id, req.body);
         res.status(200).json({
             message: "Obligation validee avec succes",

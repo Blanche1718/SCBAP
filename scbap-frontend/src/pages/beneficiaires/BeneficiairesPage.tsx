@@ -14,9 +14,11 @@ import {
   Shield,
   Activity,
   Clock,
+  RefreshCw,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useBeneficiaires } from "../../hooks/useBeneficiaires";
+import { api } from "../../lib/api";
 import type { Beneficiaire } from "../../types";
 
 type ComplianceStatus = "NON_CONFORME" | "ACTIF" | "TERMINE";
@@ -44,6 +46,33 @@ function getDisplayName(beneficiaire: Beneficiaire) {
 
 function getNumeroDossier(beneficiaire: Beneficiaire) {
   return beneficiaire.dossier?.numeroDossier ?? "—";
+}
+
+function isNewBeneficiaire(beneficiaire: Beneficiaire) {
+  const dossier = beneficiaire.dossier;
+  if (!dossier) return false;
+  if (beneficiaire.profilConfirme) return false;
+
+  if (dossier.othersData?.source !== "dapg") return false;
+
+  const createdAt = new Date(dossier.createdAt);
+  if (Number.isNaN(createdAt.getTime())) return false;
+
+  return Date.now() - createdAt.getTime() < 72 * 60 * 60 * 1000;
+}
+
+function formatDossierCreatedAt(dateStr?: string | null) {
+  if (!dateStr) return "—";
+  const parsed = new Date(dateStr);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return parsed.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Africa/Porto-Novo",
+  });
 }
 
 function formatLastPointage(dateHeure?: string | null) {
@@ -82,6 +111,22 @@ function StatusBadge({ status }: { status: ComplianceStatus }) {
   );
 }
 
+function NewBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full bg-[#ffe9c7] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#6b3d00]">
+      Nouveau
+    </span>
+  );
+}
+
+function SetupHint({ createdAt }: { createdAt?: string | null }) {
+  return (
+    <p className="mt-1 text-[11px] font-medium text-primary">
+      Bénéficiaire nouvellement importé, à configurer depuis le {formatDossierCreatedAt(createdAt)}
+    </p>
+  );
+}
+
 function RiskBadge({ level }: { level: RiskLevel }) {
   const styles =
     level === "Eleve"
@@ -112,7 +157,9 @@ export default function BeneficiairesPage() {
   const [statusFilter, setStatusFilter] = useState<"TOUS" | ComplianceStatus>("TOUS");
   const [riskFilter, setRiskFilter] = useState<"TOUS" | RiskLevel>("TOUS");
   const [agentFilter, setAgentFilter] = useState<"TOUS" | "Agent A." | "Agent B.">("TOUS");
-  const { beneficiaires, meta, loading, error } = useBeneficiaires(page, limit);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const { beneficiaires, meta, loading, error, refetch } = useBeneficiaires(page, limit);
 
   const query = search.trim().toLowerCase();
   function getAgentLabel(beneficiaire: Beneficiaire) {
@@ -166,11 +213,28 @@ export default function BeneficiairesPage() {
     setPage(1);
   }
 
+  async function syncDapgDossiers() {
+    try {
+      setSyncing(true);
+      setSyncError(null);
+      await api.post("/dossiers/dapg/sync", {});
+      await refetch();
+    } catch (err) {
+      setSyncError((err as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  useEffect(() => {
+    void syncDapgDossiers();
+  }, []);
+
   return (
-    <div className="p-8 min-h-full bg-surface">
+    <div className="p-4 sm:p-8 min-h-full bg-surface">
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-6 mb-6">
-        <div className="relative w-full max-w-lg">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-6 mb-6">
+        <div className="relative w-full lg:max-w-lg">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant" />
           <input
             type="text"
@@ -180,7 +244,7 @@ export default function BeneficiairesPage() {
             className="w-full pl-9 pr-4 py-2.5 rounded-sm bg-surface-highest text-sm placeholder:text-outline-variant outline-none focus:border-b-2 focus:border-primary transition-all"
           />
         </div>
-        <div className="flex items-center gap-3 ml-auto">
+        <div className="flex flex-wrap items-center gap-3 lg:ml-auto">
           <button
             type="button"
             aria-label="Notifications"
@@ -202,7 +266,7 @@ export default function BeneficiairesPage() {
             <AlertTriangle size={14} />
             Alerte d&apos;urgence
           </button>
-          <div className="flex items-center gap-3 pl-2">
+          <div className="hidden sm:flex items-center gap-3 pl-2">
             <div className="text-right">
               <p className="text-xs font-semibold text-on-surface">Officier Sarah Vance</p>
               <p className="text-[10px] text-on-secondary-container">Superviseur Senior</p>
@@ -215,26 +279,41 @@ export default function BeneficiairesPage() {
       </div>
 
       {/* Title + counters */}
-      <div className="rounded-lg bg-white p-6 mb-5 flex items-center justify-between">
+      <div className="rounded-lg bg-white p-4 sm:p-6 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-on-surface">Beneficiaires</h1>
           <p className="text-sm text-on-secondary-container mt-1">
             Supervision de {counts.total} sujets judiciaires actifs
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="px-4 py-2 rounded-md bg-primary-fixed text-[#2e4d44] text-xs font-bold uppercase tracking-wider">
             {counts.conformes} sujets conformes
           </div>
           <div className="px-4 py-2 rounded-md bg-error-container text-on-error-container text-xs font-bold uppercase tracking-wider">
             {counts.critiques} alertes critiques
           </div>
+          <button
+            type="button"
+            onClick={syncDapgDossiers}
+            disabled={syncing}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#2e4d44] disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+            {syncing ? "Synchronisation..." : "Synchroniser"}
+          </button>
         </div>
       </div>
 
+      {syncError && (
+        <div className="mb-4 rounded-md bg-error-container px-4 py-3 text-xs font-semibold text-on-error-container">
+          {syncError}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="rounded-lg bg-white p-4 mb-4">
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <label className="text-xs font-semibold text-on-secondary-container uppercase tracking-wider">
             Statut
             <select
@@ -300,27 +379,27 @@ export default function BeneficiairesPage() {
       </div>
 
       {/* Table header */}
-      <div className="grid grid-cols-[40px_minmax(0,1fr)_200px_190px_190px_96px] items-center gap-4 px-5 py-2 mb-2">
-        <div className="w-10" />
+      <div className="grid grid-cols-[40px_1fr_80px] sm:grid-cols-[40px_minmax(0,1fr)_200px_190px_190px_96px] items-center gap-4 px-5 py-2 mb-2">
+        <div className="w-10 shrink-0" />
         <div className="text-xs font-semibold uppercase tracking-wider text-on-error-container flex items-center gap-2">
           <User size={12} className="text-on-error-container shrink-0" />
-          Nom du beneficiaire
+          <span className="truncate">Nom du beneficiaire</span>
         </div>
-        <div className="text-xs font-semibold uppercase tracking-wider text-on-error-container flex items-center justify-center gap-2">
+        <div className="hidden sm:flex text-xs font-semibold uppercase tracking-wider text-on-error-container items-center justify-center gap-2">
           <Shield size={12} className="text-on-error-container shrink-0" />
           Statut de conformite
         </div>
-        <div className="text-xs font-semibold uppercase tracking-wider text-on-error-container flex items-center justify-center gap-2 text-center">
+        <div className="hidden md:flex text-xs font-semibold uppercase tracking-wider text-on-error-container items-center justify-center gap-2 text-center">
           <Activity size={12} className="text-on-error-container shrink-0" />
           Facteur de risque
         </div>
-        <div className="text-xs font-semibold uppercase tracking-wider text-on-error-container flex items-center justify-center gap-2 text-center">
+        <div className="hidden lg:flex text-xs font-semibold uppercase tracking-wider text-on-error-container items-center justify-center gap-2 text-center">
           <Clock size={12} className="text-on-error-container shrink-0" />
           Dernier pointage
         </div>
-        <div className="text-xs font-semibold uppercase tracking-wider text-on-error-container text-right inline-flex items-center justify-end gap-2">
+        <div className="text-xs font-semibold uppercase tracking-wider text-on-error-container text-right flex items-center justify-end gap-2">
           <UserRound size={12} className="text-on-error-container shrink-0" />
-          Actions
+          <span className="hidden sm:inline">Actions</span>
         </div>
       </div>
 
@@ -349,14 +428,19 @@ export default function BeneficiairesPage() {
             const statut = getComplianceStatus(item);
             const risque = getRiskLevel(item);
             const lastPointage = item.pointages?.[0]?.dateHeure;
+            const isNew = isNewBeneficiaire(item);
 
             return (
               <Link
                 key={item.id}
                 to={`/beneficiaires/${item.id}`}
-                className="grid grid-cols-[40px_minmax(0,1fr)_200px_190px_190px_96px] items-center gap-4 px-5 py-4 rounded-lg bg-white hover:bg-surface transition-colors border border-transparent hover:border-surface-low"
+                className={`grid grid-cols-[40px_1fr_80px] sm:grid-cols-[40px_minmax(0,1fr)_200px_190px_190px_96px] items-center gap-4 px-5 py-4 rounded-lg transition-colors border ${
+                  isNew
+                    ? "bg-[#eef8f4] border-primary-fixed hover:border-primary"
+                    : "bg-white hover:bg-surface border-transparent hover:border-surface-low"
+                }`}
               >
-                <div className="w-10 h-10 rounded-md bg-[#6f0015] text-error-container flex items-center justify-center text-xs font-bold">
+                <div className="w-10 h-10 rounded-md bg-[#6f0015] text-error-container flex items-center justify-center text-xs font-bold shrink-0">
                   {fullName
                     .split(" ")
                     .filter(Boolean)
@@ -366,18 +450,22 @@ export default function BeneficiairesPage() {
                     .toUpperCase() || "—"}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-on-surface truncate">{fullName}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-on-surface truncate">{fullName}</p>
+                    {isNew && <NewBadge />}
+                  </div>
                   <p className="text-xs text-on-secondary-container font-mono mt-0.5 truncate">
                     {numero}
                   </p>
+                  {isNew && <SetupHint createdAt={item.dossier?.createdAt} />}
                 </div>
-                <div className="flex justify-center">
+                <div className="hidden sm:flex justify-center">
                   <StatusBadge status={statut} />
                 </div>
-                <div className="flex justify-center">
+                <div className="hidden md:flex justify-center">
                   <RiskBadge level={risque} />
                 </div>
-                <p className="text-xs text-on-surface-variant text-center">
+                <p className="hidden lg:block text-xs text-on-surface-variant text-center">
                   {formatLastPointage(lastPointage)}
                 </p>
                 <div className="flex items-center justify-end gap-2">

@@ -10,6 +10,8 @@ export interface Beneficiaire {
   dossierId: string;
   statut: string;
   qrCode: string;
+  profilConfirme?: boolean;
+  profilConfirmeLe?: string | null;
   createdAt: string;
   dossier?: Dossier;
   obligations?: Obligation[];
@@ -22,6 +24,7 @@ export interface Obligation {
   beneficiaireId: string;
   dossierId: string;
   categorieId: string;
+  source?: string | null;
   description: string;
   type?: string | null;
   frequence?: string | null;
@@ -38,6 +41,11 @@ export interface Obligation {
   modifieLe?: string | null;
   modifiePar?: string | null;
   createdAt?: string | null;
+  categorie?: {
+    id: string;
+    nom: string;
+    description?: string | null;
+  } | null;
 }
 
 export interface Pointage {
@@ -70,6 +78,7 @@ export interface Dossier {
   numeroDossier: string;
   juridictionId?: number | null;
   prisonId?: number | null;
+  prisonName?: string | null;
   nom: string;
   prenom: string;
   dateNaissance?: string | null;
@@ -85,6 +94,9 @@ export interface Dossier {
   condamnation?: string | null;
   dateFinPeine?: string | null;
   dureePeineMois?: number | null;
+  decisionDapg?: string | null;
+  dateDecisionDapg?: string | null;
+  dureeTempsEpreuve?: string | null;
   observations?: string | null;
   obligations?: string | null;
   othersData?: Record<string, unknown> | null;

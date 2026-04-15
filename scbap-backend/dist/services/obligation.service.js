@@ -61,6 +61,18 @@ async function getDossierWithBeneficiaireOrThrow(dossierId) {
     }
     return dossier;
 }
+async function ensureObligationEditable(id) {
+    const obligation = await prisma_1.default.obligation.findUniqueOrThrow({
+        where: { id },
+        include: {
+            beneficiaire: true,
+        },
+    });
+    if (obligation.beneficiaire.profilConfirme) {
+        throw new errorHandler_1.HttpError(409, "Le profil du beneficiaire est deja confirme");
+    }
+    return obligation;
+}
 // Fonctions pour construire les données de création et de mise à jour d'une obligation en filtrant les propriétés undefined
 function buildObligationCreateData(data, options) {
     return {
@@ -78,6 +90,9 @@ function buildObligationCreateData(data, options) {
         dateDebut: parseDate(data.date_debut),
         dateFin: parseDate(data.date_fin),
         statut: data.statut,
+        raisonModification: data.raison_modification,
+        raisonAutre: data.raison_autre,
+        modifiePar: data.modifie_par,
     };
 }
 // Fonction pour construire les données de mise à jour d'une obligation en filtrant les propriétés undefined
@@ -95,6 +110,9 @@ function buildObligationUpdateData(data) {
         dateDebut: data.date_debut !== undefined ? parseDate(data.date_debut) : undefined,
         dateFin: data.date_fin !== undefined ? parseDate(data.date_fin) : undefined,
         statut: data.statut,
+        raisonModification: data.raison_modification,
+        raisonAutre: data.raison_autre,
+        modifiePar: data.modifie_par,
     };
     return removeUndefinedValues(rawData);
 }
@@ -147,15 +165,20 @@ async function createObligation(dossierId, input) {
 // Fonctyion pour mettre à jour une obligation
 async function updateObligation(id, input) {
     const data = obligation_schema_1.UpdateObligationSchema.parse(input);
-    await prisma_1.default.obligation.findUniqueOrThrow({
-        where: { id },
-    });
+    await ensureObligationEditable(id);
     if (data.categorie_id !== undefined) {
         await ensureCategorieExists(data.categorie_id);
     }
+    const updateData = buildObligationUpdateData(data);
+    const shouldValidate = data.statut_structuration === undefined &&
+        (data.raison_modification !== undefined || data.raison_autre !== undefined);
     return prisma_1.default.obligation.update({
         where: { id },
-        data: buildObligationUpdateData(data),
+        data: {
+            ...updateData,
+            statutStructuration: shouldValidate ? "VALIDE" : updateData.statutStructuration,
+            modifieLe: new Date(),
+        },
         include: {
             beneficiaire: true,
             categorie: true,
@@ -166,9 +189,7 @@ async function updateObligation(id, input) {
 // Fonction pour valider une obligation
 async function validateObligation(id, input) {
     const data = obligation_schema_1.ValidateObligationSchema.parse(input);
-    await prisma_1.default.obligation.findUniqueOrThrow({
-        where: { id },
-    });
+    await ensureObligationEditable(id);
     if (data.categorie_id !== undefined) {
         await ensureCategorieExists(data.categorie_id);
     }
@@ -177,6 +198,7 @@ async function validateObligation(id, input) {
         data: {
             ...buildObligationUpdateData(data),
             statutStructuration: "VALIDE",
+            modifieLe: new Date(),
         },
         include: {
             beneficiaire: true,

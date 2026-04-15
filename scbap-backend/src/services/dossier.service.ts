@@ -87,6 +87,7 @@ export async function updateDossier(id: string, input: UpdateDossierInput) {
     numeroDossier: data.numero_dossier,
     juridictionId: data.juridiction_id,
     prisonId: data.prison_id,
+    prisonName: data.prison_name,
     nom: data.nom,
     prenom: data.prenom,
     dateNaissance: data.date_naissance
@@ -108,6 +109,11 @@ export async function updateDossier(id: string, input: UpdateDossierInput) {
       ? parseDate(data.date_fin_peine)
       : undefined,
     dureePeineMois: data.duree_peine_mois,
+    decisionDapg: data.decision_dapg,
+    dateDecisionDapg: data.date_decision_dapg
+      ? parseDate(data.date_decision_dapg)
+      : undefined,
+    dureeTempsEpreuve: data.duree_temps_epreuve,
     observations: data.observations,
     obligations: data.obligations,
     othersData: data.others_data,

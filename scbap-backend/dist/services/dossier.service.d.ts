@@ -4,15 +4,17 @@ type UpdateDossierInput = z.infer<typeof UpdateDossierSchema>;
 export declare function getDossiers(page?: number, limit?: number): Promise<{
     data: ({
         beneficiaire: {
-            id: number;
+            id: string;
             statut: string;
             createdAt: Date;
-            dossierId: number;
+            dossierId: string;
             qrCode: string;
+            profilConfirme: boolean;
+            profilConfirmeLe: Date | null;
         } | null;
     } & {
         nom: string;
-        id: number;
+        id: string;
         obligations: string | null;
         prenom: string;
         nationalite: string | null;
@@ -24,8 +26,9 @@ export declare function getDossiers(page?: number, limit?: number): Promise<{
         observations: string | null;
         statut: string | null;
         numeroDossier: string;
-        juridictionId: number | null;
-        prisonId: number | null;
+        juridictionId: string | null;
+        prisonId: string | null;
+        prisonName: string | null;
         dateNaissance: Date | null;
         lieuNaissance: string | null;
         telephoneContact: string | null;
@@ -33,6 +36,9 @@ export declare function getDossiers(page?: number, limit?: number): Promise<{
         dateMandatDepot: Date | null;
         dateFinPeine: Date | null;
         dureePeineMois: number | null;
+        decisionDapg: string | null;
+        dateDecisionDapg: Date | null;
+        dureeTempsEpreuve: string | null;
         othersData: import("@prisma/client/runtime/client").JsonValue | null;
         createdAt: Date;
         updatedAt: Date;
@@ -45,17 +51,19 @@ export declare function getDossiers(page?: number, limit?: number): Promise<{
         totalPages: number;
     };
 }>;
-export declare function getDossierById(id: number): Promise<{
+export declare function getDossierById(id: string): Promise<{
     beneficiaire: {
-        id: number;
+        id: string;
         statut: string;
         createdAt: Date;
-        dossierId: number;
+        dossierId: string;
         qrCode: string;
+        profilConfirme: boolean;
+        profilConfirmeLe: Date | null;
     } | null;
 } & {
     nom: string;
-    id: number;
+    id: string;
     obligations: string | null;
     prenom: string;
     nationalite: string | null;
@@ -67,8 +75,9 @@ export declare function getDossierById(id: number): Promise<{
     observations: string | null;
     statut: string | null;
     numeroDossier: string;
-    juridictionId: number | null;
-    prisonId: number | null;
+    juridictionId: string | null;
+    prisonId: string | null;
+    prisonName: string | null;
     dateNaissance: Date | null;
     lieuNaissance: string | null;
     telephoneContact: string | null;
@@ -76,22 +85,27 @@ export declare function getDossierById(id: number): Promise<{
     dateMandatDepot: Date | null;
     dateFinPeine: Date | null;
     dureePeineMois: number | null;
+    decisionDapg: string | null;
+    dateDecisionDapg: Date | null;
+    dureeTempsEpreuve: string | null;
     othersData: import("@prisma/client/runtime/client").JsonValue | null;
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
 }>;
-export declare function updateDossier(id: number, input: UpdateDossierInput): Promise<{
+export declare function updateDossier(id: string, input: UpdateDossierInput): Promise<{
     beneficiaire: {
-        id: number;
+        id: string;
         statut: string;
         createdAt: Date;
-        dossierId: number;
+        dossierId: string;
         qrCode: string;
+        profilConfirme: boolean;
+        profilConfirmeLe: Date | null;
     } | null;
 } & {
     nom: string;
-    id: number;
+    id: string;
     obligations: string | null;
     prenom: string;
     nationalite: string | null;
@@ -103,8 +117,9 @@ export declare function updateDossier(id: number, input: UpdateDossierInput): Pr
     observations: string | null;
     statut: string | null;
     numeroDossier: string;
-    juridictionId: number | null;
-    prisonId: number | null;
+    juridictionId: string | null;
+    prisonId: string | null;
+    prisonName: string | null;
     dateNaissance: Date | null;
     lieuNaissance: string | null;
     telephoneContact: string | null;
@@ -112,22 +127,27 @@ export declare function updateDossier(id: number, input: UpdateDossierInput): Pr
     dateMandatDepot: Date | null;
     dateFinPeine: Date | null;
     dureePeineMois: number | null;
+    decisionDapg: string | null;
+    dateDecisionDapg: Date | null;
+    dureeTempsEpreuve: string | null;
     othersData: import("@prisma/client/runtime/client").JsonValue | null;
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
 }>;
-export declare function softDeleteDossier(id: number): Promise<{
+export declare function softDeleteDossier(id: string): Promise<{
     beneficiaire: {
-        id: number;
+        id: string;
         statut: string;
         createdAt: Date;
-        dossierId: number;
+        dossierId: string;
         qrCode: string;
+        profilConfirme: boolean;
+        profilConfirmeLe: Date | null;
     } | null;
 } & {
     nom: string;
-    id: number;
+    id: string;
     obligations: string | null;
     prenom: string;
     nationalite: string | null;
@@ -139,8 +159,9 @@ export declare function softDeleteDossier(id: number): Promise<{
     observations: string | null;
     statut: string | null;
     numeroDossier: string;
-    juridictionId: number | null;
-    prisonId: number | null;
+    juridictionId: string | null;
+    prisonId: string | null;
+    prisonName: string | null;
     dateNaissance: Date | null;
     lieuNaissance: string | null;
     telephoneContact: string | null;
@@ -148,6 +169,9 @@ export declare function softDeleteDossier(id: number): Promise<{
     dateMandatDepot: Date | null;
     dateFinPeine: Date | null;
     dureePeineMois: number | null;
+    decisionDapg: string | null;
+    dateDecisionDapg: Date | null;
+    dureeTempsEpreuve: string | null;
     othersData: import("@prisma/client/runtime/client").JsonValue | null;
     createdAt: Date;
     updatedAt: Date;

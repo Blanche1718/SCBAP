@@ -10,25 +10,10 @@ import {
   Clock,
   Shield,
   Activity,
-  AlertTriangle,
-  CheckCircle2,
+  // AlertTriangle,
+  // CheckCircle2,
 } from "lucide-react";
 import { useDossier } from "../../hooks/useDossiers";
-import { Badge } from "../../components/ui";
-import type { StatutDossier } from "../../types";
-
-const STATUT_LABEL: Record<StatutDossier, string> = {
-  ACTIF: "Actif",
-  REVOQUE: "Révoqué",
-  TERMINE: "Terminé",
-};
-
-const STATUT_VARIANT: Record<StatutDossier, "compliant" | "alert" | "inactive" > = {
-  ACTIF: "compliant",
-  REVOQUE: "alert",
-  TERMINE: "inactive",
-};
-
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return "—";
   return new Date(dateStr).toLocaleDateString("fr-FR", {
@@ -59,14 +44,14 @@ function Section({ title, icon: Icon, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg bg-white p-6 border border-surface-low">
+    <div className="rounded-lg bg-white p-4 sm:p-6 border border-surface-low">
       <h2 className="text-xs font-bold text-on-error-container uppercase tracking-widest mb-5 pb-3 border-b border-surface-low flex items-center gap-2">
         <span className="w-6 h-6 rounded-md bg-error-container text-on-error-container flex items-center justify-center">
           <Icon size={13} />
         </span>
         {title}
       </h2>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-5">{children}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">{children}</div>
     </div>
   );
 }
@@ -95,10 +80,10 @@ export default function DossierDetailPage() {
     );
   }
 
-  const statut = dossier.statut as StatutDossier;
+  // const statut = dossier.statut as StatutDossier;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto">
       {/* Back */}
       <div className="flex items-center gap-4 mb-6">
         <Link
@@ -114,19 +99,19 @@ export default function DossierDetailPage() {
 
       {/* Hero card */}
       <div
-        className="rounded-lg p-6 mb-6 text-white"
+        className="rounded-lg p-5 sm:p-6 mb-6 text-white"
         style={{
           background:
             "linear-gradient(135deg, #17362e 0%, #2e4d44 60%, #93000a 160%)",
         }}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-lg bg-white/15 flex items-center justify-center text-xl font-bold">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-14 h-14 rounded-lg bg-white/15 flex items-center justify-center text-xl font-bold shrink-0">
               {dossier.nom[0]}{dossier.prenom[0]}
             </div>
-            <div>
-              <h1 className="text-on-secondary-containerxl font-bold">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold">
                 {dossier.nom} {dossier.prenom}
               </h1>
               <p className="text-white/60 font-mono text-sm mt-1">
@@ -134,7 +119,7 @@ export default function DossierDetailPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          {/* <div className="flex items-center gap-3">
             {statut === "REVOQUE" ? (
               <span className="inline-flex items-center gap-2 rounded-full bg-error-container px-3 py-1 text-[11px] font-bold text-on-error-container uppercase tracking-wider">
                 <AlertTriangle size={12} />
@@ -147,10 +132,10 @@ export default function DossierDetailPage() {
               </span>
             )}
             <Badge variant={STATUT_VARIANT[statut]}>{STATUT_LABEL[statut]}</Badge>
-          </div>
+          </div> */}
         </div>
 
-        <div className="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-white/15">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mt-6 pt-4 border-t border-white/15">
           <div>
             <p className="text-white/50 text-xs uppercase tracking-wider mb-1 flex items-center gap-1">
               <Calendar size={11} /> Fin de peine
@@ -169,10 +154,10 @@ export default function DossierDetailPage() {
           </div>
           <div>
             <p className="text-white/50 text-xs uppercase tracking-wider mb-1 flex items-center gap-1">
-              <Activity size={11} /> Statut de suivi
+              <Activity size={11} /> Numéro de mandat
             </p>
             <p className="text-white font-semibold text-sm">
-              {dossier.beneficiaire?.statut ?? "—"}
+              {dossier.numeroMandatDepot }
             </p>
           </div>
         </div>
@@ -208,7 +193,18 @@ export default function DossierDetailPage() {
           <div>
             <p className="text-xs font-semibold text-on-secondary-container uppercase tracking-wider">Dernier pointage</p>
             <p className="text-sm font-bold text-on-surface">—</p>
-          </div>
+          </div>const STATUT_LABEL: Record<StatutDossier, string> = {
+//   ACTIF: "Actif",
+//   REVOQUE: "Révoqué",
+//   TERMINE: "Terminé",
+// };
+
+// const STATUT_VARIANT: Record<StatutDossier, "compliant" | "alert" | "inactive" > = {
+//   ACTIF: "compliant",
+//   REVOQUE: "alert",
+//   TERMINE: "inactive",
+// };
+
         </div>
       </div> */}
 
@@ -244,7 +240,7 @@ export default function DossierDetailPage() {
 
         {/* Obligations */}
         {dossier.obligations && (
-          <div className="rounded-lg bg-white p-6">
+          <div className="rounded-lg bg-white p-4 sm:p-6">
             <h2 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4 pb-3 border-b border-surface-low flex items-center gap-2">
               <span className="w-6 h-6 rounded-md bg-error-container text-on-error-container flex items-center justify-center">
                 <FileText size={13} />
@@ -263,7 +259,7 @@ export default function DossierDetailPage() {
 
         {/* Observations */}
         {dossier.observations && (
-          <div className="rounded-lg bg-white p-6">
+          <div className="rounded-lg bg-white p-4 sm:p-6">
             <h2 className="text-xs font-bold text-on-error-container uppercase tracking-widest mb-3 flex items-center gap-2">
               <span className="w-6 h-6 rounded-md bg-error-container text-on-error-container flex items-center justify-center">
                 <MapPin size={13} />

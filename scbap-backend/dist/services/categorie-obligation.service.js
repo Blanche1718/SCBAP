@@ -18,6 +18,22 @@ exports.DEFAULT_CATEGORIES_OBLIGATION = [
         nom: "POINTAGE",
         description: "Obligation de se presenter a une structure a une frequence definie.",
     },
+    {
+        nom: "COUVRE_FEU",
+        description: "Restriction horaire de presence obligatoire au domicile.",
+    },
+    {
+        nom: "INTERDICTION_ZONE",
+        description: "Interdiction d'acceder a une zone specifique.",
+    },
+    {
+        nom: "SUIVI_MEDICAL",
+        description: "Obligation de suivi medical regulier.",
+    },
+    {
+        nom: "OBLIGATION_TRAVAIL",
+        description: "Obligation d'activite professionnelle ou de formation.",
+    },
 ];
 async function ensureCategoryNameAvailable(nom, excludeId) {
     const existingCategory = await prisma_1.default.categorieObligation.findFirst({

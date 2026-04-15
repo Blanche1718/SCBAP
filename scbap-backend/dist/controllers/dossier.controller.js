@@ -6,15 +6,12 @@ exports.updateDossierController = updateDossierController;
 exports.softDeleteDossierController = softDeleteDossierController;
 const errorHandler_1 = require("../errorHandler");
 const dossier_service_1 = require("../services/dossier.service");
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function parseDossierId(idParam) {
-    if (typeof idParam !== "string") {
+    if (typeof idParam !== "string" || !UUID_REGEX.test(idParam)) {
         throw new errorHandler_1.HttpError(400, "Identifiant de dossier invalide");
     }
-    const id = Number(idParam);
-    if (!Number.isInteger(id) || id <= 0) {
-        throw new errorHandler_1.HttpError(400, "Identifiant de dossier invalide");
-    }
-    return id;
+    return idParam;
 }
 function parsePaginationParam(value, paramName, defaultValue) {
     if (value === undefined) {

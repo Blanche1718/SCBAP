@@ -1,8 +1,9 @@
 import { z } from "zod";
 export declare const DossierSchema: z.ZodObject<{
     numero_dossier: z.ZodString;
-    juridiction_id: z.ZodOptional<z.ZodNumber>;
-    prison_id: z.ZodOptional<z.ZodNumber>;
+    juridiction_id: z.ZodPipe<z.ZodTransform<string | undefined, unknown>, z.ZodOptional<z.ZodString>>;
+    prison_id: z.ZodPipe<z.ZodTransform<string | undefined, unknown>, z.ZodOptional<z.ZodString>>;
+    prison_name: z.ZodOptional<z.ZodString>;
     nom: z.ZodString;
     prenom: z.ZodString;
     date_naissance: z.ZodOptional<z.ZodString>;
@@ -21,6 +22,9 @@ export declare const DossierSchema: z.ZodObject<{
     condamnation: z.ZodOptional<z.ZodString>;
     date_fin_peine: z.ZodOptional<z.ZodString>;
     duree_peine_mois: z.ZodOptional<z.ZodNumber>;
+    decision_dapg: z.ZodOptional<z.ZodString>;
+    date_decision_dapg: z.ZodOptional<z.ZodString>;
+    duree_temps_epreuve: z.ZodPipe<z.ZodTransform<string | undefined, unknown>, z.ZodOptional<z.ZodString>>;
     observations: z.ZodOptional<z.ZodString>;
     obligations: z.ZodOptional<z.ZodString>;
     others_data: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodAny>>;
@@ -28,8 +32,9 @@ export declare const DossierSchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const UpdateDossierSchema: z.ZodObject<{
     numero_dossier: z.ZodOptional<z.ZodString>;
-    juridiction_id: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
-    prison_id: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
+    juridiction_id: z.ZodOptional<z.ZodPipe<z.ZodTransform<string | undefined, unknown>, z.ZodOptional<z.ZodString>>>;
+    prison_id: z.ZodOptional<z.ZodPipe<z.ZodTransform<string | undefined, unknown>, z.ZodOptional<z.ZodString>>>;
+    prison_name: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     nom: z.ZodOptional<z.ZodString>;
     prenom: z.ZodOptional<z.ZodString>;
     date_naissance: z.ZodOptional<z.ZodOptional<z.ZodString>>;
@@ -48,6 +53,9 @@ export declare const UpdateDossierSchema: z.ZodObject<{
     condamnation: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     date_fin_peine: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     duree_peine_mois: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
+    decision_dapg: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    date_decision_dapg: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    duree_temps_epreuve: z.ZodOptional<z.ZodPipe<z.ZodTransform<string | undefined, unknown>, z.ZodOptional<z.ZodString>>>;
     observations: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     obligations: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     others_data: z.ZodOptional<z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodAny>>>;
