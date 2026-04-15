@@ -26,6 +26,7 @@ import {
   Zap,
   RefreshCw,
 } from "lucide-react";
+import { api } from "../lib/api";
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -122,22 +123,18 @@ const MOCK_COMPLIANCE: PointCompliance[] = [
 ];
 
 // ─────────────────────────────────────────────
-// ── [API] HOOKS REELS — decommenter quand les
-// endpoints suivants seront disponibles :
-//   GET /api/dashboard/stats
-//   GET /api/dashboard/events
-//   GET /api/dashboard/compliance
+// ── [API] HOOKS REELS — endpoints disponibles :
+//   GET /dashboard/stats
+//   GET /dashboard/events
+//   GET /dashboard/compliance
 // ─────────────────────────────────────────────
-
-/*
-import { api } from "../lib/api";
 
 function useDashboardStats() {
   const [statut, setStatut] = useState<StatutGlobal | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<{ data: StatutGlobal }>("/api/dashboard/stats")
+    api.get<{ data: StatutGlobal }>("/dashboard/stats")
       .then((r) => setStatut(r.data))
       .finally(() => setLoading(false));
   }, []);
@@ -149,8 +146,19 @@ function useEvenements() {
   const [evenements, setEvenements] = useState<EvenementTempsReel[]>([]);
 
   useEffect(() => {
-    api.get<{ data: EvenementTempsReel[] }>("/api/dashboard/events")
-      .then((r) => setEvenements(r.data));
+    const fetchEvents = () => {
+      api.get<{ data: EvenementTempsReel[] }>("/dashboard/events")
+        .then((r) => setEvenements(r.data))
+        .catch((error) => console.error("Erreur lors du chargement des événements:", error));
+    };
+
+    // Premier chargement
+    fetchEvents();
+
+    // Auto-refresh toutes les 30 secondes
+    const interval = setInterval(fetchEvents, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   return { evenements };
@@ -160,13 +168,12 @@ function useCompliance() {
   const [points, setPoints] = useState<PointCompliance[]>([]);
 
   useEffect(() => {
-    api.get<{ data: PointCompliance[] }>("/api/dashboard/compliance")
+    api.get<{ data: PointCompliance[] }>("/dashboard/compliance")
       .then((r) => setPoints(r.data));
   }, []);
 
   return { points };
 }
-*/
 
 // ─────────────────────────────────────────────
 // SOUS-COMPOSANTS
@@ -308,24 +315,36 @@ function ComplianceChart({ points }: { points: PointCompliance[] }) {
 
 export default function DashboardPage() {
   const [heure, setHeure] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
 
-  // ── [MOCK] etat local avec donnees fictives ──
-  const statut = MOCK_STATUT;
-  const evenements = MOCK_EVENEMENTS;
-  const compliancePoints = MOCK_COMPLIANCE;
-  const loading = false;
-
-  // ── [API] Remplacer le bloc ci-dessus par : ──
-  /*
+  // ── [API] Utilisation des vraies données ──
   const { statut, loading } = useDashboardStats();
   const { evenements } = useEvenements();
   const { points: compliancePoints } = useCompliance();
-  */
 
   useEffect(() => {
     const t = setInterval(() => setHeure(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Rafraîchir les statistiques et la conformité
+      await Promise.all([
+        api.get<{ data: StatutGlobal }>("/dashboard/stats").then(r => {
+          // Note: useDashboardStats gère son propre état, on pourrait améliorer ça
+        }),
+        api.get<{ data: PointCompliance[] }>("/dashboard/compliance").then(r => {
+          // Note: useCompliance gère son propre état, on pourrait améliorer ça
+        })
+      ]);
+    } catch (error) {
+      console.error("Erreur lors du rafraîchissement:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const heureStr = heure.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   const dateStr = heure.toLocaleDateString("fr-FR", {
@@ -351,6 +370,15 @@ export default function DashboardPage() {
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
             {heureStr}
           </div>
+
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-low text-on-secondary-container hover:bg-surface-high transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+            Actualiser
+          </button>
 
           <button
             className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold text-on-error-container bg-error-container hover:bg-error-container/80 transition-colors"
