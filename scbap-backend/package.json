@@ -13,6 +13,8 @@
     "seed:juridictions": "ts-node src/scripts/seed-juridictions.ts",
     "seed:admin": "ts-node src/scripts/seed-admin.ts",
     "seed:users-juridiction": "ts-node src/scripts/seed-users-juridiction.ts",
+    "seed:bracelets": "ts-node src/scripts/seed-bracelets.ts",
+    "seed:bracelets:reset": "RESET_SEED=1 ts-node src/scripts/seed-bracelets.ts",
     "seed:pointages": "ts-node src/scripts/seed-pointages.ts",
     "seed:pointages:reset": "RESET_SEED=1 ts-node src/scripts/seed-pointages.ts",
     "seed:alertes": "ts-node src/scripts/seed-alertes.ts",

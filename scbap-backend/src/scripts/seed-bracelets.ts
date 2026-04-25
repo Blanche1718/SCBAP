@@ -38,7 +38,6 @@ async function main() {
     orderBy: {
       createdAt: "asc",
     },
-    take: TARGET_COUNT,
     include: {
       dossier: true,
       affectationsBracelet: {
@@ -57,13 +56,13 @@ async function main() {
 
   let created = 0;
 
-  for (let index = 0; index < beneficiaires.length; index += 1) {
+  for (let index = 0; index < beneficiaires.length && created < TARGET_COUNT; index += 1) {
     const beneficiaire = beneficiaires[index];
     if (beneficiaire.affectationsBracelet.length > 0) {
       continue;
     }
 
-    const codeImei = buildBraceletCode(index + 1);
+    const codeImei = buildBraceletCode(created + 1);
     const bracelet = await prisma.bracelet.upsert({
       where: { codeImei },
       update: {

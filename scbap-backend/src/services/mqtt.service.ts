@@ -6,7 +6,7 @@ import {
 } from "../integrations/mqtt/config";
 import { handleBraceletTelemetryMessage } from "./bracelet-telemetry.service";
 
-export async function handleMqttMessage(topic, payload) {
+export async function handleMqttMessage(topic: string, payload: Buffer) {
   switch (topic) {
     case MQTT_TELEMETRY_TOPIC:
       await handleBraceletTelemetryMessage(payload);
