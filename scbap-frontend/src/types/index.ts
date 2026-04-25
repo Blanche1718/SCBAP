@@ -9,6 +9,16 @@ export interface Beneficiaire {
   id: string;
   dossierId: string;
   statut: string;
+  profilStatut?: "A_CONFIGURER" | "ACTIF" | "REVOQUE";
+  biometrieEnrolementCode?: string | null;
+  biometrieEnrolementStatut?: "AUCUN" | "EN_COURS" | "CONFIRME" | "ECHEC";
+  biometrieEnrolementDeepLinkFamoco?: string | null;
+  biometrieEnrolementApplication?: string | null;
+  biometrieEnrolementMany?: string | null;
+  biometrieEnrolementDemandeeLe?: string | null;
+  biometrieEnrolementConfirmeeLe?: string | null;
+  badgeNfc?: string | null;
+  badgeNfcAssocieLe?: string | null;
   qrCode: string;
   profilConfirme?: boolean;
   profilConfirmeLe?: string | null;
@@ -73,12 +83,17 @@ export interface Obligation {
 export interface Pointage {
   id: string;
   beneficiaireId: string;
-  obligationId: string;
-  agentId: string;
+  obligationId?: string | null;
+  agentId?: string | null;
   dateHeure: string;
   lieu?: string | null;
+  nfc?: string | null;
+  centreNom?: string | null;
+  deviceId?: string | null;
   type: string;
   statut: string;
+  source?: string;
+  externalSuccess?: boolean | null;
   commentaire?: string | null;
   beneficiaire?: Beneficiaire;
   obligation?: Obligation;
@@ -100,7 +115,11 @@ export interface Alerte {
 export interface Dossier {
   id: string;
   numeroDossier: string;
-  juridictionId?: number | null;
+  juridictionId?: string | null;
+  juridiction?: {
+    id: string;
+    nom: string;
+  } | null;
   prisonId?: number | null;
   prisonName?: string | null;
   nom: string;

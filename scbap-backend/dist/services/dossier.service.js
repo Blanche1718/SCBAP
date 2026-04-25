@@ -4,12 +4,27 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDossiers = getDossiers;
+exports.buildDossiersExportWorkbook = buildDossiersExportWorkbook;
 exports.getDossierById = getDossierById;
 exports.updateDossier = updateDossier;
 exports.softDeleteDossier = softDeleteDossier;
 const errorHandler_1 = require("../errorHandler");
 const prisma_1 = __importDefault(require("../prisma"));
 const dossier_schema_1 = require("../schemas/dossier.schema");
+const exceljs_1 = __importDefault(require("exceljs"));
+const juridiction_1 = require("../utils/juridiction");
+function isAdminAccess(user) {
+    return user?.role?.nom === "ADMIN";
+}
+function buildDossierAccessFilter(user) {
+    if (isAdminAccess(user)) {
+        return {};
+    }
+    const jurisdictionCode = (0, juridiction_1.getUserJuridictionCode)(user?.structure?.juridiction) ?? "__NO_ACCESS__";
+    return {
+        juridictionId: jurisdictionCode,
+    };
+}
 // FONCTION DE PARSING DE LA DATE
 function parseDate(date) {
     if (!date)
@@ -21,18 +36,21 @@ function parseDate(date) {
     return parsed;
 }
 // SERVICE DE RECUPERATION DES DOSSIERS
-async function getDossiers(page = 1, limit = 10) {
+async function getDossiers(page = 1, limit = 10, user) {
     if (page <= 0 || limit <= 0) {
         throw new errorHandler_1.HttpError(400, "Parametres de pagination invalides");
     }
     const skip = (page - 1) * limit;
+    const accessFilter = buildDossierAccessFilter(user);
     const [dossiers, total] = await prisma_1.default.$transaction([
         prisma_1.default.dossier.findMany({
             where: {
                 deletedAt: null,
+                ...accessFilter,
             },
             include: {
                 beneficiaire: true,
+                juridiction: true,
             },
             orderBy: {
                 createdAt: "desc",
@@ -43,6 +61,7 @@ async function getDossiers(page = 1, limit = 10) {
         prisma_1.default.dossier.count({
             where: {
                 deletedAt: null,
+                ...accessFilter,
             },
         }),
     ]);
@@ -56,24 +75,126 @@ async function getDossiers(page = 1, limit = 10) {
         },
     };
 }
+function formatDate(value) {
+    if (!value) {
+        return "";
+    }
+    return new Intl.DateTimeFormat("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    }).format(value);
+}
+async function buildDossiersExportWorkbook(user) {
+    const accessFilter = buildDossierAccessFilter(user);
+    const dossiers = await prisma_1.default.dossier.findMany({
+        where: {
+            deletedAt: null,
+            ...accessFilter,
+        },
+        include: {
+            beneficiaire: true,
+            juridiction: true,
+        },
+        orderBy: {
+            createdAt: "desc",
+        },
+    });
+    const workbook = new exceljs_1.default.Workbook();
+    workbook.creator = "SCBAP";
+    workbook.created = new Date();
+    workbook.modified = new Date();
+    workbook.properties.date1904 = false;
+    const sheet = workbook.addWorksheet("Beneficiaires");
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+    sheet.columns = [
+        { header: "Numéro dossier", key: "numeroDossier", width: 20 },
+        { header: "Nom", key: "nom", width: 18 },
+        { header: "Prénom", key: "prenom", width: 18 },
+        { header: "Sexe", key: "sexe", width: 10 },
+        { header: "Date de naissance", key: "dateNaissance", width: 15 },
+        { header: "Statut dossier", key: "statutDossier", width: 16 },
+        { header: "Profil statut", key: "profilStatut", width: 16 },
+        { header: "Profil confirmé", key: "profilConfirme", width: 15 },
+        { header: "QR code", key: "qrCode", width: 28 },
+        { header: "Prison", key: "prison", width: 24 },
+        { header: "Juridiction", key: "juridiction", width: 18 },
+        { header: "Numéro mandat dépôt", key: "numeroMandatDepot", width: 20 },
+        { header: "Date mandat dépôt", key: "dateMandatDepot", width: 16 },
+        { header: "Date fin peine", key: "dateFinPeine", width: 16 },
+        { header: "Infractions", key: "infractions", width: 35 },
+        { header: "Obligations", key: "obligations", width: 50 },
+        { header: "Décision DAPG", key: "decisionDapg", width: 18 },
+        { header: "Date décision DAPG", key: "dateDecisionDapg", width: 18 },
+        { header: "Durée temps épreuve", key: "dureeTempsEpreuve", width: 18 },
+        { header: "Observations", key: "observations", width: 35 },
+        { header: "Créé le", key: "createdAt", width: 16 },
+    ];
+    sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+    sheet.getRow(1).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF17362E" },
+    };
+    sheet.getRow(1).alignment = { vertical: "middle" };
+    sheet.autoFilter = {
+        from: "A1",
+        to: "U1",
+    };
+    dossiers.forEach((dossier) => {
+        sheet.addRow({
+            numeroDossier: dossier.numeroDossier,
+            nom: dossier.nom,
+            prenom: dossier.prenom,
+            sexe: dossier.sexe || "",
+            dateNaissance: formatDate(dossier.dateNaissance),
+            statutDossier: dossier.statut || "",
+            profilStatut: dossier.beneficiaire?.profilStatut || "",
+            profilConfirme: dossier.beneficiaire?.profilConfirme ? "Oui" : "Non",
+            qrCode: dossier.beneficiaire?.qrCode || "",
+            prison: dossier.prisonName || "",
+            juridiction: dossier.juridiction?.nom || dossier.juridictionId || "",
+            numeroMandatDepot: dossier.numeroMandatDepot || "",
+            dateMandatDepot: formatDate(dossier.dateMandatDepot),
+            dateFinPeine: formatDate(dossier.dateFinPeine),
+            infractions: dossier.infractions || "",
+            obligations: dossier.obligations || "",
+            decisionDapg: dossier.decisionDapg || "",
+            dateDecisionDapg: formatDate(dossier.dateDecisionDapg),
+            dureeTempsEpreuve: dossier.dureeTempsEpreuve || "",
+            observations: dossier.observations || "",
+            createdAt: formatDate(dossier.createdAt),
+        });
+    });
+    sheet.eachRow((row, rowNumber) => {
+        row.alignment = { vertical: "middle", wrapText: true };
+        if (rowNumber > 1) {
+            row.font = { size: 11 };
+        }
+    });
+    return workbook;
+}
 // SERVICE DE RECUPERATION D'UN DOSSIER PAR SON ID
-async function getDossierById(id) {
+async function getDossierById(id, user) {
     return prisma_1.default.dossier.findFirstOrThrow({
         where: {
             id,
             deletedAt: null,
+            ...buildDossierAccessFilter(user),
         },
         include: {
             beneficiaire: true,
+            juridiction: true,
         },
     });
 }
-async function updateDossier(id, input) {
+async function updateDossier(id, input, user) {
     const data = dossier_schema_1.UpdateDossierSchema.parse(input);
     await prisma_1.default.dossier.findFirstOrThrow({
         where: {
             id,
             deletedAt: null,
+            ...buildDossierAccessFilter(user),
         },
     });
     const rawData = {
@@ -118,14 +239,16 @@ async function updateDossier(id, input) {
         data: cleanData,
         include: {
             beneficiaire: true,
+            juridiction: true,
         },
     });
 }
-async function softDeleteDossier(id) {
+async function softDeleteDossier(id, user) {
     await prisma_1.default.dossier.findFirstOrThrow({
         where: {
             id,
             deletedAt: null,
+            ...buildDossierAccessFilter(user),
         },
     });
     return prisma_1.default.dossier.update({
@@ -135,6 +258,7 @@ async function softDeleteDossier(id) {
         },
         include: {
             beneficiaire: true,
+            juridiction: true,
         },
     });
 }

@@ -10,6 +10,14 @@ type PointageFilters = {
   type?: string;
 };
 
+type BiometricPointageInput = {
+  nfc: string;
+  timestamp: string;
+  centreNom?: string;
+  deviceId?: string;
+  success: boolean;
+};
+
 export async function getPointages(
   page = 1,
   limit = 10,
@@ -103,6 +111,24 @@ export async function getPointages(
           },
         },
       },
+      {
+        nfc: {
+          contains: query,
+          mode: "insensitive",
+        },
+      },
+      {
+        centreNom: {
+          contains: query,
+          mode: "insensitive",
+        },
+      },
+      {
+        deviceId: {
+          contains: query,
+          mode: "insensitive",
+        },
+      },
     ];
   }
 
@@ -166,4 +192,98 @@ export async function getPointageById(id: string) {
       agent: true,
     },
   });
+}
+
+function parsePointageDate(timestamp: string) {
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new HttpError(400, "Le parametre \"timestamp\" est invalide");
+  }
+
+  return parsed;
+}
+
+export async function createBiometricPointage(input: BiometricPointageInput) {
+  const nfc = input.nfc.trim();
+  if (!nfc) {
+    throw new HttpError(400, "Le parametre \"nfc\" est requis");
+  }
+
+  const beneficiaire = await prisma.beneficiaire.findFirst({
+    where: {
+      badgeNfc: nfc,
+      dossier: {
+        is: {
+          deletedAt: null,
+        },
+      },
+    },
+    include: {
+      dossier: true,
+      obligations: {
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
+    },
+  });
+
+  if (!beneficiaire) {
+    throw new HttpError(404, "Aucun beneficiaire associe a ce badge NFC");
+  }
+
+  const dateHeure = parsePointageDate(input.timestamp);
+  const firstObligation = beneficiaire.obligations[0] ?? null;
+  const type = "BIOMETRIE";
+  const statut = input.success ? "VALIDE" : "ANOMALIE";
+  const commentaire = [
+    input.centreNom ? `Centre: ${input.centreNom}` : null,
+    input.deviceId ? `Device: ${input.deviceId}` : null,
+    `NFC: ${nfc}`,
+    input.success ? "Biometrie validee" : "Biometrie non validee",
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  const pointage = await prisma.pointage.create({
+    data: {
+      beneficiaireId: beneficiaire.id,
+      ...(firstObligation ? { obligationId: firstObligation.id } : {}),
+      dateHeure,
+      lieu: input.centreNom?.trim() || beneficiaire.dossier.prisonName || null,
+      nfc,
+      centreNom: input.centreNom?.trim() || null,
+      deviceId: input.deviceId?.trim() || null,
+      type,
+      statut,
+      source: "FAMOCO",
+      externalSuccess: input.success,
+      externalPayload: {
+        nfc,
+        timestamp: input.timestamp,
+        centreNom: input.centreNom ?? null,
+        deviceId: input.deviceId ?? null,
+        success: input.success,
+      },
+      commentaire,
+    },
+    include: {
+      beneficiaire: {
+        include: {
+          dossier: true,
+        },
+      },
+      obligation: true,
+    },
+  });
+
+  return {
+    pointage,
+    beneficiaire: {
+      id: beneficiaire.id,
+      nom: beneficiaire.dossier.nom,
+      prenom: beneficiaire.dossier.prenom,
+      numeroDossier: beneficiaire.dossier.numeroDossier,
+      badgeNfc: nfc,
+    },
+  };
 }

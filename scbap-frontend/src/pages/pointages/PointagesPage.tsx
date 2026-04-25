@@ -51,6 +51,8 @@ function StatusBadge({ status }: { status: string }) {
       ? "bg-error-container text-on-error-container animate-pulse"
       : status === "EN_RETARD"
         ? "bg-[#ffe9c7] text-[#6b3d00]"
+        : status === "ANOMALIE"
+          ? "bg-[#eadcff] text-[#5a3c9d]"
         : "bg-primary-fixed text-[#2e4d44]";
 
   const label =
@@ -58,6 +60,8 @@ function StatusBadge({ status }: { status: string }) {
       ? "ABSENT"
       : status === "EN_RETARD"
         ? "EN RETARD"
+        : status === "ANOMALIE"
+          ? "ANOMALIE"
         : "VALIDE";
 
   const Icon =
@@ -65,6 +69,8 @@ function StatusBadge({ status }: { status: string }) {
       ? XCircle
       : status === "EN_RETARD"
         ? Clock
+        : status === "ANOMALIE"
+          ? AlertTriangle
         : CheckCircle2;
 
   return (

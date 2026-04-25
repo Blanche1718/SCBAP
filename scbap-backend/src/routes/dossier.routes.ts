@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  exportDossiersController,
   getDossierByIdController,
   getDossiersController,
   softDeleteDossierController,
@@ -17,6 +18,7 @@ import {
 const dossierRouter = Router();
 
 dossierRouter.get("/", getDossiersController);
+dossierRouter.get("/export", exportDossiersController);
 dossierRouter.post("/dapg/sync", syncAllDapgLiberationConditionnellesController);
 dossierRouter.post("/dapg/:dapgId/sync", syncDapgLiberationConditionnelleController);
 dossierRouter.get("/:id", getDossierByIdController);

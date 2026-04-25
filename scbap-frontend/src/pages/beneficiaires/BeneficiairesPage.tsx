@@ -24,11 +24,15 @@ import type { Beneficiaire } from "../../types";
 type ComplianceStatus = "NON_CONFORME" | "ACTIF" | "TERMINE" | "A_CONFIGURER";
 type RiskLevel = "Faible" | "Moyen" | "Eleve";
 
+function getProfilStatut(beneficiaire: Beneficiaire) {
+  return beneficiaire.profilStatut ?? (beneficiaire.profilConfirme ? "ACTIF" : "A_CONFIGURER");
+}
+
 function getComplianceStatus(beneficiaire: Beneficiaire): ComplianceStatus {
-  const dossierStatut = beneficiaire.dossier?.statut;
-  if (dossierStatut === "REVOQUE") return "NON_CONFORME";
-  if (dossierStatut === "TERMINE") return "TERMINE";
-  return beneficiaire.profilConfirme ? "ACTIF" : "A_CONFIGURER";
+  const profilStatut = getProfilStatut(beneficiaire);
+  if (profilStatut === "REVOQUE") return "NON_CONFORME";
+  if (profilStatut === "ACTIF") return "ACTIF";
+  return "A_CONFIGURER";
 }
 
 function getRiskLevel(beneficiaire: Beneficiaire): RiskLevel {
@@ -51,7 +55,7 @@ function getNumeroDossier(beneficiaire: Beneficiaire) {
 function isNewBeneficiaire(beneficiaire: Beneficiaire) {
   const dossier = beneficiaire.dossier;
   if (!dossier) return false;
-  if (beneficiaire.profilConfirme) return false;
+  if (getProfilStatut(beneficiaire) !== "A_CONFIGURER") return false;
 
   if (dossier.othersData?.source !== "dapg") return false;
 

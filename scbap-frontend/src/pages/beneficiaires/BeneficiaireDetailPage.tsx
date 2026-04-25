@@ -44,6 +44,7 @@ type ObligationFormState = {
 //   { value: "AUTRE", label: "Autres" },
 // ] as const;
 type DetailSection = "OBLIGATIONS" | "HISTORIQUE" | "DOCUMENTS";
+type BiometrieStatusLocal = "AUCUN" | "EN_COURS" | "CONFIRME" | "ECHEC";
 
 function formatLastPointage(dateHeure?: string | null) {
   if (!dateHeure) return "—";
@@ -98,11 +99,12 @@ function Section({
 }
 
 function isNewBeneficiaire(beneficiaire: {
+  profilStatut?: "A_CONFIGURER" | "ACTIF" | "REVOQUE";
   profilConfirme?: boolean;
   dossier?: { othersData?: { source?: string } | null; createdAt?: string } | null;
 }) {
   const dossier = beneficiaire.dossier;
-  if (beneficiaire.profilConfirme) return false;
+  if ((beneficiaire.profilStatut ?? (beneficiaire.profilConfirme ? "ACTIF" : "A_CONFIGURER")) !== "A_CONFIGURER") return false;
   if (!dossier || dossier.othersData?.source !== "dapg") return false;
   if (!dossier.createdAt) return false;
 
@@ -224,11 +226,15 @@ function extractDocumentCards(othersData?: Record<string, unknown> | null) {
 type ComplianceStatus = "NON_CONFORME" | "ACTIF" | "TERMINE" | "A_CONFIGURER";
 type RiskLevel = "Faible" | "Moyen" | "Eleve";
 
+function getProfilStatut(beneficiaire: Beneficiaire) {
+  return beneficiaire.profilStatut ?? (beneficiaire.profilConfirme ? "ACTIF" : "A_CONFIGURER");
+}
+
 function getComplianceStatus(beneficiaire: Beneficiaire): ComplianceStatus {
   const dossierStatut = beneficiaire.dossier?.statut;
   if (dossierStatut === "REVOQUE") return "NON_CONFORME";
   if (dossierStatut === "TERMINE") return "TERMINE";
-  return beneficiaire.profilConfirme ? "ACTIF" : "A_CONFIGURER";
+  return getProfilStatut(beneficiaire) === "ACTIF" ? "ACTIF" : "A_CONFIGURER";
 }
 
 function getRiskLevel(beneficiaire: Beneficiaire): RiskLevel {
@@ -294,6 +300,10 @@ export default function BeneficiaireDetailPage() {
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [documentUploading, setDocumentUploading] = useState(false);
   const [documentInputKey, setDocumentInputKey] = useState(0);
+  const [biometrieLoading, setBiometrieLoading] = useState(false);
+  const [biometrieNotice, setBiometrieNotice] = useState<string | null>(null);
+  const [biometrieError, setBiometrieError] = useState<string | null>(null);
+  const biometriePollingRef = useRef<number | null>(null);
   const [previewDocument, setPreviewDocument] = useState<{
     title: string;
     url: string;
@@ -339,6 +349,66 @@ export default function BeneficiaireDetailPage() {
     };
   }, [documentNotice]);
 
+  useEffect(() => {
+    if (biometriePollingRef.current) {
+      window.clearInterval(biometriePollingRef.current);
+      biometriePollingRef.current = null;
+    }
+
+    const biometrieStatut = beneficiaire?.biometrieEnrolementStatut ?? "AUCUN";
+    const biometrieCode = beneficiaire?.biometrieEnrolementCode?.trim();
+
+    if (!beneficiaire || biometrieStatut !== "EN_COURS" || !biometrieCode) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkStatus = async () => {
+      try {
+        const response = await api.get<{
+          message: string;
+          data: {
+            code: string;
+            isValid: boolean;
+            success: boolean;
+            statusLocal: BiometrieStatusLocal;
+            message: string;
+          };
+        }>(`/biometrie/${encodeURIComponent(biometrieCode)}/status`);
+
+        if (cancelled) return;
+
+        if (response.data.statusLocal === "CONFIRME") {
+          setBiometrieNotice("Biométrie configurée avec succès.");
+          setBiometrieError(null);
+          await refetch();
+          if (biometriePollingRef.current) {
+            window.clearInterval(biometriePollingRef.current);
+            biometriePollingRef.current = null;
+          }
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setBiometrieError((err as Error).message);
+      }
+    };
+
+    void checkStatus();
+
+    biometriePollingRef.current = window.setInterval(() => {
+      void checkStatus();
+    }, 60000);
+
+    return () => {
+      cancelled = true;
+      if (biometriePollingRef.current) {
+        window.clearInterval(biometriePollingRef.current);
+        biometriePollingRef.current = null;
+      }
+    };
+  }, [beneficiaire, refetch]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 gap-3 text-on-surface-variant">
@@ -361,7 +431,10 @@ export default function BeneficiaireDetailPage() {
 
   const dossier = beneficiaire.dossier;
   const fullName = dossier ? `${dossier.nom} ${dossier.prenom}` : "—";
-  const profilConfirme = Boolean(beneficiaire.profilConfirme);
+  const profilConfirme = getProfilStatut(beneficiaire) === "ACTIF";
+  const biometrieStatut = beneficiaire.biometrieEnrolementStatut ?? "AUCUN";
+  const biometrieConfirmee = biometrieStatut === "CONFIRME";
+  const biometrieEnCours = biometrieStatut === "EN_COURS";
   
   const complianceStatus = getComplianceStatus(beneficiaire);
   const riskLevel = getRiskLevel(beneficiaire);
@@ -440,6 +513,46 @@ export default function BeneficiaireDetailPage() {
       setSaveError((err as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleConfigurerBiometrie() {
+    if (!id) {
+      setBiometrieError("Identifiant de beneficiaire invalide.");
+      return;
+    }
+
+    try {
+      setBiometrieLoading(true);
+      setBiometrieError(null);
+      setBiometrieNotice(null);
+
+      const response = await api.post<{
+        message: string;
+        data: {
+          beneficiaireId: string;
+          code: string;
+          deepLinkFamoco: string | null;
+          isValid: boolean;
+          success: boolean;
+          statusLocal: "AUCUN" | "EN_COURS" | "CONFIRME" | "ECHEC";
+          message: string;
+        };
+      }>("/biometrie/enrolement", {
+        beneficiaireId: id,
+      });
+
+      if (response.data.statusLocal === "CONFIRME") {
+        setBiometrieNotice("Biométrie configurée avec succès.");
+        setBiometrieError(null);
+      } else {
+        setBiometrieNotice("Enrôlement biométrique lancé. Suivi de confirmation en cours.");
+      }
+      await refetch();
+    } catch (err) {
+      setBiometrieError((err as Error).message);
+    } finally {
+      setBiometrieLoading(false);
     }
   }
 
@@ -636,13 +749,49 @@ export default function BeneficiaireDetailPage() {
                 <div>
                   <p className="uppercase tracking-wider text-[10px] font-bold text-on-surface-variant">Statut du beneficiaire</p>
                   <div className="mt-1">
-                    <StatusBadge status={complianceStatus} />
+                    <StatusBadge
+                      status={
+                        getProfilStatut(beneficiaire) === "ACTIF"
+                          ? "ACTIF"
+                          : getProfilStatut(beneficiaire) === "REVOQUE"
+                            ? "NON_CONFORME"
+                            : "A_CONFIGURER"
+                        }
+                      />
+                    </div>
+                  </div>
+                <div>
+                  <p className="uppercase tracking-wider text-[10px] font-bold text-on-surface-variant">Biométrie</p>
+                  <div className="mt-1">
+                    {biometrieConfirmee ? (
+                      <span className="inline-flex items-center rounded-full bg-primary-fixed px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-[#2e4d44]">
+                        Configuré
+                      </span>
+                    ) : biometrieEnCours ? (
+                      <span className="inline-flex items-center rounded-full bg-[#ffe9c7] px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-[#6b3d00]">
+                        En cours
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleConfigurerBiometrie}
+                        disabled={biometrieLoading}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#2e4d44] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {biometrieLoading ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : (
+                          <Shield size={11} />
+                        )}
+                        Configurer
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div>
+                {/* <div>
                   <p className="uppercase tracking-wider text-[10px] font-bold text-on-surface-variant">Risque</p>
                   <p className="text-sm font-semibold text-on-surface">{riskLevel}</p>
-                </div>
+                </div> */}
                 {/* <div>
                   <p className="uppercase tracking-wider text-[10px] font-bold text-on-surface-variant">Statut du suivi</p>
                   <p className="text-sm font-semibold text-on-surface">{beneficiaire.statut}</p>
@@ -653,6 +802,21 @@ export default function BeneficiaireDetailPage() {
                 </div> */}
               </div>
             </div>
+
+            {(biometrieNotice || biometrieError) && (
+              <div className="mt-4 space-y-2">
+                {biometrieNotice && (
+                  <div className="rounded-md bg-primary-fixed/40 px-3 py-2 text-xs font-medium text-[#2e4d44]">
+                    {biometrieNotice}
+                  </div>
+                )}
+                {biometrieError && (
+                  <div className="rounded-md bg-error-container px-3 py-2 text-xs font-medium text-on-error-container">
+                    {biometrieError}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <Section title="Boucle GPS récente">

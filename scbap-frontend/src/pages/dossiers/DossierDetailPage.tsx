@@ -226,6 +226,8 @@ export default function DossierDetailPage() {
 
         {/* Judiciaire */}
         <Section title="Informations judiciaires" icon={Shield}>
+          <Field label="Juridiction" value={dossier.juridiction?.nom ?? dossier.juridictionId} />
+          <Field label="Maison d'arrêt" value={dossier.prisonName} />
           <Field label="N° Mandat de dépôt" value={dossier.numeroMandatDepot} mono />
           <Field label="Date du mandat" value={formatDate(dossier.dateMandatDepot)} />
           <Field label="Date fin de peine" value={formatDate(dossier.dateFinPeine)} />

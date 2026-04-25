@@ -1,22 +1,46 @@
+import type { AuthenticatedUser } from "../auth/auth.types";
 import { UpdateDossierSchema } from "../schemas/dossier.schema";
 import { z } from "zod";
+import ExcelJS from "exceljs";
+import type { Prisma } from "@prisma/client";
 type UpdateDossierInput = z.infer<typeof UpdateDossierSchema>;
-export declare function getDossiers(page?: number, limit?: number): Promise<{
+type AccessContext = Pick<AuthenticatedUser, "role" | "structure"> | undefined;
+export declare function getDossiers(page?: number, limit?: number, user?: AccessContext): Promise<{
     data: ({
+        juridiction: {
+            id: string;
+            nom: string;
+            createdAt: Date;
+        } | null;
         beneficiaire: {
             id: string;
             statut: string;
             createdAt: Date;
             dossierId: string;
+            profilStatut: string;
+            biometrieEnrolementCode: string | null;
+            biometrieEnrolementStatut: string;
+            biometrieEnrolementDeepLinkFamoco: string | null;
+            biometrieEnrolementApplication: string | null;
+            biometrieEnrolementMany: string | null;
+            biometrieEnrolementDemandeeLe: Date | null;
+            biometrieEnrolementConfirmeeLe: Date | null;
+            biometrieVerificationEssais: number;
+            biometrieDerniereVerificationLe: Date | null;
+            biometrieProchaineVerificationLe: Date | null;
+            badgeNfc: string | null;
+            badgeNfcAssocieLe: Date | null;
             qrCode: string;
             profilConfirme: boolean;
             profilConfirmeLe: Date | null;
         } | null;
     } & {
-        nom: string;
         id: string;
-        obligations: string | null;
+        nom: string;
         prenom: string;
+        statut: string | null;
+        createdAt: Date;
+        obligations: string | null;
         nationalite: string | null;
         sexe: string | null;
         profession: string | null;
@@ -24,7 +48,6 @@ export declare function getDossiers(page?: number, limit?: number): Promise<{
         infractions: string | null;
         condamnation: string | null;
         observations: string | null;
-        statut: string | null;
         numeroDossier: string;
         juridictionId: string | null;
         prisonId: string | null;
@@ -39,8 +62,7 @@ export declare function getDossiers(page?: number, limit?: number): Promise<{
         decisionDapg: string | null;
         dateDecisionDapg: Date | null;
         dureeTempsEpreuve: string | null;
-        othersData: import("@prisma/client/runtime/client").JsonValue | null;
-        createdAt: Date;
+        othersData: Prisma.JsonValue | null;
         updatedAt: Date;
         deletedAt: Date | null;
     })[];
@@ -51,21 +73,42 @@ export declare function getDossiers(page?: number, limit?: number): Promise<{
         totalPages: number;
     };
 }>;
-export declare function getDossierById(id: string): Promise<{
+export declare function buildDossiersExportWorkbook(user?: AccessContext): Promise<ExcelJS.Workbook>;
+export declare function getDossierById(id: string, user?: AccessContext): Promise<{
+    juridiction: {
+        id: string;
+        nom: string;
+        createdAt: Date;
+    } | null;
     beneficiaire: {
         id: string;
         statut: string;
         createdAt: Date;
         dossierId: string;
+        profilStatut: string;
+        biometrieEnrolementCode: string | null;
+        biometrieEnrolementStatut: string;
+        biometrieEnrolementDeepLinkFamoco: string | null;
+        biometrieEnrolementApplication: string | null;
+        biometrieEnrolementMany: string | null;
+        biometrieEnrolementDemandeeLe: Date | null;
+        biometrieEnrolementConfirmeeLe: Date | null;
+        biometrieVerificationEssais: number;
+        biometrieDerniereVerificationLe: Date | null;
+        biometrieProchaineVerificationLe: Date | null;
+        badgeNfc: string | null;
+        badgeNfcAssocieLe: Date | null;
         qrCode: string;
         profilConfirme: boolean;
         profilConfirmeLe: Date | null;
     } | null;
 } & {
-    nom: string;
     id: string;
-    obligations: string | null;
+    nom: string;
     prenom: string;
+    statut: string | null;
+    createdAt: Date;
+    obligations: string | null;
     nationalite: string | null;
     sexe: string | null;
     profession: string | null;
@@ -73,7 +116,6 @@ export declare function getDossierById(id: string): Promise<{
     infractions: string | null;
     condamnation: string | null;
     observations: string | null;
-    statut: string | null;
     numeroDossier: string;
     juridictionId: string | null;
     prisonId: string | null;
@@ -88,26 +130,45 @@ export declare function getDossierById(id: string): Promise<{
     decisionDapg: string | null;
     dateDecisionDapg: Date | null;
     dureeTempsEpreuve: string | null;
-    othersData: import("@prisma/client/runtime/client").JsonValue | null;
-    createdAt: Date;
+    othersData: Prisma.JsonValue | null;
     updatedAt: Date;
     deletedAt: Date | null;
 }>;
-export declare function updateDossier(id: string, input: UpdateDossierInput): Promise<{
+export declare function updateDossier(id: string, input: UpdateDossierInput, user?: AccessContext): Promise<{
+    juridiction: {
+        id: string;
+        nom: string;
+        createdAt: Date;
+    } | null;
     beneficiaire: {
         id: string;
         statut: string;
         createdAt: Date;
         dossierId: string;
+        profilStatut: string;
+        biometrieEnrolementCode: string | null;
+        biometrieEnrolementStatut: string;
+        biometrieEnrolementDeepLinkFamoco: string | null;
+        biometrieEnrolementApplication: string | null;
+        biometrieEnrolementMany: string | null;
+        biometrieEnrolementDemandeeLe: Date | null;
+        biometrieEnrolementConfirmeeLe: Date | null;
+        biometrieVerificationEssais: number;
+        biometrieDerniereVerificationLe: Date | null;
+        biometrieProchaineVerificationLe: Date | null;
+        badgeNfc: string | null;
+        badgeNfcAssocieLe: Date | null;
         qrCode: string;
         profilConfirme: boolean;
         profilConfirmeLe: Date | null;
     } | null;
 } & {
-    nom: string;
     id: string;
-    obligations: string | null;
+    nom: string;
     prenom: string;
+    statut: string | null;
+    createdAt: Date;
+    obligations: string | null;
     nationalite: string | null;
     sexe: string | null;
     profession: string | null;
@@ -115,7 +176,6 @@ export declare function updateDossier(id: string, input: UpdateDossierInput): Pr
     infractions: string | null;
     condamnation: string | null;
     observations: string | null;
-    statut: string | null;
     numeroDossier: string;
     juridictionId: string | null;
     prisonId: string | null;
@@ -130,26 +190,45 @@ export declare function updateDossier(id: string, input: UpdateDossierInput): Pr
     decisionDapg: string | null;
     dateDecisionDapg: Date | null;
     dureeTempsEpreuve: string | null;
-    othersData: import("@prisma/client/runtime/client").JsonValue | null;
-    createdAt: Date;
+    othersData: Prisma.JsonValue | null;
     updatedAt: Date;
     deletedAt: Date | null;
 }>;
-export declare function softDeleteDossier(id: string): Promise<{
+export declare function softDeleteDossier(id: string, user?: AccessContext): Promise<{
+    juridiction: {
+        id: string;
+        nom: string;
+        createdAt: Date;
+    } | null;
     beneficiaire: {
         id: string;
         statut: string;
         createdAt: Date;
         dossierId: string;
+        profilStatut: string;
+        biometrieEnrolementCode: string | null;
+        biometrieEnrolementStatut: string;
+        biometrieEnrolementDeepLinkFamoco: string | null;
+        biometrieEnrolementApplication: string | null;
+        biometrieEnrolementMany: string | null;
+        biometrieEnrolementDemandeeLe: Date | null;
+        biometrieEnrolementConfirmeeLe: Date | null;
+        biometrieVerificationEssais: number;
+        biometrieDerniereVerificationLe: Date | null;
+        biometrieProchaineVerificationLe: Date | null;
+        badgeNfc: string | null;
+        badgeNfcAssocieLe: Date | null;
         qrCode: string;
         profilConfirme: boolean;
         profilConfirmeLe: Date | null;
     } | null;
 } & {
-    nom: string;
     id: string;
-    obligations: string | null;
+    nom: string;
     prenom: string;
+    statut: string | null;
+    createdAt: Date;
+    obligations: string | null;
     nationalite: string | null;
     sexe: string | null;
     profession: string | null;
@@ -157,7 +236,6 @@ export declare function softDeleteDossier(id: string): Promise<{
     infractions: string | null;
     condamnation: string | null;
     observations: string | null;
-    statut: string | null;
     numeroDossier: string;
     juridictionId: string | null;
     prisonId: string | null;
@@ -172,8 +250,7 @@ export declare function softDeleteDossier(id: string): Promise<{
     decisionDapg: string | null;
     dateDecisionDapg: Date | null;
     dureeTempsEpreuve: string | null;
-    othersData: import("@prisma/client/runtime/client").JsonValue | null;
-    createdAt: Date;
+    othersData: Prisma.JsonValue | null;
     updatedAt: Date;
     deletedAt: Date | null;
 }>;

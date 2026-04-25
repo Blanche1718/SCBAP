@@ -3,6 +3,7 @@ import {
   confirmBeneficiaireProfilController,
   getBeneficiaireByIdController,
   getBeneficiairesController,
+  updateBeneficiaireController,
   syncBeneficiaireObligationsController,
 } from "../controllers/beneficiaire.controller";
 import {
@@ -23,6 +24,7 @@ beneficiaireRouter.put(
 );
 beneficiaireRouter.get("/", getBeneficiairesController);
 beneficiaireRouter.get("/:id", getBeneficiaireByIdController);
+beneficiaireRouter.patch("/:id", updateBeneficiaireController);
 beneficiaireRouter.post("/:id/obligations/specifiques", syncBeneficiaireObligationsController);
 beneficiaireRouter.patch("/:id/profil/confirmer", confirmBeneficiaireProfilController);
 

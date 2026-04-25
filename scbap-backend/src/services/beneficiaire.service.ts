@@ -1,4 +1,6 @@
 import { HttpError } from "../errorHandler";
+import type { AuthenticatedUser } from "../auth/auth.types";
+import type { Prisma } from "@prisma/client";
 import prisma from "../prisma";
 import {
     CreateBeneficiaireSchema,
@@ -6,6 +8,7 @@ import {
 
 } from "../schemas/beneficiaire.schema";
 import { z } from "zod";
+import { getUserJuridictionCode } from "../utils/juridiction";
 
 type CreateBeneficiaireInput = z.infer<typeof CreateBeneficiaireSchema>;
 type UpdateBeneficiaireInput = z.infer<typeof UpdateBeneficiaireSchema>;
@@ -21,17 +24,90 @@ type SpecificObligationInput = {
     lieu?: string;
 };
 
+const BENEFICIARY_PROFILE_STATUSES = new Set(["A_CONFIGURER", "ACTIF", "REVOQUE"]);
+type AccessContext = Pick<AuthenticatedUser, "role" | "structure"> | undefined;
+
+function isBeneficiaireProfileStatut(value?: string) {
+    return typeof value === "string" && BENEFICIARY_PROFILE_STATUSES.has(value);
+}
+
+function isAdminAccess(user?: AccessContext) {
+    return user?.role?.nom === "ADMIN";
+}
+
+function buildBeneficiaireAccessFilter(user?: AccessContext): Prisma.BeneficiaireWhereInput {
+    if (isAdminAccess(user)) {
+        return {
+            dossier: {
+                is: {
+                    deletedAt: null,
+                },
+            },
+        };
+    }
+
+    const code = getUserJuridictionCode(user?.structure?.juridiction) ?? "__NO_ACCESS__";
+
+    return {
+        dossier: {
+            is: {
+                deletedAt: null,
+                juridictionId: code,
+            },
+        },
+    };
+}
+
+function deriveProfilStatut(input?: {
+  statut?: string;
+  profilStatut?: string;
+  profilConfirme?: boolean;
+}): string {
+    if (isBeneficiaireProfileStatut(input?.profilStatut)) {
+        return input?.profilStatut as string;
+    }
+
+    if (isBeneficiaireProfileStatut(input?.statut)) {
+        return input?.statut as string;
+    }
+
+    return input?.profilConfirme ? "ACTIF" : "A_CONFIGURER";
+}
+
+async function recordProfilStatutHistorique(
+    beneficiaireId: string,
+    ancienStatut: string,
+    nouveauStatut: string,
+) {
+    if (ancienStatut === nouveauStatut) {
+        return;
+    }
+
+    await prisma.historiqueStatut.create({
+        data: {
+            beneficiaireId,
+            ancienStatut,
+            nouveauStatut,
+        },
+    });
+}
+
 // SERVICE DE RECUPERATION DES BENEFICIAIRES
-export async function getBeneficiaires(page = 1, limit = 10) {
+export async function getBeneficiaires(page = 1, limit = 10, user?: AccessContext) {
     if (page <= 0 || limit <= 0) {
         throw new HttpError(400, "Parametres de pagination invalides");
     }
 
     const skip = (page - 1) * limit;
+    const accessFilter = buildBeneficiaireAccessFilter(user);
     const [beneficiaires, total] = await prisma.$transaction([
         prisma.beneficiaire.findMany({
             include: {
-                dossier: true,
+                dossier: {
+                    include: {
+                        juridiction: true,
+                    },
+                },
                 obligations: true,
                 pointages: {
                     orderBy: { dateHeure: "desc" },
@@ -39,18 +115,16 @@ export async function getBeneficiaires(page = 1, limit = 10) {
                 },
                 
             },
-            where: {
-                dossier: {
-                    deletedAt: null,
-                },
-            },
+            where: accessFilter,
             orderBy: {
                 createdAt: "desc",
             },
             skip,
             take: limit,
         }),
-        prisma.beneficiaire.count(),
+        prisma.beneficiaire.count({
+            where: accessFilter,
+        }),
     ]);
 
     return {
@@ -65,11 +139,19 @@ export async function getBeneficiaires(page = 1, limit = 10) {
 }
 
 // SERVICE DE RECUPERATION D'UN BENEFICIAIRE PAR SON ID
-export async function getBeneficiaireById(id: string) {
-    return prisma.beneficiaire.findUniqueOrThrow({
-        where: { id },
+export async function getBeneficiaireById(id: string, user?: AccessContext) {
+    const accessFilter = buildBeneficiaireAccessFilter(user);
+    return prisma.beneficiaire.findFirstOrThrow({
+        where: {
+            id,
+            ...accessFilter,
+        },
         include: {
-            dossier: true,
+            dossier: {
+                include: {
+                    juridiction: true,
+                },
+            },
             documents: {
                 where: {
                     statut: "UPLOADED",
@@ -99,7 +181,9 @@ export async function getBeneficiaireById(id: string) {
 
 // SERVICE DE CREATION D'UN BENEFICIAIRE
 export async function createBeneficiaire(input: CreateBeneficiaireInput) {
-    const data = CreateBeneficiaireSchema.parse(input);
+  const data = CreateBeneficiaireSchema.parse(input);
+  const profilStatut = deriveProfilStatut(data);
+  const profilConfirme = profilStatut === "ACTIF";
 
     const dossier = await prisma.dossier.findFirstOrThrow({
         where: { id: data.dossierId, deletedAt: null },
@@ -115,19 +199,37 @@ export async function createBeneficiaire(input: CreateBeneficiaireInput) {
     }
 
     return prisma.beneficiaire.create({
-        data,
-    });
+    data: {
+      dossierId: data.dossierId,
+      statut: profilStatut,
+      qrCode: data.qrCode,
+      profilStatut,
+      profilConfirme,
+      profilConfirmeLe: profilConfirme ? new Date() : null,
+      ...(data.badgeNfc !== undefined
+        ? {
+            badgeNfc: data.badgeNfc,
+            badgeNfcAssocieLe: data.badgeNfc ? new Date() : null,
+          }
+        : {}),
+    },
+  });
 }
 
-export async function confirmBeneficiaireProfil(id: string) {
-    await prisma.beneficiaire.findUniqueOrThrow({
-        where: { id },
+export async function confirmBeneficiaireProfil(id: string, user?: AccessContext) {
+    const beneficiaire = await prisma.beneficiaire.findFirstOrThrow({
+        where: {
+            id,
+            ...buildBeneficiaireAccessFilter(user),
+        },
+        select: { profilStatut: true, profilConfirme: true }
     });
 
-    return prisma.beneficiaire.update({
+    const updated = await prisma.beneficiaire.update({
         where: { id },
         data: {
             statut: "ACTIF",
+            profilStatut: "ACTIF",
             profilConfirme: true,
             profilConfirmeLe: new Date(),
         },
@@ -148,6 +250,14 @@ export async function confirmBeneficiaireProfil(id: string) {
             },
         },
     });
+
+    await recordProfilStatutHistorique(
+        id,
+        beneficiaire.profilStatut ?? (beneficiaire.profilConfirme ? "ACTIF" : "A_CONFIGURER"),
+        "ACTIF",
+    );
+
+    return updated;
 }
 
 async function ensureObligationCategoryExists(categorieNom: string) {
@@ -175,15 +285,19 @@ async function ensureObligationCategoryExists(categorieNom: string) {
 export async function syncSpecificObligationsForBeneficiaire(
     beneficiaireId: string,
     obligations: SpecificObligationInput[],
+    user?: AccessContext,
 ) {
-    const beneficiaire = await prisma.beneficiaire.findUniqueOrThrow({
-        where: { id: beneficiaireId },
+    const beneficiaire = await prisma.beneficiaire.findFirstOrThrow({
+        where: {
+            id: beneficiaireId,
+            ...buildBeneficiaireAccessFilter(user),
+        },
         include: {
             dossier: true,
         },
     });
 
-    if (beneficiaire.profilConfirme) {
+    if ((beneficiaire.profilStatut ?? (beneficiaire.profilConfirme ? "ACTIF" : "A_CONFIGURER")) !== "A_CONFIGURER") {
         throw new HttpError(409, "Le profil est deja confirme");
     }
 
@@ -233,27 +347,37 @@ export async function syncSpecificObligationsForBeneficiaire(
 }
 
 export async function updateBeneficiaireProfilLock(id: string, confirmed: boolean) {
-    await prisma.beneficiaire.findUniqueOrThrow({
+    const current = await prisma.beneficiaire.findUniqueOrThrow({
         where: { id },
     });
 
-    return prisma.beneficiaire.update({
+    const nextProfilStatut = confirmed ? "ACTIF" : "A_CONFIGURER";
+
+    const updated = await prisma.beneficiaire.update({
         where: { id },
         data: {
-            statut: confirmed ? "ACTIF" : "A_CONFIGURER",
+            statut: nextProfilStatut,
+            profilStatut: nextProfilStatut,
             profilConfirme: confirmed,
             profilConfirmeLe: confirmed ? new Date() : null,
         },
     });
+
+    await recordProfilStatutHistorique(
+        id,
+        current.profilStatut ?? (current.profilConfirme ? "ACTIF" : "A_CONFIGURER"),
+        nextProfilStatut,
+    );
+
+    return updated;
 }
 
 // SERVICE DE MISE A JOUR D'UN BENEFICIAIRE
 export async function updateBeneficiaire(id: string, input: UpdateBeneficiaireInput) {
-    const data = UpdateBeneficiaireSchema.parse(input);
-
-    await prisma.beneficiaire.findUniqueOrThrow({
-        where: { id },
-    });
+  const data = UpdateBeneficiaireSchema.parse(input);
+  await prisma.beneficiaire.findUniqueOrThrow({
+    where: { id },
+  });
 
     if (data.dossierId !== undefined) {
         const dossier = await prisma.dossier.findFirstOrThrow({
@@ -266,8 +390,30 @@ export async function updateBeneficiaire(id: string, input: UpdateBeneficiaireIn
         }
     }
 
+    const nextProfilStatut = deriveProfilStatut(data);
+    const profilStatutProvided =
+        data.profilStatut !== undefined ||
+        data.profilConfirme !== undefined ||
+        isBeneficiaireProfileStatut(data.statut);
+
     return prisma.beneficiaire.update({
         where: { id },
-        data,
+        data: {
+            ...data,
+            ...(data.badgeNfc !== undefined
+              ? {
+                  badgeNfc: data.badgeNfc,
+                  badgeNfcAssocieLe: data.badgeNfc ? new Date() : null,
+                }
+              : {}),
+            ...(profilStatutProvided
+                ? {
+                    profilStatut: nextProfilStatut,
+                    statut: nextProfilStatut,
+                    profilConfirme: nextProfilStatut === "ACTIF",
+                    profilConfirmeLe: nextProfilStatut === "ACTIF" ? new Date() : null,
+                  }
+                : {}),
+        },
     });
-}   
+}

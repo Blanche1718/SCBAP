@@ -29,7 +29,9 @@ export async function syncDapgLiberationConditionnelle(dapgId: string | number) 
     await prisma.beneficiaire.create({
       data: {
         dossierId: dossier.id,
+        profilStatut: "A_CONFIGURER",
         statut: "A_CONFIGURER",
+        profilConfirme: false,
         qrCode: `BEN-${dossier.numeroDossier}-${randomUUID().slice(0, 8)}`,
       },
     });
@@ -68,7 +70,9 @@ async function syncPayload(payload: Awaited<ReturnType<typeof getDapgLiberationC
     await prisma.beneficiaire.create({
       data: {
         dossierId: dossier.id,
+        profilStatut: "A_CONFIGURER",
         statut: "A_CONFIGURER",
+        profilConfirme: false,
         qrCode: `BEN-${dossier.numeroDossier}-${randomUUID().slice(0, 8)}`,
       },
     });

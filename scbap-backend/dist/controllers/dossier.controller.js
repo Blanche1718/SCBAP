@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDossiersController = getDossiersController;
+exports.exportDossiersController = exportDossiersController;
 exports.getDossierByIdController = getDossierByIdController;
 exports.updateDossierController = updateDossierController;
 exports.softDeleteDossierController = softDeleteDossierController;
@@ -30,7 +31,7 @@ async function getDossiersController(req, res, next) {
     try {
         const page = parsePaginationParam(req.query.page, "page", 1);
         const limit = parsePaginationParam(req.query.limit, "limit", 10);
-        const dossiers = await (0, dossier_service_1.getDossiers)(page, limit);
+        const dossiers = await (0, dossier_service_1.getDossiers)(page, limit, req.user);
         res.status(200).json({
             message: "Liste des dossiers recuperee avec succes",
             data: dossiers,
@@ -41,10 +42,24 @@ async function getDossiersController(req, res, next) {
         console.error("Erreur lors de la recuperation des dossiers:", error);
     }
 }
+async function exportDossiersController(_req, res, next) {
+    try {
+        const workbook = await (0, dossier_service_1.buildDossiersExportWorkbook)(_req.user);
+        const buffer = await workbook.xlsx.writeBuffer();
+        const filename = `scbap-dossiers-${new Date().toISOString().slice(0, 10)}.xlsx`;
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.status(200).send(Buffer.from(buffer));
+    }
+    catch (error) {
+        next(error);
+        console.error("Erreur lors de l'export des dossiers:", error);
+    }
+}
 async function getDossierByIdController(req, res, next) {
     try {
         const id = parseDossierId(req.params.id);
-        const dossier = await (0, dossier_service_1.getDossierById)(id);
+        const dossier = await (0, dossier_service_1.getDossierById)(id, req.user);
         res.status(200).json({
             message: "Dossier recupere avec succes",
             data: dossier,
@@ -58,7 +73,7 @@ async function getDossierByIdController(req, res, next) {
 async function updateDossierController(req, res, next) {
     try {
         const id = parseDossierId(req.params.id);
-        const dossier = await (0, dossier_service_1.updateDossier)(id, req.body);
+        const dossier = await (0, dossier_service_1.updateDossier)(id, req.body, req.user);
         res.status(200).json({
             message: "Dossier mis a jour avec succes",
             data: dossier,
@@ -72,7 +87,7 @@ async function updateDossierController(req, res, next) {
 async function softDeleteDossierController(req, res, next) {
     try {
         const id = parseDossierId(req.params.id);
-        const dossier = await (0, dossier_service_1.softDeleteDossier)(id);
+        const dossier = await (0, dossier_service_1.softDeleteDossier)(id, req.user);
         res.status(200).json({
             message: "Dossier supprime logiquement avec succes",
             data: dossier,

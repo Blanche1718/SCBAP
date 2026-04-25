@@ -1,17 +1,71 @@
+import { clearStoredAuthToken, getStoredAuthToken } from "../auth/authStorage";
+
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers = new Headers(options?.headers || {});
+
+  if (!headers.has("Content-Type") && !(options?.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const token = getStoredAuthToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
+    headers,
   });
 
   if (!res.ok) {
+    if (res.status === 401 && token) {
+      clearStoredAuthToken();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("scbap:auth-invalid"));
+      }
+    }
+
     const err = await res.json().catch(() => ({ message: "Erreur réseau" }));
     throw new Error(err.message || `HTTP ${res.status}`);
   }
 
   return res.json();
+}
+
+async function download(path: string): Promise<{ blob: Blob; filename: string | null }> {
+  const headers = new Headers();
+  const token = getStoredAuthToken();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "GET",
+    headers,
+  });
+
+  if (!res.ok) {
+    if (res.status === 401 && token) {
+      clearStoredAuthToken();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("scbap:auth-invalid"));
+      }
+    }
+
+    const err = await res.json().catch(() => ({ message: "Erreur réseau" }));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+
+  const contentDisposition = res.headers.get("Content-Disposition");
+  const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/i);
+
+  return {
+    blob: await res.blob(),
+    filename: filenameMatch?.[1] ?? null,
+  };
 }
 
 export const api = {
@@ -23,4 +77,5 @@ export const api = {
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  download,
 };

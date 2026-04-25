@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import prisma from "../prisma";
 
 function randomInt(min: number, max: number) {
@@ -36,7 +37,7 @@ async function ensureAgentUser() {
       prenom: "SPIP",
       email,
       telephone: "90000000",
-      motDePasse: "change_me",
+      motDePasse: await bcrypt.hash("change_me", 10),
       roleId: ensuredRole.id,
       structureId: structure.id,
       statut: "ACTIF",

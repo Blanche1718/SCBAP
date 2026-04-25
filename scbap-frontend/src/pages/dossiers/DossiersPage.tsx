@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Shield,
   CheckCircle2,
-  XCircle,
   Activity,
   User,
   Gavel,
@@ -17,6 +16,7 @@ import {
   BadgeCheck,
   UserRound,
   RefreshCw,
+  Download,
 } from "lucide-react";
 import { useDossiers } from "../../hooks/useDossiers";
 import { Button } from "../../components/ui";
@@ -97,6 +97,8 @@ export default function DossiersPage() {
   const [limit, setLimit] = useState(10);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
   const hasAutoSyncedRef = useRef(false);
   const { dossiers, meta, loading, error, refetch } = useDossiers(page, limit);
 
@@ -174,6 +176,28 @@ export default function DossiersPage() {
     }
   }
 
+  async function handleExportDossiers() {
+    setExporting(true);
+    setExportMessage(null);
+
+    try {
+      const { blob, filename } = await api.download("/dossiers/export");
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename || `scbap-dossiers-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setExportMessage("Export Excel généré avec succès.");
+    } catch (e) {
+      setExportMessage((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   useEffect(() => {
     if (hasAutoSyncedRef.current) return;
     const lastSyncAt = Number(localStorage.getItem("scbap:last-dapg-sync-at") || "0");
@@ -213,7 +237,7 @@ export default function DossiersPage() {
           </div>
         </div>
         <div className="hidden lg:block w-px h-10 bg-white/15" />
-        <div className="flex items-center gap-3">
+        {/* <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-md bg-primary-fixed flex items-center justify-center">
             <CheckCircle2 size={16} className="text-primary" />
           </div>
@@ -221,8 +245,8 @@ export default function DossiersPage() {
             <p className="text-xl font-bold">{counts.actifs}</p>
             <p className="text-xs text-white/70 font-medium">Actifs sur la page</p>
           </div>
-        </div>
-        <div className="hidden lg:block w-px h-10 bg-white/15" />
+        </div> */}
+        {/* <div className="hidden lg:block w-px h-10 bg-white/15" />
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-md bg-error-container flex items-center justify-center">
             <XCircle size={16} className="text-on-error-container" />
@@ -231,7 +255,7 @@ export default function DossiersPage() {
             <p className="text-xl font-bold">{counts.alertes}</p>
             <p className="text-xs text-white/70 font-medium">Révoqués sur la page</p>
           </div>
-        </div>
+        </div> */}
         <div className="sm:col-span-2 lg:ml-auto text-left lg:text-right text-xs text-white/70">
           <p>
             Page {meta.page} / {Math.max(meta.totalPages, 1)}
@@ -276,11 +300,26 @@ export default function DossiersPage() {
             <RefreshCw size={14} />
             Synchroniser
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={exporting}
+            onClick={handleExportDossiers}
+            className="ml-1"
+          >
+            <Download size={14} />
+            Exporter Excel
+          </Button>
         </div>
       </div>
       {syncMessage && (
         <p className="mb-4 text-xs font-medium text-on-secondary-container">
           {syncMessage}
+        </p>
+      )}
+      {exportMessage && (
+        <p className="mb-4 text-xs font-medium text-on-secondary-container">
+          {exportMessage}
         </p>
       )}
 

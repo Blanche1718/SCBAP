@@ -24,6 +24,20 @@ model Structure {
 }
 
 // =====================
+// JURIDICTION
+// =====================
+
+model Juridiction {
+  id        String @id
+  nom       String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  dossiers  Dossier[]
+
+  @@map("juridictions")
+}
+
+// =====================
 // ROLES & USERS
 // =====================
 
@@ -69,7 +83,7 @@ model User {
 model Dossier {
   id                  String @id @default(uuid())
   numeroDossier       String    @unique @map("numero_dossier")
-  juridictionId String?      @map("juridiction_id")
+  juridictionId       String?      @map("juridiction_id")
   prisonId String?      @map("prison_id")
   prisonName          String?   @map("prison_name")
   nom                 String
@@ -98,6 +112,7 @@ model Dossier {
   updatedAt           DateTime  @updatedAt @map("updated_at")
   deletedAt           DateTime? @map("deleted_at")
 
+  juridiction         Juridiction?  @relation(fields: [juridictionId], references: [id])
   beneficiaire        Beneficiaire? @relation("DossierToBeneficiaire")
   obligationsDossier  Obligation[]
   documents          Document[]
@@ -112,7 +127,20 @@ model Dossier {
 model Beneficiaire {
   id        String @id @default(uuid())
   dossierId String      @unique @map("dossier_id")
-  statut    String   // ACTIF, SUSPENDU, REVOQUE, TERMINE
+  statut    String   // statut technique existant
+  profilStatut String @default("A_CONFIGURER") @map("profil_statut") // A_CONFIGURER, ACTIF, REVOQUE
+  biometrieEnrolementCode String? @unique @map("biometrie_enrolement_code")
+  biometrieEnrolementStatut String @default("AUCUN") @map("biometrie_enrolement_statut") // AUCUN, EN_COURS, CONFIRME, ECHEC
+  biometrieEnrolementDeepLinkFamoco String? @map("biometrie_enrolement_deep_link_famoco")
+  biometrieEnrolementApplication String? @map("biometrie_enrolement_application")
+  biometrieEnrolementMany String? @map("biometrie_enrolement_many")
+  biometrieEnrolementDemandeeLe DateTime? @map("biometrie_enrolement_demandee_le")
+  biometrieEnrolementConfirmeeLe DateTime? @map("biometrie_enrolement_confirmee_le")
+  biometrieVerificationEssais Int @default(0) @map("biometrie_verification_essais")
+  biometrieDerniereVerificationLe DateTime? @map("biometrie_derniere_verification_le")
+  biometrieProchaineVerificationLe DateTime? @map("biometrie_prochaine_verification_le")
+  badgeNfc String? @unique @map("badge_nfc")
+  badgeNfcAssocieLe DateTime? @map("badge_nfc_associe_le")
   qrCode    String   @unique @map("qr_code")
   profilConfirme Boolean @default(false) @map("profil_confirme")
   profilConfirmeLe DateTime? @map("profil_confirme_le")
@@ -132,6 +160,8 @@ model Beneficiaire {
   positionsGPS         PositionGPS[]
   zones                Zone[]
   reglesHoraires       RegleHoraire[]
+  reglesSurveillance   RegleSurveillance[]
+  alertesSurveillance  AlerteSurveillance[]
   incidentsBracelet    IncidentBracelet[]
   historiquesStatut    HistoriqueStatut[]
 
@@ -226,17 +256,23 @@ model Obligation {
 model Pointage {
   id             String @id @default(uuid())
   beneficiaireId String      @map("beneficiaire_id")
-  obligationId String      @map("obligation_id")
-  agentId String      @map("agent_id")
+  obligationId String?      @map("obligation_id")
+  agentId String?      @map("agent_id")
   dateHeure      DateTime @map("date_heure")
   lieu           String?
+  nfc            String?  @map("nfc")
+  centreNom      String?  @map("centre_nom")
+  deviceId       String?  @map("device_id")
   type           String   // QR_CODE, BIOMETRIE, VALIDATION_AGENT
   statut         String   // VALIDE, REFUSE, ABSENT, ANOMALIE
+  source         String   @default("SYSTEME") // SYSTEME, FAMOCO, MANUEL
+  externalSuccess Boolean? @map("external_success")
+  externalPayload Json?   @map("external_payload")
   commentaire    String?
 
   beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
-  obligation     Obligation   @relation(fields: [obligationId], references: [id])
-  agent          User         @relation(fields: [agentId], references: [id])
+  obligation     Obligation?   @relation(fields: [obligationId], references: [id])
+  agent          User?         @relation(fields: [agentId], references: [id])
 
   @@map("pointages")
 }
@@ -357,9 +393,14 @@ model Bracelet {
   fabricant          String?
   statut             String    // DISPONIBLE, AFFECTE, EN_PANNE, RETIRE
   dateActivation     DateTime? @map("date_activation")
+  dernierSignalLe    DateTime? @map("dernier_signal_le")
+  dernierePositionLe DateTime? @map("derniere_position_le")
+  statutConnexion    String?   @map("statut_connexion") // EN_LIGNE, HORS_LIGNE, INCONNU
 
   affectations       AffectationBracelet[]
   positionsGPS       PositionGPS[]
+  reglesSurveillance RegleSurveillance[]
+  alertesSurveillance AlerteSurveillance[]
   incidents          IncidentBracelet[]
 
   @@map("bracelets")
@@ -389,27 +430,36 @@ model PositionGPS {
   id             String @id @default(uuid())
   braceletId String      @map("bracelet_id")
   beneficiaireId String      @map("beneficiaire_id")
+  porteurExterneId String?   @map("porteur_externe_id")
 
   // Bloc localisation
   latitude       Decimal
   longitude      Decimal
-  precision      Decimal?
+  precision      Decimal? @map("precision_m")
+  accuracyMeters Int?     @map("accuracy_meters")
   presenceFlag   Boolean? @map("presence_flag") // bracelet en contact avec son boîtier
   rssiDbm        Int?     @map("rssi_dbm")      // puissance signal RF
+  zoneExterneId  String?  @map("zone_externe_id")
+  zoneStatus     String?  @map("zone_status")   // INSIDE, OUTSIDE, TRANSITION
 
   // Bloc santé
-  batterie       Int?                           // battery_pct %
-  powerSource    String?  @map("power_source")  // "battery" | "mains"
+  batterie       Int?     @map("battery_pct")   // battery_pct %
+  powerSource    String?  @map("power_source")   // "battery" | "mains"
+  gprsSignal     Int?     @map("gprs_signal")
+  gpsSatellites  Int?     @map("gps_satellites")
 
   // Bloc alertes
   strapStatus    Int?     @map("strap_status")    // 0 = intact | 1 = boucle coupée
   caseTamper     Boolean? @map("case_tamper")
   geofenceBreach Boolean? @map("geofence_breach")
+  gpsLost        Boolean? @map("gps_lost")
+  gprsLost       Boolean? @map("gprs_lost")
   powerLoss      Boolean? @map("power_loss")
 
   // Résumé état — valeurs CDC : OK | TAMPER | ZONE_EXIT | LOW_BATTERY | POWER_FAIL
   statutBracelet String?  @map("statut_bracelet")
   heartbeat      Boolean?
+  rawPayload     Json?    @map("raw_payload")
 
   // Note V1 : latitude/longitude = coordonnées fixes du domicile
   // pas de vrai GPS avant V2
@@ -417,9 +467,67 @@ model PositionGPS {
 
   bracelet       Bracelet     @relation(fields: [braceletId], references: [id])
   beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  alertesSurveillance AlerteSurveillance[]
 
   @@index([braceletId, dateHeure(sort: Desc)])
   @@map("positions_gps")
+}
+
+// =====================
+// REGLE SURVEILLANCE
+// =====================
+
+model RegleSurveillance {
+  id             String   @id @default(uuid())
+  beneficiaireId String?  @map("beneficiaire_id")
+  braceletId     String?  @map("bracelet_id")
+  type           String   // SORTIE_ZONE, BATTERIE_FAIBLE, PERTE_SIGNAL, TAMPER, POWER_FAIL
+  seuil          Float?
+  unite          String?  // %, minutes, metres, etc.
+  severite       String   // CRITIQUE, NORMALE
+  actif          Boolean  @default(true)
+  parametres     Json?
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  beneficiaire   Beneficiaire? @relation(fields: [beneficiaireId], references: [id], onDelete: SetNull)
+  bracelet       Bracelet?     @relation(fields: [braceletId], references: [id], onDelete: SetNull)
+  alertes        AlerteSurveillance[]
+
+  @@index([beneficiaireId, actif])
+  @@index([braceletId, actif])
+  @@map("regles_surveillance")
+}
+
+// =====================
+// ALERTE SURVEILLANCE
+// =====================
+
+model AlerteSurveillance {
+  id               String   @id @default(uuid())
+  beneficiaireId   String   @map("beneficiaire_id")
+  braceletId       String?  @map("bracelet_id")
+  regleSurveillanceId String? @map("regle_surveillance_id")
+  positionGPSId    String?  @map("position_gps_id")
+  type             String   // SORTIE_ZONE, BATTERIE_FAIBLE, PERTE_SIGNAL, TAMPER, POWER_FAIL, CONFIGURATION
+  niveau           String   // CRITIQUE, NORMALE
+  message          String
+  source           String   // SYSTEME, AGENT, BRACELET, SIMULATEUR
+  statut           String   // OUVERTE, TRAITEE, IGNOREE
+  actionRecommandee String? @map("action_recommandee")
+  metadata         Json?
+  declencheeLe     DateTime @default(now()) @map("declenchee_le")
+  resolueLe        DateTime? @map("resolue_le")
+
+  beneficiaire     Beneficiaire      @relation(fields: [beneficiaireId], references: [id], onDelete: Cascade)
+  bracelet         Bracelet?         @relation(fields: [braceletId], references: [id], onDelete: SetNull)
+  regleSurveillance RegleSurveillance? @relation(fields: [regleSurveillanceId], references: [id], onDelete: SetNull)
+  positionGPS      PositionGPS?      @relation(fields: [positionGPSId], references: [id], onDelete: SetNull)
+
+  @@index([beneficiaireId, declencheeLe(sort: Desc)])
+  @@index([statut, niveau])
+  @@map("alertes_surveillance")
 }
 
 // =====================

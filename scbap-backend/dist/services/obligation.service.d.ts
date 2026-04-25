@@ -6,10 +6,12 @@ type UpdateObligationInput = z.infer<typeof UpdateObligationSchema>;
 type ValidateObligationInput = z.infer<typeof ValidateObligationSchema>;
 export declare function getObligationsByDossier(dossierId: string): Promise<({
     dossier: {
-        nom: string;
         id: string;
-        obligations: string | null;
+        nom: string;
         prenom: string;
+        statut: string | null;
+        createdAt: Date;
+        obligations: string | null;
         nationalite: string | null;
         sexe: string | null;
         profession: string | null;
@@ -17,7 +19,6 @@ export declare function getObligationsByDossier(dossierId: string): Promise<({
         infractions: string | null;
         condamnation: string | null;
         observations: string | null;
-        statut: string | null;
         numeroDossier: string;
         juridictionId: string | null;
         prisonId: string | null;
@@ -33,7 +34,6 @@ export declare function getObligationsByDossier(dossierId: string): Promise<({
         dateDecisionDapg: Date | null;
         dureeTempsEpreuve: string | null;
         othersData: Prisma.JsonValue | null;
-        createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
     };
@@ -42,26 +42,39 @@ export declare function getObligationsByDossier(dossierId: string): Promise<({
         statut: string;
         createdAt: Date;
         dossierId: string;
+        profilStatut: string;
+        biometrieEnrolementCode: string | null;
+        biometrieEnrolementStatut: string;
+        biometrieEnrolementDeepLinkFamoco: string | null;
+        biometrieEnrolementApplication: string | null;
+        biometrieEnrolementMany: string | null;
+        biometrieEnrolementDemandeeLe: Date | null;
+        biometrieEnrolementConfirmeeLe: Date | null;
+        biometrieVerificationEssais: number;
+        biometrieDerniereVerificationLe: Date | null;
+        biometrieProchaineVerificationLe: Date | null;
+        badgeNfc: string | null;
+        badgeNfcAssocieLe: Date | null;
         qrCode: string;
         profilConfirme: boolean;
         profilConfirmeLe: Date | null;
     };
     categorie: {
+        id: string;
         nom: string;
         description: string | null;
-        id: string;
     };
 } & {
     type: string | null;
-    description: string | null;
     id: string;
     statut: string | null;
     createdAt: Date;
+    description: string | null;
+    dossierId: string;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
-    dossierId: string;
     beneficiaireId: string;
     categorieId: string;
     source: string | null;
@@ -76,10 +89,12 @@ export declare function getObligationsByDossier(dossierId: string): Promise<({
 })[]>;
 export declare function getObligationById(id: string): Promise<{
     dossier: {
-        nom: string;
         id: string;
-        obligations: string | null;
+        nom: string;
         prenom: string;
+        statut: string | null;
+        createdAt: Date;
+        obligations: string | null;
         nationalite: string | null;
         sexe: string | null;
         profession: string | null;
@@ -87,7 +102,6 @@ export declare function getObligationById(id: string): Promise<{
         infractions: string | null;
         condamnation: string | null;
         observations: string | null;
-        statut: string | null;
         numeroDossier: string;
         juridictionId: string | null;
         prisonId: string | null;
@@ -103,7 +117,6 @@ export declare function getObligationById(id: string): Promise<{
         dateDecisionDapg: Date | null;
         dureeTempsEpreuve: string | null;
         othersData: Prisma.JsonValue | null;
-        createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
     };
@@ -112,26 +125,39 @@ export declare function getObligationById(id: string): Promise<{
         statut: string;
         createdAt: Date;
         dossierId: string;
+        profilStatut: string;
+        biometrieEnrolementCode: string | null;
+        biometrieEnrolementStatut: string;
+        biometrieEnrolementDeepLinkFamoco: string | null;
+        biometrieEnrolementApplication: string | null;
+        biometrieEnrolementMany: string | null;
+        biometrieEnrolementDemandeeLe: Date | null;
+        biometrieEnrolementConfirmeeLe: Date | null;
+        biometrieVerificationEssais: number;
+        biometrieDerniereVerificationLe: Date | null;
+        biometrieProchaineVerificationLe: Date | null;
+        badgeNfc: string | null;
+        badgeNfcAssocieLe: Date | null;
         qrCode: string;
         profilConfirme: boolean;
         profilConfirmeLe: Date | null;
     };
     categorie: {
+        id: string;
         nom: string;
         description: string | null;
-        id: string;
     };
 } & {
     type: string | null;
-    description: string | null;
     id: string;
     statut: string | null;
     createdAt: Date;
+    description: string | null;
+    dossierId: string;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
-    dossierId: string;
     beneficiaireId: string;
     categorieId: string;
     source: string | null;
@@ -146,10 +172,12 @@ export declare function getObligationById(id: string): Promise<{
 }>;
 export declare function createObligation(dossierId: string, input: CreateObligationInput): Promise<{
     dossier: {
-        nom: string;
         id: string;
-        obligations: string | null;
+        nom: string;
         prenom: string;
+        statut: string | null;
+        createdAt: Date;
+        obligations: string | null;
         nationalite: string | null;
         sexe: string | null;
         profession: string | null;
@@ -157,7 +185,6 @@ export declare function createObligation(dossierId: string, input: CreateObligat
         infractions: string | null;
         condamnation: string | null;
         observations: string | null;
-        statut: string | null;
         numeroDossier: string;
         juridictionId: string | null;
         prisonId: string | null;
@@ -173,7 +200,6 @@ export declare function createObligation(dossierId: string, input: CreateObligat
         dateDecisionDapg: Date | null;
         dureeTempsEpreuve: string | null;
         othersData: Prisma.JsonValue | null;
-        createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
     };
@@ -182,26 +208,39 @@ export declare function createObligation(dossierId: string, input: CreateObligat
         statut: string;
         createdAt: Date;
         dossierId: string;
+        profilStatut: string;
+        biometrieEnrolementCode: string | null;
+        biometrieEnrolementStatut: string;
+        biometrieEnrolementDeepLinkFamoco: string | null;
+        biometrieEnrolementApplication: string | null;
+        biometrieEnrolementMany: string | null;
+        biometrieEnrolementDemandeeLe: Date | null;
+        biometrieEnrolementConfirmeeLe: Date | null;
+        biometrieVerificationEssais: number;
+        biometrieDerniereVerificationLe: Date | null;
+        biometrieProchaineVerificationLe: Date | null;
+        badgeNfc: string | null;
+        badgeNfcAssocieLe: Date | null;
         qrCode: string;
         profilConfirme: boolean;
         profilConfirmeLe: Date | null;
     };
     categorie: {
+        id: string;
         nom: string;
         description: string | null;
-        id: string;
     };
 } & {
     type: string | null;
-    description: string | null;
     id: string;
     statut: string | null;
     createdAt: Date;
+    description: string | null;
+    dossierId: string;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
-    dossierId: string;
     beneficiaireId: string;
     categorieId: string;
     source: string | null;
@@ -216,10 +255,12 @@ export declare function createObligation(dossierId: string, input: CreateObligat
 }>;
 export declare function updateObligation(id: string, input: UpdateObligationInput): Promise<{
     dossier: {
-        nom: string;
         id: string;
-        obligations: string | null;
+        nom: string;
         prenom: string;
+        statut: string | null;
+        createdAt: Date;
+        obligations: string | null;
         nationalite: string | null;
         sexe: string | null;
         profession: string | null;
@@ -227,7 +268,6 @@ export declare function updateObligation(id: string, input: UpdateObligationInpu
         infractions: string | null;
         condamnation: string | null;
         observations: string | null;
-        statut: string | null;
         numeroDossier: string;
         juridictionId: string | null;
         prisonId: string | null;
@@ -243,7 +283,6 @@ export declare function updateObligation(id: string, input: UpdateObligationInpu
         dateDecisionDapg: Date | null;
         dureeTempsEpreuve: string | null;
         othersData: Prisma.JsonValue | null;
-        createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
     };
@@ -252,26 +291,39 @@ export declare function updateObligation(id: string, input: UpdateObligationInpu
         statut: string;
         createdAt: Date;
         dossierId: string;
+        profilStatut: string;
+        biometrieEnrolementCode: string | null;
+        biometrieEnrolementStatut: string;
+        biometrieEnrolementDeepLinkFamoco: string | null;
+        biometrieEnrolementApplication: string | null;
+        biometrieEnrolementMany: string | null;
+        biometrieEnrolementDemandeeLe: Date | null;
+        biometrieEnrolementConfirmeeLe: Date | null;
+        biometrieVerificationEssais: number;
+        biometrieDerniereVerificationLe: Date | null;
+        biometrieProchaineVerificationLe: Date | null;
+        badgeNfc: string | null;
+        badgeNfcAssocieLe: Date | null;
         qrCode: string;
         profilConfirme: boolean;
         profilConfirmeLe: Date | null;
     };
     categorie: {
+        id: string;
         nom: string;
         description: string | null;
-        id: string;
     };
 } & {
     type: string | null;
-    description: string | null;
     id: string;
     statut: string | null;
     createdAt: Date;
+    description: string | null;
+    dossierId: string;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
-    dossierId: string;
     beneficiaireId: string;
     categorieId: string;
     source: string | null;
@@ -286,10 +338,12 @@ export declare function updateObligation(id: string, input: UpdateObligationInpu
 }>;
 export declare function validateObligation(id: string, input: ValidateObligationInput): Promise<{
     dossier: {
-        nom: string;
         id: string;
-        obligations: string | null;
+        nom: string;
         prenom: string;
+        statut: string | null;
+        createdAt: Date;
+        obligations: string | null;
         nationalite: string | null;
         sexe: string | null;
         profession: string | null;
@@ -297,7 +351,6 @@ export declare function validateObligation(id: string, input: ValidateObligation
         infractions: string | null;
         condamnation: string | null;
         observations: string | null;
-        statut: string | null;
         numeroDossier: string;
         juridictionId: string | null;
         prisonId: string | null;
@@ -313,7 +366,6 @@ export declare function validateObligation(id: string, input: ValidateObligation
         dateDecisionDapg: Date | null;
         dureeTempsEpreuve: string | null;
         othersData: Prisma.JsonValue | null;
-        createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
     };
@@ -322,26 +374,39 @@ export declare function validateObligation(id: string, input: ValidateObligation
         statut: string;
         createdAt: Date;
         dossierId: string;
+        profilStatut: string;
+        biometrieEnrolementCode: string | null;
+        biometrieEnrolementStatut: string;
+        biometrieEnrolementDeepLinkFamoco: string | null;
+        biometrieEnrolementApplication: string | null;
+        biometrieEnrolementMany: string | null;
+        biometrieEnrolementDemandeeLe: Date | null;
+        biometrieEnrolementConfirmeeLe: Date | null;
+        biometrieVerificationEssais: number;
+        biometrieDerniereVerificationLe: Date | null;
+        biometrieProchaineVerificationLe: Date | null;
+        badgeNfc: string | null;
+        badgeNfcAssocieLe: Date | null;
         qrCode: string;
         profilConfirme: boolean;
         profilConfirmeLe: Date | null;
     };
     categorie: {
+        id: string;
         nom: string;
         description: string | null;
-        id: string;
     };
 } & {
     type: string | null;
-    description: string | null;
     id: string;
     statut: string | null;
     createdAt: Date;
+    description: string | null;
+    dossierId: string;
     frequence: string | null;
     heure: Date | null;
     lieu: string | null;
     metadata: Prisma.JsonValue | null;
-    dossierId: string;
     beneficiaireId: string;
     categorieId: string;
     source: string | null;

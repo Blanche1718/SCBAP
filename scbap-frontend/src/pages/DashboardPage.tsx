@@ -26,6 +26,7 @@ import {
   Zap,
   RefreshCw,
 } from "lucide-react";
+import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/api";
 
 // ─────────────────────────────────────────────
@@ -33,13 +34,14 @@ import { api } from "../lib/api";
 // ─────────────────────────────────────────────
 
 interface StatutGlobal {
-  totalActifs: number;
-  nonConformes: number;
-  termines: number;
+  totalBeneficiaires: number;
+  actifs: number;
+  aConfigurer: number;
   alertesCritiques: number;
   rapportsEnAttente: number;
   variationActifs: number;
 }
+
 
 interface EvenementTempsReel {
   id: string;
@@ -55,72 +57,81 @@ interface PointCompliance {
   taux: number;
 }
 
-// ─────────────────────────────────────────────
-// ── [MOCK] DONNEES FICTIVES ──
-// Commenter tout ce bloc quand l'API est prete
-// ─────────────────────────────────────────────
+interface PointComplianceTrend {
+  jour: string;
+  label: string;
+  taux: number;
+  total: number;
+  valides: number;
+}
 
-const MOCK_STATUT: StatutGlobal = {
-  totalActifs: 284,
-  nonConformes: 12,
-  termines: 147,
-  alertesCritiques: 5,
-  rapportsEnAttente: 8,
-  variationActifs: 6,
-};
+interface JuridictionOption {
+  id: string;
+  nom: string;
+}
 
-const MOCK_EVENEMENTS: EvenementTempsReel[] = [
-  {
-    id: "1",
-    beneficiaireCode: "BENE-00142",
-    beneficiaireNom: "Kokou A.",
-    message: "Violation de geofence detectee — zone de Cotonou Nord.",
-    heure: "14:22",
-    priorite: "CRITIQUE",
-  },
-  {
-    id: "2",
-    beneficiaireCode: "BENE-00089",
-    beneficiaireNom: "Fifame D.",
-    message: "Batterie du bracelet critique (< 5%). Connexion instable.",
-    heure: "13:58",
-    priorite: "MAINTENANCE",
-  },
-  {
-    id: "3",
-    beneficiaireCode: "BENE-00211",
-    beneficiaireNom: "Severin M.",
-    message: "Pointage effectue avec succes — Commissariat de Parakou.",
-    heure: "13:30",
-    priorite: "INFO",
-  },
-  {
-    id: "4",
-    beneficiaireCode: "BENE-00067",
-    beneficiaireNom: "Rachidath O.",
-    message: "Absence de pointage signalee. Delai depasse de 2h.",
-    heure: "12:45",
-    priorite: "CRITIQUE",
-  },
-  {
-    id: "5",
-    beneficiaireCode: "BENE-00310",
-    beneficiaireNom: "Systeme interne",
-    message: "Nouveau dossier beneficiaire enregistre et active.",
-    heure: "11:00",
-    priorite: "INFO",
-  },
-];
 
-const MOCK_COMPLIANCE: PointCompliance[] = [
-  { jour: "LUN", taux: 91 },
-  { jour: "MAR", taux: 87 },
-  { jour: "MER", taux: 94 },
-  { jour: "JEU", taux: 88 },
-  { jour: "VEN", taux: 79 },
-  { jour: "SAM", taux: 83 },
-  { jour: "DIM", taux: 90 },
-];
+// const MOCK_STATUT: StatutGlobal = {
+//   totalActifs: 284,
+//   nonConformes: 12,
+//   termines: 147,
+//   alertesCritiques: 5,
+//   rapportsEnAttente: 8,
+//   variationActifs: 6,
+// };
+
+// const MOCK_EVENEMENTS: EvenementTempsReel[] = [
+//   {
+//     id: "1",
+//     beneficiaireCode: "BENE-00142",
+//     beneficiaireNom: "Kokou A.",
+//     message: "Violation de geofence detectee — zone de Cotonou Nord.",
+//     heure: "14:22",
+//     priorite: "CRITIQUE",
+//   },
+//   {
+//     id: "2",
+//     beneficiaireCode: "BENE-00089",
+//     beneficiaireNom: "Fifame D.",
+//     message: "Batterie du bracelet critique (< 5%). Connexion instable.",
+//     heure: "13:58",
+//     priorite: "MAINTENANCE",
+//   },
+//   {
+//     id: "3",
+//     beneficiaireCode: "BENE-00211",
+//     beneficiaireNom: "Severin M.",
+//     message: "Pointage effectue avec succes — Commissariat de Parakou.",
+//     heure: "13:30",
+//     priorite: "INFO",
+//   },
+//   {
+//     id: "4",
+//     beneficiaireCode: "BENE-00067",
+//     beneficiaireNom: "Rachidath O.",
+//     message: "Absence de pointage signalee. Delai depasse de 2h.",
+//     heure: "12:45",
+//     priorite: "CRITIQUE",
+//   },
+//   {
+//     id: "5",
+//     beneficiaireCode: "BENE-00310",
+//     beneficiaireNom: "Systeme interne",
+//     message: "Nouveau dossier beneficiaire enregistre et active.",
+//     heure: "11:00",
+//     priorite: "INFO",
+//   },
+// ];
+
+// const MOCK_COMPLIANCE: PointCompliance[] = [
+//   { jour: "LUN", taux: 91 },
+//   { jour: "MAR", taux: 87 },
+//   { jour: "MER", taux: 94 },
+//   { jour: "JEU", taux: 88 },
+//   { jour: "VEN", taux: 79 },
+//   { jour: "SAM", taux: 83 },
+//   { jour: "DIM", taux: 90 },
+// ];
 
 // ─────────────────────────────────────────────
 // ── [API] HOOKS REELS — endpoints disponibles :
@@ -129,25 +140,34 @@ const MOCK_COMPLIANCE: PointCompliance[] = [
 //   GET /dashboard/compliance
 // ─────────────────────────────────────────────
 
-function useDashboardStats() {
+function buildDashboardQuery(juridiction?: string | null) {
+  if (!juridiction) {
+    return "";
+  }
+
+  return `?juridiction=${encodeURIComponent(juridiction)}`;
+}
+
+function useDashboardStats(juridiction?: string | null) {
   const [statut, setStatut] = useState<StatutGlobal | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<{ data: StatutGlobal }>("/dashboard/stats")
+    setLoading(true);
+    api.get<{ data: StatutGlobal }>(`/dashboard/stats${buildDashboardQuery(juridiction)}`)
       .then((r) => setStatut(r.data))
       .finally(() => setLoading(false));
-  }, []);
+  }, [juridiction]);
 
   return { statut, loading };
 }
 
-function useEvenements() {
+function useEvenements(juridiction?: string | null) {
   const [evenements, setEvenements] = useState<EvenementTempsReel[]>([]);
 
   useEffect(() => {
     const fetchEvents = () => {
-      api.get<{ data: EvenementTempsReel[] }>("/dashboard/events")
+      api.get<{ data: EvenementTempsReel[] }>(`/dashboard/events${buildDashboardQuery(juridiction)}`)
         .then((r) => setEvenements(r.data))
         .catch((error) => console.error("Erreur lors du chargement des événements:", error));
     };
@@ -159,20 +179,37 @@ function useEvenements() {
     const interval = setInterval(fetchEvents, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [juridiction]);
 
   return { evenements };
 }
 
-function useCompliance() {
+function useCompliance(juridiction?: string | null) {
   const [points, setPoints] = useState<PointCompliance[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<{ data: PointCompliance[] }>("/dashboard/compliance")
-      .then((r) => setPoints(r.data));
-  }, []);
+    setLoading(true);
+    api.get<{ data: PointCompliance[] }>(`/dashboard/compliance${buildDashboardQuery(juridiction)}`)
+      .then((r) => setPoints(r.data))
+      .finally(() => setLoading(false));
+  }, [juridiction]);
 
-  return { points };
+  return { points, loading };
+}
+
+function useComplianceTrend(juridiction?: string | null) {
+  const [points, setPoints] = useState<PointComplianceTrend[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get<{ data: PointComplianceTrend[] }>(`/dashboard/compliance/trend${buildDashboardQuery(juridiction)}`)
+      .then((r) => setPoints(r.data))
+      .finally(() => setLoading(false));
+  }, [juridiction]);
+
+  return { points, loading };
 }
 
 // ─────────────────────────────────────────────
@@ -222,6 +259,37 @@ function KpiCard({
       </div>
     </div>
   );
+}
+
+function useJurisdictions() {
+  const [jurisdictions, setJurisdictions] = useState<JuridictionOption[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+
+    api.get<{ data: JuridictionOption[] }>("/juridictions")
+      .then((r) => {
+        if (active) {
+          setJurisdictions(r.data);
+        }
+      })
+      .catch((error) => {
+        console.error("Erreur lors du chargement des juridictions:", error);
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return { jurisdictions, loading };
 }
 
 const PRIORITE_CONFIG = {
@@ -284,27 +352,217 @@ function ComplianceChart({ points }: { points: PointCompliance[] }) {
     "h-[120px]",
   ];
 
+  const getComplianceTone = (taux: number) => {
+    if (taux < 70) {
+      return {
+        label: "text-on-error-container",
+        bar: "#ffdad6",
+      };
+    }
+
+    if (taux < 80) {
+      return {
+        label: "text-amber-700",
+        bar: "#fcd34d",
+      };
+    }
+
+    return {
+      label: "text-primary",
+      bar: "#c7eade",
+    };
+  };
+
   return (
     <div className="flex items-end justify-between gap-3 px-1 pt-2">
       {points.map((p) => {
         const ratio = max === 0 ? 0 : p.taux / max;
         const idx = Math.min(barHeights.length - 1, Math.round(ratio * (barHeights.length - 1)));
         const heightClass = barHeights[idx];
-        const isLow = p.taux < 85;
+        const tone = getComplianceTone(p.taux);
         return (
           <div key={p.jour} className="flex flex-col items-center gap-2 flex-1">
-            <span className={`text-[11px] font-bold ${isLow ? "text-on-error-container" : "text-primary"}`}>
+            <span className={`text-[11px] font-bold ${tone.label}`}>
               {p.taux}%
             </span>
             <div className="w-full flex items-end h-30">
               <div
-                className={`w-full rounded-sm transition-all ${heightClass} ${isLow ? "bg-error-container" : "bg-primary-fixed"}`}
+                className={`w-full rounded-sm transition-all ${heightClass}`}
+                style={{ backgroundColor: tone.bar }}
               />
             </div>
             <span className="text-xs text-on-surface-variant font-medium">{p.jour}</span>
           </div>
         )
       })}
+    </div>
+  );
+}
+
+function getComplianceTone(taux: number) {
+  if (taux < 70) {
+  return {
+    label: "text-on-error-container",
+    bar: "#ffdad6",
+    dot: "#93000a",
+  };
+  }
+
+  if (taux < 80) {
+  return {
+    label: "text-amber-700",
+    bar: "#fcd34d",
+    dot: "#f59e0b",
+  };
+  }
+
+  return {
+    label: "text-primary",
+    bar: "#c7eade",
+    dot: "#17362e",
+  };
+}
+
+function getComplianceSeverity(taux: number) {
+  if (taux < 70) return 0;
+  if (taux < 80) return 1;
+  return 2;
+}
+
+function ComplianceTrendChart({ points }: { points: PointComplianceTrend[] }) {
+  if (points.length === 0) {
+    return null;
+  }
+
+  const width = 1000;
+  const height = 260;
+  const paddingX = 18;
+  const paddingY = 26;
+  const max = Math.max(100, ...points.map((p) => p.taux));
+  const stepX = points.length === 1 ? 0 : (width - paddingX * 2) / (points.length - 1);
+
+  const toX = (index: number) => paddingX + index * stepX;
+  const toY = (value: number) => height - paddingY - ((height - paddingY * 2) * value) / max;
+
+  const areaPoints = [
+    `${paddingX},${height - paddingY}`,
+    ...points.map((point, index) => `${toX(index)},${toY(point.taux)}`),
+    `${width - paddingX},${height - paddingY}`,
+  ].join(" ");
+  const lineSegments = points.slice(1).map((point, index) => {
+    const prev = points[index];
+    const severity = Math.max(getComplianceSeverity(prev.taux), getComplianceSeverity(point.taux));
+
+    return {
+      x1: toX(index),
+      y1: toY(prev.taux),
+      x2: toX(index + 1),
+      y2: toY(point.taux),
+      stroke: severity === 0 ? "#d94841" : severity === 1 ? "#f59e0b" : "#17362e",
+    };
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 text-xs text-on-surface-variant">
+        <span className="font-medium">Derniers 30 jours</span>
+        <span className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-primary" />
+          Taux de réussite
+        </span>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-surface-low bg-surface-container-lowest">
+        <svg viewBox={`0 0 ${width} ${height}`} className="block w-full h-[260px]">
+          <defs>
+            <linearGradient id="trendAreaFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#c7eade" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#c7eade" stopOpacity="0.05" />
+            </linearGradient>
+          </defs>
+
+          {[0, 25, 50, 75, 100].map((tick) => {
+            const y = toY(tick);
+            return (
+              <g key={tick}>
+                <line
+                  x1={paddingX}
+                  x2={width - paddingX}
+                  y1={y}
+                  y2={y}
+                  stroke="#e6e9e8"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                />
+                <text
+                  x={6}
+                  y={y + 4}
+                  className="fill-on-surface-variant"
+                  style={{ fontSize: 10 }}
+                >
+                  {tick}%
+                </text>
+              </g>
+            );
+          })}
+
+          <polygon points={areaPoints} fill="url(#trendAreaFill)" />
+          {lineSegments.map((segment, index) => (
+            <line
+              key={`${segment.x1}-${segment.x2}-${index}`}
+              x1={segment.x1}
+              y1={segment.y1}
+              x2={segment.x2}
+              y2={segment.y2}
+              fill="none"
+              stroke={segment.stroke}
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+
+          {points.map((point, index) => {
+            const tone = getComplianceTone(point.taux);
+            return (
+              <g key={point.label}>
+                <circle
+                  cx={toX(index)}
+                  cy={toY(point.taux)}
+                  r="5"
+                  fill={tone.dot}
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                />
+                <text
+                  x={toX(index)}
+                  y={height - 8}
+                  textAnchor="middle"
+                  className="fill-on-surface-variant"
+                  style={{ fontSize: 10 }}
+                >
+                  {index % 5 === 0 || index === points.length - 1 ? point.jour : ""}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div className="flex flex-wrap gap-3 text-[11px] font-medium text-on-surface-variant">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-on-error-container" />
+          Rouge &lt; 70%
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+          Orange 70-79%
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-primary" />
+          Vert ≥ 80%
+        </span>
+      </div>
     </div>
   );
 }
@@ -316,11 +574,17 @@ function ComplianceChart({ points }: { points: PointCompliance[] }) {
 export default function DashboardPage() {
   const [heure, setHeure] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedJurisdiction, setSelectedJurisdiction] = useState("");
+  const { user } = useAuth();
+  const isAdmin = user?.role?.nom === "ADMIN";
+  const { jurisdictions, loading: jurisdictionsLoading } = useJurisdictions();
 
   // ── [API] Utilisation des vraies données ──
-  const { statut, loading } = useDashboardStats();
-  const { evenements } = useEvenements();
-  const { points: compliancePoints } = useCompliance();
+  const jurisdictionQuery = isAdmin ? selectedJurisdiction || null : null;
+  const { statut, loading } = useDashboardStats(jurisdictionQuery);
+  const { evenements } = useEvenements(jurisdictionQuery);
+  const { points: weeklyCompliancePoints, loading: weeklyComplianceLoading } = useCompliance(jurisdictionQuery);
+  const { points: complianceTrendPoints, loading: complianceTrendLoading } = useComplianceTrend(jurisdictionQuery);
 
   useEffect(() => {
     const t = setInterval(() => setHeure(new Date()), 30_000);
@@ -332,12 +596,9 @@ export default function DashboardPage() {
     try {
       // Rafraîchir les statistiques et la conformité
       await Promise.all([
-        api.get<{ data: StatutGlobal }>("/dashboard/stats").then(r => {
-          // Note: useDashboardStats gère son propre état, on pourrait améliorer ça
-        }),
-        api.get<{ data: PointCompliance[] }>("/dashboard/compliance").then(r => {
-          // Note: useCompliance gère son propre état, on pourrait améliorer ça
-        })
+        api.get<{ data: StatutGlobal }>(`/dashboard/stats${buildDashboardQuery(jurisdictionQuery)}`),
+        api.get<{ data: PointCompliance[] }>(`/dashboard/compliance${buildDashboardQuery(jurisdictionQuery)}`),
+        api.get<{ data: PointComplianceTrend[] }>(`/dashboard/compliance/trend${buildDashboardQuery(jurisdictionQuery)}`),
       ]);
     } catch (error) {
       console.error("Erreur lors du rafraîchissement:", error);
@@ -362,7 +623,14 @@ export default function DashboardPage() {
             <Activity size={19} className="text-primary" />
             Tableau de bord
           </h1>
-          <p className="text-sm text-on-surface-variant mt-0.5 capitalize">{dateStr}</p>
+          <p className="text-sm text-on-surface-variant mt-0.5 capitalize">
+            {dateStr}
+            {isAdmin && selectedJurisdiction ? (
+              <span className="ml-2 font-semibold text-primary">
+                · {jurisdictions.find((item) => item.id === selectedJurisdiction)?.nom ?? "Juridiction"}
+              </span>
+            ) : null}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -379,6 +647,27 @@ export default function DashboardPage() {
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
             Actualiser
           </button>
+
+          {isAdmin && (
+            <label className="flex items-center gap-2 px-3 py-2 rounded-md bg-white text-sm text-on-surface-variant">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                Juridiction
+              </span>
+              <select
+                value={selectedJurisdiction}
+                onChange={(event) => setSelectedJurisdiction(event.target.value)}
+                disabled={jurisdictionsLoading}
+                className="bg-transparent text-sm font-medium text-on-surface outline-none min-w-[170px]"
+              >
+                <option value="">Toutes juridictions</option>
+                {jurisdictions.map((juridiction) => (
+                  <option key={juridiction.id} value={juridiction.id}>
+                    {juridiction.nom}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <button
             className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold text-on-error-container bg-error-container hover:bg-error-container/80 transition-colors"
@@ -409,75 +698,104 @@ export default function DashboardPage() {
           <div>
             <p className="text-white font-bold text-sm">Vue generale du systeme</p>
             <p className="text-white/55 text-xs mt-0.5">
-              Surveillance de {statut?.totalActifs ?? "—"} profils judiciaires actifs — Benin
+              Surveillance de {statut?.totalBeneficiaires ?? "—"} bénéficiaires dans le système
+              {isAdmin && selectedJurisdiction
+                ? ` — ${jurisdictions.find((item) => item.id === selectedJurisdiction)?.nom ?? "Juridiction"}`
+                : user?.structure?.juridiction
+                  ? ` — ${user.structure.juridiction}`
+                  : " — Benin"}
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-4 md:gap-8">
+        {/* <div className="flex flex-wrap items-center gap-4 md:gap-8">
           <div className="text-left md:text-right">
-            <p className="text-xs text-white/50 uppercase tracking-wider">Risques actifs</p>
-            <p className="text-error-container font-bold text-lg leading-tight">
-              {statut?.nonConformes ?? "—"} Critiques
+            <p className="text-xs text-white/50 uppercase tracking-wider">Actifs</p>
+            <p className="text-white font-bold text-lg leading-tight">
+              {statut?.actifs ?? "—"} En suivi
             </p>
           </div>
           <div className="hidden md:block w-px h-8 bg-white/15" />
           <div className="text-left md:text-right">
-            <p className="text-xs text-white/50 uppercase tracking-wider">Rapports en attente</p>
-            <p className="text-white font-bold text-lg leading-tight">
-              {String(statut?.rapportsEnAttente ?? "—").padStart(2, "0")} En cours
+            <p className="text-xs text-white/50 uppercase tracking-wider">À configurer</p>
+            <p className="text-error-container font-bold text-lg leading-tight">
+              {statut?.aConfigurer ?? "—"} En attente
             </p>
           </div>
-        </div>
+        </div> */}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <KpiCard
-          label="Total actifs"
-          value={statut?.totalActifs ?? "—"}
-          sub={`+${statut?.variationActifs ?? 0} depuis la derniere periode`}
+          label="Total beneficiaires"
+          value={statut?.totalBeneficiaires ?? "—"}
+          // sub={`${formatVariation(statut?.variationActifs ?? 0)} depuis la derniere periode`}
+          sub="Beneficiaires recensés dans le système"
           icon={Users}
           variant="default"
         />
         <KpiCard
-          label="Non conformes"
-          value={statut?.nonConformes ?? "—"}
-          sub="Action immediate requise"
-          icon={AlertTriangle}
-          variant="alert"
-        />
-        <KpiCard
-          label="Termines"
-          value={statut?.termines ?? "—"}
-          sub="Traitement archive"
+          label="Actifs"
+          value={statut?.actifs ?? "—"}
+          sub="Profil confirme"
           icon={CheckCircle2}
           variant="success"
+        />
+        <KpiCard
+          label="A configurer"
+          value={statut?.aConfigurer ?? "—"}
+          sub="Profil non confirme"
+          icon={AlertTriangle}
+          variant="alert"
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <div className="lg:col-span-2 rounded-lg bg-white p-6">
-          <div className="flex items-center justify-between mb-1">
-            <div>
-              <h2 className="text-sm font-bold text-on-surface">
-                Tendances de conformite hebdomadaires
-              </h2>
-              <p className="text-xs text-on-surface-variant mt-0.5">
-                Pourcentage de pointages reussis par jour
-              </p>
+        <div className="lg:col-span-2 rounded-lg bg-white p-6 space-y-8">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <div>
+                <h2 className="text-sm font-bold text-on-surface">
+                  Tendance de conformité sur 30 jours
+                </h2>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  Évolution quotidienne du taux de pointage validé
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                <span className="w-2 h-2 rounded-full bg-primary" />
+                Courbe de tendance
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-on-surface-variant">
-              <span className="w-2 h-2 rounded-full bg-primary" />
-              Taux de succes
-            </div>
+
+            {loading || complianceTrendLoading ? (
+              <div className="h-64 flex items-center justify-center">
+                <RefreshCw size={16} className="animate-spin text-outline-variant" />
+              </div>
+            ) : (
+              <ComplianceTrendChart points={complianceTrendPoints} />
+            )}
           </div>
 
-          {loading ? (
-            <div className="h-32 flex items-center justify-center">
-              <RefreshCw size={16} className="animate-spin text-outline-variant" />
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
+                Répartition par jour
+              </p>
+              <span className="text-[11px] font-medium text-on-surface-variant">
+                Semaine globale
+              </span>
             </div>
-          ) : (
-            <ComplianceChart points={compliancePoints} />
-          )}
+            <p className="text-xs text-on-surface-variant mb-4">
+              Lecture compacte du taux moyen par jour de semaine.
+            </p>
+            {weeklyComplianceLoading ? (
+              <div className="h-32 flex items-center justify-center">
+                <RefreshCw size={16} className="animate-spin text-outline-variant" />
+              </div>
+            ) : (
+              <ComplianceChart points={weeklyCompliancePoints} />
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col gap-4">
@@ -498,6 +816,51 @@ export default function DashboardPage() {
                   <p className="text-on-surface-variant text-xs">Bilan de conformite</p>
                 </div>
               </Link>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-white p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
+                Synthèse du jour
+              </p>
+              <span className="text-[11px] font-medium text-on-surface-variant">
+                Données en direct
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-md bg-surface-low p-3">
+                <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
+                  Actifs
+                </p>
+                <p className="text-lg font-bold text-primary leading-tight mt-1">
+                  {statut?.actifs ?? "—"}
+                </p>
+              </div>
+              <div className="rounded-md bg-surface-low p-3">
+                <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
+                  À configurer
+                </p>
+                <p className="text-lg font-bold text-on-error-container leading-tight mt-1">
+                  {statut?.aConfigurer ?? "—"}
+                </p>
+              </div>
+              <div className="rounded-md bg-surface-low p-3">
+                <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
+                  Alertes critiques
+                </p>
+                <p className="text-lg font-bold text-on-error-container leading-tight mt-1">
+                  {statut?.alertesCritiques ?? "—"}
+                </p>
+              </div>
+              <div className="rounded-md bg-surface-low p-3">
+                <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
+                  Rapports
+                </p>
+                <p className="text-lg font-bold text-on-surface leading-tight mt-1">
+                  {statut?.rapportsEnAttente ?? "—"}
+                </p>
+              </div>
             </div>
           </div>
 

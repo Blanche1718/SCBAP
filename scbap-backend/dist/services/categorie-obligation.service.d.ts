@@ -7,22 +7,22 @@ export declare const DEFAULT_CATEGORIES_OBLIGATION: {
     description: string;
 }[];
 export declare function getCategoriesObligation(): Promise<{
+    id: string;
     nom: string;
     description: string | null;
-    id: string;
 }[]>;
 export declare function getCategorieObligationById(id: string): Promise<{
     obligations: {
         type: string | null;
-        description: string | null;
         id: string;
         statut: string | null;
         createdAt: Date;
+        description: string | null;
+        dossierId: string;
         frequence: string | null;
         heure: Date | null;
         lieu: string | null;
         metadata: import("@prisma/client/runtime/client").JsonValue | null;
-        dossierId: string;
         beneficiaireId: string;
         categorieId: string;
         source: string | null;
@@ -36,24 +36,24 @@ export declare function getCategorieObligationById(id: string): Promise<{
         modifiePar: string | null;
     }[];
 } & {
+    id: string;
     nom: string;
     description: string | null;
-    id: string;
 }>;
 export declare function createCategorieObligation(input: CreateCategorieObligationInput): Promise<{
+    id: string;
     nom: string;
     description: string | null;
-    id: string;
 }>;
 export declare function updateCategorieObligation(id: string, input: UpdateCategorieObligationInput): Promise<{
+    id: string;
     nom: string;
     description: string | null;
-    id: string;
 }>;
 export declare function deleteCategorieObligation(id: string): Promise<{
+    id: string;
     nom: string;
     description: string | null;
-    id: string;
 }>;
 export declare function seedCategoriesObligation(): Promise<{
     createdCount: number;

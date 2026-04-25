@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import prisma from "../prisma";
+import { normalizeJuridictionCode } from "../utils/juridiction";
 
 const TARGET_COUNT = 20;
 const RESET_SEED = process.env.RESET_SEED === "1";
@@ -33,6 +34,21 @@ const PRENOMS = [
 ];
 
 const VILLES = [
+  "Cotonou",
+  "Porto-Novo",
+  "Parakou",
+  "Abomey",
+  "Natitingou",
+];
+
+const PRISONS = [
+  "Maison d'arrêt de Cotonou",
+  "Maison d'arrêt de Porto-Novo",
+  "Maison d'arrêt de Parakou",
+  "Maison d'arrêt d'Abomey",
+];
+
+const JURIDICTIONS = [
   "Cotonou",
   "Porto-Novo",
   "Parakou",
@@ -235,6 +251,9 @@ async function seedDossiers() {
     const nom = NOMS[idx % NOMS.length];
     const prenom = PRENOMS[idx % PRENOMS.length];
     const ville = VILLES[idx % VILLES.length];
+    const prisonName = PRISONS[idx % PRISONS.length];
+    const juridictionLabel = JURIDICTIONS[idx % JURIDICTIONS.length];
+    const juridictionId = normalizeJuridictionCode(juridictionLabel);
     const profession = PROFESSIONS[idx % PROFESSIONS.length];
     const infraction = INFRACTIONS[idx % INFRACTIONS.length];
     const condamnation = CONDAMNATIONS[idx % CONDAMNATIONS.length];
@@ -250,8 +269,9 @@ async function seedDossiers() {
       const dossier = await tx.dossier.create({
         data: {
           numeroDossier,
-          juridictionId: String((idx % 5) + 1),
+          juridictionId,
           prisonId: String((idx % 4) + 1),
+          prisonName,
           nom,
           prenom,
           dateNaissance,
@@ -267,21 +287,25 @@ async function seedDossiers() {
           condamnation,
           dateFinPeine,
           dureePeineMois: 12 + i,
+          decisionDapg: "accepte",
+          dateDecisionDapg: new Date(),
+          dureeTempsEpreuve: "12 mois",
           observations: `Dossier genere automatiquement le ${makeStamp()}.`,
           obligations: obligationList.join("\n"),
           othersData: {
             source: "seed",
             batch: makeStamp(),
             notes: "Donnees fictives pour tests.",
+            juridictionLabel,
           },
-          statut: "ACTIF",
+          statut: "accepte_dapg",
         },
       });
 
       const beneficiaire = await tx.beneficiaire.create({
         data: {
           dossierId: dossier.id,
-          statut: "ACTIF",
+          statut: "A_CONFIGURER",
           qrCode: `BEN-${numeroDossier}-${randomUUID().slice(0, 8)}`,
         },
       });

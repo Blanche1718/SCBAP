@@ -4,6 +4,7 @@ import {
   confirmBeneficiaireProfil,
   getBeneficiaireById,
   getBeneficiaires,
+  updateBeneficiaire,
   syncSpecificObligationsForBeneficiaire,
 } from "../services/beneficiaire.service";
 
@@ -99,7 +100,7 @@ export async function getBeneficiairesController(
   try {
     const page = parsePaginationParam(req.query.page, "page", 1);
     const limit = parsePaginationParam(req.query.limit, "limit", 10);
-    const beneficiaires = await getBeneficiaires(page, limit);
+    const beneficiaires = await getBeneficiaires(page, limit, req.user);
 
     res.status(200).json({
       message: "Liste des beneficiaires recuperee avec succes",
@@ -117,7 +118,7 @@ export async function getBeneficiaireByIdController(
 ) {
   try {
     const id = parseUuid(req.params.id, "beneficiaire");
-    const beneficiaire = await getBeneficiaireById(id);
+    const beneficiaire = await getBeneficiaireById(id, req.user);
 
     res.status(200).json({
       message: "Beneficiaire recupere avec succes",
@@ -147,7 +148,7 @@ export async function syncBeneficiaireObligationsController(
       lieu: item.lieu === undefined || item.lieu === null ? undefined : String(item.lieu),
     })).filter((item) => item.categorie && item.libelle);
 
-    const created = await syncSpecificObligationsForBeneficiaire(id, obligations);
+    const created = await syncSpecificObligationsForBeneficiaire(id, obligations, req.user);
 
     res.status(200).json({
       message: "Obligations specifiques synchronisees avec succes",
@@ -165,10 +166,28 @@ export async function confirmBeneficiaireProfilController(
 ) {
   try {
     const id = parseUuid(req.params.id, "beneficiaire");
-    const beneficiaire = await confirmBeneficiaireProfil(id);
+    const beneficiaire = await confirmBeneficiaireProfil(id, req.user);
 
     res.status(200).json({
       message: "Profil beneficiaire confirme avec succes",
+      data: beneficiaire,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateBeneficiaireController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = parseUuid(req.params.id, "beneficiaire");
+    const beneficiaire = await updateBeneficiaire(id, req.body);
+
+    res.status(200).json({
+      message: "Beneficiaire mis a jour avec succes",
       data: beneficiaire,
     });
   } catch (error) {

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { DapgLiberationConditionnelle } from "./types";
+import { normalizeJuridictionCode } from "../../utils/juridiction";
 
 function parseDate(value?: string | null) {
   if (!value) return undefined;
@@ -45,7 +46,9 @@ export function mapDapgLiberationConditionnelleToDossierCreateInput(
 
   return {
     numeroDossier: payload.numero_dossier ?? "",
-    juridictionId: payload.juridiction?.id ? String(payload.juridiction.id) : undefined,
+    juridictionId: normalizeJuridictionCode(
+      payload.juridiction?.code ?? payload.juridiction?.name ?? payload.juridiction?.id,
+    ) || undefined,
     prisonName: payload.prison?.name ?? undefined,
     nom: payload.nom ?? "",
     prenom: payload.prenom ?? "",
