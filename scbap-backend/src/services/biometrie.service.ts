@@ -1,13 +1,15 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { HttpError } from "../errorHandler";
 import prisma from "../prisma";
-import type { AuthenticatedUser } from "../auth/auth.types";
+import { AuthenticatedUser } from "../auth/auth.types";
 import { getUserJuridictionCode } from "../utils/juridiction";
 import {
   callGetBiometrie,
+  getFingerprintStatus,
 } from "../integrations/biometrie/client";
 import { BIOMETRIE_DEFAULT_DEEP_LINK_APP } from "../integrations/biometrie/config";
-import type {
+import { createNotification } from "./notification.service";
+import  {
   BiometrieStatusInput,
   StartBiometrieEnrolementInput,
 } from "../schemas/biometrie.schema";
@@ -17,6 +19,10 @@ type AccessContext = Pick<AuthenticatedUser, "role" | "structure"> | undefined;
 type BiometrieLocalStatus = "AUCUN" | "EN_COURS" | "CONFIRME" | "ECHEC";
 
 const BIOMETRIE_INITIAL_RECHECK_DELAY_MINUTES = 10;
+
+function isConfirmable(response: { success: boolean; isValid?: boolean }) {
+  return response.success && Boolean(response.isValid);
+}
 
 function isAdminAccess(user?: AccessContext) {
   return user?.role?.nom === "ADMIN";
@@ -101,6 +107,69 @@ function resolveEnrollmentPayload(input: StartBiometrieEnrolementInput) {
   };
 }
 
+export async function ensureBiometrieConfiguredNotification(input: {
+  beneficiaireId: string;
+  code: string;
+  confirmedAt?: Date | null;
+}) {
+  const beneficiaire = await prisma.beneficiaire.findUnique({
+    where: { id: input.beneficiaireId },
+    select: {
+      id: true,
+      biometrieEnrolementConfirmeeLe: true,
+      dossier: {
+        select: {
+          nom: true,
+          prenom: true,
+          numeroDossier: true,
+        },
+      },
+    },
+  });
+
+  if (!beneficiaire) {
+    throw new HttpError(404, "Beneficiaire introuvable");
+  }
+
+  const confirmedAt = input.confirmedAt ?? beneficiaire.biometrieEnrolementConfirmeeLe ?? new Date();
+  const existingNotification = await prisma.notification.findFirst({
+    where: {
+      beneficiaireId: beneficiaire.id,
+      type: "BIOMETRIE_CONFIGUREE",
+      targetType: "BENEFICIAIRE",
+      targetId: beneficiaire.id,
+      dateEnvoi: {
+        gte: new Date(confirmedAt.getTime() - 60 * 1000),
+      },
+    },
+    select: {
+      id: true,
+    },
+    orderBy: {
+      dateEnvoi: "desc",
+    },
+  });
+
+  if (existingNotification) {
+    return existingNotification;
+  }
+
+  return createNotification({
+    beneficiaireId: beneficiaire.id,
+    type: "BIOMETRIE_CONFIGUREE",
+    priorite: "INFO",
+    targetType: "BENEFICIAIRE",
+    targetId: beneficiaire.id,
+    message: `Biométrie configurée pour ${beneficiaire.dossier.prenom} ${beneficiaire.dossier.nom}`.trim(),
+    dateEnvoi: confirmedAt,
+    metadata: {
+      code: input.code,
+      numeroDossier: beneficiaire.dossier.numeroDossier,
+      eventAt: confirmedAt.toISOString(),
+    },
+  });
+}
+
 export async function startBiometrieEnrolement(
   input: StartBiometrieEnrolementInput,
   user?: AccessContext,
@@ -112,6 +181,13 @@ export async function startBiometrieEnrolement(
     },
     select: {
       id: true,
+      dossier: {
+        select: {
+          nom: true,
+          prenom: true,
+          numeroDossier: true,
+        },
+      },
       profilStatut: true,
       profilConfirme: true,
       biometrieEnrolementStatut: true,
@@ -186,6 +262,13 @@ export async function startBiometrieEnrolement(
       },
     });
 
+    if (isValid) {
+      await ensureBiometrieConfiguredNotification({
+        beneficiaireId: beneficiaire.id,
+        code,
+      });
+    }
+
     return {
       beneficiaireId: beneficiaire.id,
       code,
@@ -240,6 +323,14 @@ export async function getBiometrieEnrolementStatus(
     throw new HttpError(404, "Beneficiaire introuvable");
   }
 
+  if (beneficiaire.biometrieEnrolementStatut === "CONFIRME") {
+    await ensureBiometrieConfiguredNotification({
+      beneficiaireId: beneficiaire.id,
+      code,
+      confirmedAt: beneficiaire.biometrieEnrolementConfirmeeLe,
+    });
+  }
+
   return {
     code,
     isValid: beneficiaire.biometrieEnrolementStatut === "CONFIRME",
@@ -263,4 +354,113 @@ export async function getBiometrieEnrolementStatus(
         beneficiaire.biometrieEnrolementDeepLinkFamoco,
     },
   };
+}
+
+export async function forceVerifyBiometrieEnrolement(
+  beneficiaireId: string,
+  user?: AccessContext,
+) {
+  const beneficiaire = await prisma.beneficiaire.findFirst({
+    where: {
+      id: beneficiaireId,
+      ...buildBeneficiaireAccessFilter(user),
+    },
+    select: {
+      id: true,
+      biometrieEnrolementCode: true,
+      biometrieEnrolementStatut: true,
+      biometrieVerificationEssais: true,
+    },
+  });
+
+  if (!beneficiaire) {
+    throw new HttpError(404, "Beneficiaire introuvable");
+  }
+
+  if (beneficiaire.biometrieEnrolementStatut === "CONFIRME") {
+    throw new HttpError(409, "La biométrie de ce bénéficiaire est déjà configurée");
+  }
+
+  if (!beneficiaire.biometrieEnrolementCode) {
+    throw new HttpError(400, "Aucun code d'enrôlement trouvé");
+  }
+
+  if (beneficiaire.biometrieEnrolementStatut !== "EN_COURS") {
+    throw new HttpError(400, "L'enrôlement n'est pas en cours");
+  }
+
+  try {
+    console.log(`[biometrie-admin] Force vérification pour ${beneficiaireId} avec code ${beneficiaire.biometrieEnrolementCode}`);
+    
+    // Utilise la même vérification que le scheduler
+    const statusResponse = await getFingerprintStatus(beneficiaire.biometrieEnrolementCode);
+    const now = new Date();
+
+    console.log(`[biometrie-admin] Réponse API : success=${statusResponse.success}, isValid=${statusResponse.isValid}`);
+
+    if (isConfirmable(statusResponse)) {
+      console.log(`[biometrie-admin] ✅ Biométrie confirmée lors de la vérification forcée`);
+      await prisma.beneficiaire.update({
+        where: { id: beneficiaire.id },
+        data: {
+          biometrieEnrolementStatut: "CONFIRME",
+          biometrieEnrolementConfirmeeLe: now,
+          biometrieDerniereVerificationLe: now,
+          biometrieProchaineVerificationLe: null,
+          biometrieVerificationEssais: beneficiaire.biometrieVerificationEssais + 1,
+        },
+      });
+
+      await ensureBiometrieConfiguredNotification({
+        beneficiaireId: beneficiaire.id,
+        code: beneficiaire.biometrieEnrolementCode,
+        confirmedAt: now,
+      });
+
+      return {
+        success: true,
+        message: "Enrôlement confirmé avec succès",
+        statusLocal: "CONFIRME",
+      };
+    }
+
+    console.log(`[biometrie-admin] ⏳ Enrôlement toujours en attente`);
+    const nextAttempts = beneficiaire.biometrieVerificationEssais + 1;
+    await prisma.beneficiaire.update({
+      where: { id: beneficiaire.id },
+      data: {
+        biometrieEnrolementStatut: "EN_COURS",
+        biometrieDerniereVerificationLe: now,
+        biometrieProchaineVerificationLe: computeBiometrieNextVerificationDate(nextAttempts, now),
+        biometrieVerificationEssais: nextAttempts,
+      },
+    });
+
+    return {
+      success: true,
+      message: "Vérification en cours - biométrie non encore confirmée",
+      statusLocal: "EN_COURS",
+    };
+  } catch (error) {
+    const now = new Date();
+    const nextAttempts = beneficiaire.biometrieVerificationEssais + 1;
+
+    console.error(`[biometrie-admin] ❌ Erreur lors de la vérification forcée:`, error instanceof Error ? error.message : error);
+
+    await prisma.beneficiaire.update({
+      where: { id: beneficiaire.id },
+      data: {
+        biometrieEnrolementStatut: "EN_COURS",
+        biometrieDerniereVerificationLe: now,
+        biometrieProchaineVerificationLe: computeBiometrieNextVerificationDate(nextAttempts, now),
+        biometrieVerificationEssais: nextAttempts,
+      },
+    });
+
+    if (error instanceof HttpError) {
+      throw error;
+    }
+
+    throw new HttpError(502, "Erreur lors de la vérification de l'enrôlement");
+  }
 }

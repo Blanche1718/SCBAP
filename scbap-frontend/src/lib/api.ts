@@ -68,6 +68,37 @@ async function download(path: string): Promise<{ blob: Blob; filename: string | 
   };
 }
 
+async function upload(path: string, body: BodyInit, contentType?: string): Promise<void> {
+  const headers = new Headers();
+  const token = getStoredAuthToken();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  if (contentType) {
+    headers.set("Content-Type", contentType);
+  }
+
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "PUT",
+    headers,
+    body,
+  });
+
+  if (!res.ok) {
+    if (res.status === 401 && token) {
+      clearStoredAuthToken();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("scbap:auth-invalid"));
+      }
+    }
+
+    const err = await res.json().catch(() => ({ message: "Erreur réseau" }));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body: unknown) =>
@@ -78,4 +109,5 @@ export const api = {
     request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   download,
+  upload,
 };

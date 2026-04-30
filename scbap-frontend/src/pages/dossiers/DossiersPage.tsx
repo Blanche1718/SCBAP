@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Shield,
-  CheckCircle2,
   Activity,
   User,
   Gavel,
@@ -19,13 +18,16 @@ import {
   Download,
 } from "lucide-react";
 import { useDossiers } from "../../hooks/useDossiers";
+import { CompactPaginationControls } from "../../components/pagination/CompactPaginationControls";
 import { Button } from "../../components/ui";
 import { api } from "../../lib/api";
 import type { Dossier } from "../../types";
+import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
+import { formatInAppTimeZone } from "../../utils/timezone";
 
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("fr-FR", {
+  return formatInAppTimeZone(new Date(dateStr), {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -262,7 +264,7 @@ export default function DossiersPage() {
           </p>
           <p className="mt-1">
             Mis à jour :{" "}
-            {new Date().toLocaleTimeString("fr-FR", {
+            {formatInAppTimeZone(new Date(), {
               hour: "2-digit",
               minute: "2-digit",
             })}
@@ -282,14 +284,14 @@ export default function DossiersPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full bg-error-container px-3 py-1 text-[11px] font-bold text-on-error-container uppercase tracking-wider">
+          {/* <span className="inline-flex items-center gap-2 rounded-full bg-error-container px-3 py-1 text-[11px] font-bold text-on-error-container uppercase tracking-wider">
             <AlertCircle size={12} />
             Alertes actives
           </span>
           <span className="inline-flex items-center gap-2 rounded-full bg-primary-fixed px-3 py-1 text-[11px] font-bold text-[#2e4d44] uppercase tracking-wider">
             <CheckCircle2 size={12} />
             Suivi stable
-          </span>
+          </span> */}
           <Button
             variant="ghost"
             size="sm"
@@ -324,18 +326,28 @@ export default function DossiersPage() {
       )}
 
       {/* ── Search ── */}
-      <div className="relative mb-4">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant" />
-        <input
-          type="text"
-          placeholder="Rechercher par nom, prénom ou numéro de dossier…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 rounded-md bg-surface-highest text-sm placeholder:text-outline-variant outline-none focus:border-b-2 focus:border-primary transition-all"
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative w-full lg:max-w-3xl">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant" />
+          <input
+            type="text"
+            placeholder="Rechercher par nom, prénom ou numéro de dossier…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 rounded-md bg-surface-highest text-sm placeholder:text-outline-variant outline-none focus:border-b-2 focus:border-primary transition-all"
+          />
+        </div>
+        <CompactPaginationControls
+          page={page}
+          totalPages={meta.totalPages}
+          loading={loading}
+          onPrevious={goToPreviousPage}
+          onNext={goToNextPage}
+          className="self-end lg:self-auto"
         />
       </div>
       <p className="mb-5 text-xs text-on-secondary-container">
-        La recherche s&apos;applique aux dossiers charges sur la page en cours.
+        La recherche s&apos;applique aux dossiers chargés sur la page en cours.
       </p>
 
       {/* ── Column headers ── */}
@@ -425,9 +437,9 @@ export default function DossiersPage() {
                 onChange={handleLimitChange}
                 className="rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
               >
-                {[10, 20, 50].map((option) => (
+                {getPageSizeOptions([10, 20, 50]).map((option) => (
                   <option key={option} value={option}>
-                    {option}
+                    {getPageSizeOptionLabel(option)}
                   </option>
                 ))}
               </select>

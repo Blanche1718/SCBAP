@@ -15,10 +15,14 @@
     "seed:users-juridiction": "ts-node src/scripts/seed-users-juridiction.ts",
     "seed:bracelets": "ts-node src/scripts/seed-bracelets.ts",
     "seed:bracelets:reset": "RESET_SEED=1 ts-node src/scripts/seed-bracelets.ts",
+    "seed:zones": "ts-node src/scripts/seed-zones.ts",
+    "seed:zones:reset": "RESET_SEED=1 ts-node src/scripts/seed-zones.ts",
     "seed:pointages": "ts-node src/scripts/seed-pointages.ts",
     "seed:pointages:reset": "RESET_SEED=1 ts-node src/scripts/seed-pointages.ts",
     "seed:alertes": "ts-node src/scripts/seed-alertes.ts",
     "seed:alertes:reset": "RESET_SEED=1 ts-node src/scripts/seed-alertes.ts",
+    "simulate:bracelet": "ts-node src/scripts/simulate-bracelet.ts",
+    "simulate:bracelet:alert": "BRACELET_SIMULATION_MODE=alert ts-node src/scripts/simulate-bracelet.ts",
     "backfill:beneficiaire-statuts": "ts-node src/scripts/backfill-beneficiaire-statuts.ts"
   },
   "keywords": [],
@@ -39,6 +43,7 @@
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.6.0",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/ws": "^8.18.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.0",
@@ -48,6 +53,7 @@
     "minio": "^8.0.7",
     "mqtt": "^5.15.1",
     "pg": "^8.20.0",
+    "ws": "^8.20.0",
     "zod": "^4.3.6"
   }
 }

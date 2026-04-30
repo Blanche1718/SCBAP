@@ -125,22 +125,12 @@ export async function buildDossiersExportWorkbook(user?: AccessContext) {
     { header: "Prénom", key: "prenom", width: 18 },
     { header: "Sexe", key: "sexe", width: 10 },
     { header: "Date de naissance", key: "dateNaissance", width: 15 },
-    { header: "Statut dossier", key: "statutDossier", width: 16 },
-    { header: "Profil statut", key: "profilStatut", width: 16 },
-    { header: "Profil confirmé", key: "profilConfirme", width: 15 },
-    { header: "QR code", key: "qrCode", width: 28 },
     { header: "Prison", key: "prison", width: 24 },
     { header: "Juridiction", key: "juridiction", width: 18 },
     { header: "Numéro mandat dépôt", key: "numeroMandatDepot", width: 20 },
     { header: "Date mandat dépôt", key: "dateMandatDepot", width: 16 },
     { header: "Date fin peine", key: "dateFinPeine", width: 16 },
     { header: "Infractions", key: "infractions", width: 35 },
-    { header: "Obligations", key: "obligations", width: 50 },
-    { header: "Décision DAPG", key: "decisionDapg", width: 18 },
-    { header: "Date décision DAPG", key: "dateDecisionDapg", width: 18 },
-    { header: "Durée temps épreuve", key: "dureeTempsEpreuve", width: 18 },
-    { header: "Observations", key: "observations", width: 35 },
-    { header: "Créé le", key: "createdAt", width: 16 },
   ];
 
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };

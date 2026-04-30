@@ -11,6 +11,36 @@ function buildBraceletCode(index: number) {
 
 async function main() {
   if (RESET_SEED) {
+    const deletedPositions = await prisma.positionGPS.deleteMany({
+      where: {
+        bracelet: {
+          codeImei: {
+            startsWith: BRACELET_PREFIX,
+          },
+        },
+      },
+    });
+
+    const deletedAlertes = await prisma.alerteSurveillance.deleteMany({
+      where: {
+        bracelet: {
+          codeImei: {
+            startsWith: BRACELET_PREFIX,
+          },
+        },
+      },
+    });
+
+    const deletedIncidents = await prisma.incidentBracelet.deleteMany({
+      where: {
+        bracelet: {
+          codeImei: {
+            startsWith: BRACELET_PREFIX,
+          },
+        },
+      },
+    });
+
     const deletedAffectations = await prisma.affectationBracelet.deleteMany({
       where: {
         bracelet: {
@@ -30,7 +60,7 @@ async function main() {
     });
 
     console.log(
-      `Seed reset: ${deletedAffectations.count} affectation(s) et ${deletedBracelets.count} bracelet(s) supprime(s).`,
+      `Seed reset: ${deletedPositions.count} position(s), ${deletedAlertes.count} alerte(s), ${deletedIncidents.count} incident(s), ${deletedAffectations.count} affectation(s) et ${deletedBracelets.count} bracelet(s) supprime(s).`,
     );
   }
 

@@ -3,7 +3,6 @@ import AppLayout from "./components/layout/AppLayout";
 import DashboardPage from "./pages/DashboardPage";
 import DossiersPage from "./pages/dossiers/DossiersPage";
 import DossierDetailPage from "./pages/dossiers/DossierDetailPage";
-import { PlaceholderPage } from "./pages/Placeholder";
 import BeneficiairesPage from "./pages/beneficiaires/BeneficiairesPage";
 import BeneficiaireDetailPage from "./pages/beneficiaires/BeneficiaireDetailPage";
 import PointagesPage from "./pages/pointages/PointagesPage";
@@ -13,6 +12,10 @@ import { RequireAuth } from "./components/auth/RequireAuth";
 import { RequireRole } from "./components/auth/RequireRole";
 import AdministrationPage from "./pages/admin/AdministrationPage";
 import ConfigurationPage from "./pages/ConfigurationPage";
+import GpsMapPage from "./pages/surveillance/GpsMapPage";
+import AlertesPage from "./pages/alertes/AlertesPage";
+import NotificationsPage from "./pages/notifications/NotificationsPage";
+import { PlaceholderPage } from "./pages/Placeholder";
 
 export default function App() {
   return (
@@ -27,8 +30,9 @@ export default function App() {
             <Route path="beneficiaires/:id" element={<BeneficiaireDetailPage />} />
             <Route path="pointages" element={<PointagesPage />} />
             <Route path="pointages/:id" element={<PointageDetailPage />} />
-            <Route path="surveillance" element={<PlaceholderPage title="Surveillance GPS" />} />
-            <Route path="alertes" element={<PlaceholderPage title="Alertes" />} />
+            <Route path="surveillance" element={<GpsMapPage />} />
+            <Route path="alertes" element={<AlertesPage />} />
+            <Route path="notifications" element={<NotificationsPage />} />
             <Route path="rapports" element={<PlaceholderPage title="Rapports" />} />
             <Route path="configuration" element={<ConfigurationPage />} />
             <Route element={<RequireRole allowedRoles={["ADMIN"]} />}>

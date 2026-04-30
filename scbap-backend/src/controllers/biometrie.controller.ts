@@ -7,6 +7,7 @@ import {
 import {
   getBiometrieEnrolementStatus,
   startBiometrieEnrolement,
+  forceVerifyBiometrieEnrolement,
 } from "../services/biometrie.service";
 
 export async function startBiometrieEnrolementController(
@@ -46,6 +47,38 @@ export async function getBiometrieEnrolementStatusController(
     });
 
     const result = await getBiometrieEnrolementStatus(input, req.user);
+
+    res.status(200).json({
+      message: result.message,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function forceVerifyBiometrieEnrolementController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    if (!req.user) {
+      throw new HttpError(401, "Utilisateur non authentifie");
+    }
+
+    if (req.user.role?.nom !== "ADMIN") {
+      throw new HttpError(403, "Seuls les administrateurs peuvent forcer la vérification");
+    }
+
+    const beneficiaireId = Array.isArray(req.params.beneficiaireId)
+      ? req.params.beneficiaireId[0]?.trim()
+      : req.params.beneficiaireId?.trim();
+    if (!beneficiaireId) {
+      throw new HttpError(400, "ID beneficiaire manquant");
+    }
+
+    const result = await forceVerifyBiometrieEnrolement(beneficiaireId, req.user);
 
     res.status(200).json({
       message: result.message,

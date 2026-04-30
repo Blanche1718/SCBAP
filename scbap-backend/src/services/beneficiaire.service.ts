@@ -2,6 +2,7 @@ import { HttpError } from "../errorHandler";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import type { Prisma } from "@prisma/client";
 import prisma from "../prisma";
+import { createNotification } from "./notification.service";
 import {
     CreateBeneficiaireSchema,
     UpdateBeneficiaireSchema,
@@ -110,6 +111,11 @@ export async function getBeneficiaires(page = 1, limit = 10, user?: AccessContex
                 },
                 obligations: true,
                 pointages: {
+                    where: {
+                        statut: {
+                            not: "ABSENT",
+                        },
+                    },
                     orderBy: { dateHeure: "desc" },
                     take: 1,
                 },
@@ -151,6 +157,12 @@ export async function getBeneficiaireById(id: string, user?: AccessContext) {
                 include: {
                     juridiction: true,
                 },
+            },
+            zones: {
+                orderBy: [
+                    { type: "asc" },
+                    { nom: "asc" },
+                ],
             },
             documents: {
                 where: {
@@ -198,22 +210,39 @@ export async function createBeneficiaire(input: CreateBeneficiaireInput) {
         throw new HttpError(409, "Ce dossier a deja un beneficiaire");
     }
 
-    return prisma.beneficiaire.create({
-    data: {
-      dossierId: data.dossierId,
-      statut: profilStatut,
-      qrCode: data.qrCode,
-      profilStatut,
-      profilConfirme,
-      profilConfirmeLe: profilConfirme ? new Date() : null,
-      ...(data.badgeNfc !== undefined
-        ? {
-            badgeNfc: data.badgeNfc,
-            badgeNfcAssocieLe: data.badgeNfc ? new Date() : null,
-          }
-        : {}),
-    },
-  });
+    const beneficiaire = await prisma.beneficiaire.create({
+        data: {
+            dossierId: data.dossierId,
+            statut: profilStatut,
+            qrCode: data.qrCode,
+            profilStatut,
+            profilConfirme,
+            profilConfirmeLe: profilConfirme ? new Date() : null,
+            ...(data.badgeNfc !== undefined
+                ? {
+                    badgeNfc: data.badgeNfc,
+                    badgeNfcAssocieLe: data.badgeNfc ? new Date() : null,
+                  }
+                : {}),
+        },
+    });
+
+    await createNotification({
+        beneficiaireId: beneficiaire.id,
+        type: "NOUVEAU_BENEFICIAIRE",
+        priorite: "INFO",
+        targetType: "BENEFICIAIRE",
+        targetId: beneficiaire.id,
+        message: `Nouveau bénéficiaire créé: ${dossier.prenom} ${dossier.nom}`.trim(),
+        dateEnvoi: dossier.createdAt,
+        metadata: {
+            dossierId: dossier.id,
+            numeroDossier: dossier.numeroDossier,
+            eventAt: dossier.createdAt.toISOString(),
+        },
+    });
+
+    return beneficiaire;
 }
 
 export async function confirmBeneficiaireProfil(id: string, user?: AccessContext) {
@@ -235,6 +264,7 @@ export async function confirmBeneficiaireProfil(id: string, user?: AccessContext
         },
         include: {
             dossier: true,
+            zones: true,
             obligations: {
                 include: {
                     categorie: true,
@@ -313,7 +343,7 @@ export async function syncSpecificObligationsForBeneficiaire(
     for (const obligation of obligations) {
         const categorie = await ensureObligationCategoryExists(obligation.categorie);
 
-        created.push(
+created.push(
             await prisma.obligation.create({
                 data: {
                     beneficiaireId,
@@ -324,7 +354,26 @@ export async function syncSpecificObligationsForBeneficiaire(
                     type: obligation.type ?? obligation.categorie,
                     frequence: obligation.frequence,
                     jourSemaine: obligation.jourSemaine,
-                    heure: obligation.heure ? new Date(`1970-01-01T${obligation.heure.length === 5 ? `${obligation.heure}:00` : obligation.heure}Z`) : undefined,
+                    heure: obligation.heure
+                        ? (() => {
+                            const normalizedTime = obligation.heure.length === 5 ? `${obligation.heure}:00` : obligation.heure;
+                            const match = normalizedTime.match(/^(\d{2}):(\d{2}):(\d{2})$/);
+                            if (!match) {
+                                return undefined;
+                            }
+
+                            return new Date(
+                                Date.UTC(
+                                    1970,
+                                    0,
+                                    1,
+                                    Number(match[1]),
+                                    Number(match[2]),
+                                    Number(match[3]),
+                                ),
+                            );
+                        })()
+                        : undefined,
                     lieu: obligation.lieu,
                     statutStructuration: "A_VERIFIER",
                     statut: "EN_COURS",

@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Activity,
+  FileText,
   MapPin,
   BarChart2,
   Bell,
@@ -25,9 +26,13 @@ import {
   Battery,
   Zap,
   RefreshCw,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/api";
+import { useNotifications } from "../hooks/useNotifications";
+import { NotificationsDrawer } from "../components/notifications/NotificationsDrawer";
+import { formatInAppTimeZone } from "../utils/timezone";
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -68,6 +73,13 @@ interface PointComplianceTrend {
 interface JuridictionOption {
   id: string;
   nom: string;
+}
+
+interface ShortcutItem {
+  to: string;
+  title: string;
+  description: string;
+  icon: React.ElementType;
 }
 
 
@@ -242,7 +254,7 @@ function KpiCard({
   }[variant];
 
   return (
-    <div className="rounded-lg bg-white p-4 sm:p-5 flex flex-col gap-4">
+    <div className="rounded-lg border border-[#eef5f1] bg-[#ffffff] p-4 sm:p-5 flex flex-col gap-4">
       <div className="flex items-start justify-between">
         <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">{label}</p>
         <div className={`w-9 h-9 rounded-md flex items-center justify-center ${iconBg}`}>
@@ -258,6 +270,31 @@ function KpiCard({
         )}
       </div>
     </div>
+  );
+}
+
+function ShortcutCard({
+  to,
+  title,
+  description,
+  icon: Icon,
+}: ShortcutItem) {
+  return (
+    <Link
+      to={to}
+      className="group flex min-h-[84px] flex-col justify-between rounded-md bg-[#e7f2ec] p-2.5 transition-colors hover:bg-[#d6eadf]"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-primary shadow-[0_4px_12px_rgba(23,54,46,0.08)]">
+          <Icon size={13} />
+        </div>
+        <ArrowUpRight size={11} className="text-on-surface-variant transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+      </div>
+      <div>
+        <p className="text-[11px] font-bold leading-tight text-on-surface">{title}</p>
+        <p className="mt-1 text-[10px] leading-snug text-on-surface-variant">{description}</p>
+      </div>
+    </Link>
   );
 }
 
@@ -575,6 +612,7 @@ export default function DashboardPage() {
   const [heure, setHeure] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [selectedJurisdiction, setSelectedJurisdiction] = useState("");
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { user } = useAuth();
   const isAdmin = user?.role?.nom === "ADMIN";
   const { jurisdictions, loading: jurisdictionsLoading } = useJurisdictions();
@@ -585,11 +623,32 @@ export default function DashboardPage() {
   const { evenements } = useEvenements(jurisdictionQuery);
   const { points: weeklyCompliancePoints, loading: weeklyComplianceLoading } = useCompliance(jurisdictionQuery);
   const { points: complianceTrendPoints, loading: complianceTrendLoading } = useComplianceTrend(jurisdictionQuery);
+  const {
+    notifications: recentNotifications,
+    meta: notificationMeta,
+    loading: notificationsLoading,
+    refetch: refetchNotifications,
+    markAsRead: markNotificationAsRead,
+  } = useNotifications(1, 10);
 
   useEffect(() => {
     const t = setInterval(() => setHeure(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      void refetchNotifications();
+    }, 30_000);
+
+    return () => clearInterval(t);
+  }, [refetchNotifications]);
+
+  useEffect(() => {
+    if (notificationsOpen) {
+      void refetchNotifications();
+    }
+  }, [notificationsOpen, refetchNotifications]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -607,13 +666,118 @@ export default function DashboardPage() {
     }
   };
 
-  const heureStr = heure.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  const dateStr = heure.toLocaleDateString("fr-FR", {
+  const heureStr = formatInAppTimeZone(heure, { hour: "2-digit", minute: "2-digit" });
+  const dateStr = formatInAppTimeZone(heure, {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
   });
+  const unreadCountLabel =
+    notificationMeta.summary.unread > 999
+      ? "999+"
+      : String(notificationMeta.summary.unread);
+  const shortcutCards: ShortcutItem[] = isAdmin
+    ? [
+        {
+          to: "/notifications",
+          title: "Notifications",
+          description: "Flux des evenements",
+          icon: Bell,
+        },
+        {
+          to: "/dossiers",
+          title: "Dossiers",
+          description: "Consultation des dossiers",
+          icon: FileText,
+        },
+        {
+          to: "/beneficiaires",
+          title: "Beneficiaires",
+          description: "Profils et suivi",
+          icon: Users,
+        },
+        {
+          to: "/pointages",
+          title: "Pointages",
+          description: "Presences et statuts",
+          icon: Radio,
+        },
+        {
+          to: "/surveillance",
+          title: "Surveillance",
+          description: "Carte en direct",
+          icon: MapPin,
+        },
+        {
+          to: "/alertes",
+          title: "Alertes",
+          description: "Incidents a traiter",
+          icon: AlertTriangle,
+        },
+        {
+          to: "/rapports",
+          title: "Rapports",
+          description: "Bilans et exports",
+          icon: BarChart2,
+        },
+        {
+          to: "/configuration",
+          title: "Configuration",
+          description: "Reglages du systeme",
+          icon: Settings,
+        },
+      ]
+    : [
+        {
+          to: "/dashboard",
+          title: "Tableau",
+          description: "Vue generale",
+          icon: Activity,
+        },
+        {
+          to: "/notifications",
+          title: "Notifications",
+          description: "Flux des evenements",
+          icon: Bell,
+        },
+        {
+          to: "/beneficiaires",
+          title: "Beneficiaires",
+          description: "Profils et suivi",
+          icon: Users,
+        },
+        {
+          to: "/pointages",
+          title: "Pointages",
+          description: "Presences et statuts",
+          icon: Radio,
+        },
+        {
+          to: "/surveillance",
+          title: "Surveillance",
+          description: "Carte en direct",
+          icon: MapPin,
+        },
+        {
+          to: "/alertes",
+          title: "Alertes",
+          description: "Incidents a traiter",
+          icon: AlertTriangle,
+        },
+        {
+          to: "/rapports",
+          title: "Rapports",
+          description: "Bilans et exports",
+          icon: BarChart2,
+        },
+        {
+          to: "/configuration",
+          title: "Configuration",
+          description: "Reglages du systeme",
+          icon: Settings,
+        },
+      ];
 
   return (
     <div className="p-4 sm:p-8 min-h-full bg-surface">
@@ -650,9 +814,9 @@ export default function DashboardPage() {
 
           {isAdmin && (
             <label className="flex items-center gap-2 px-3 py-2 rounded-md bg-white text-sm text-on-surface-variant">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+              {/* <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
                 Juridiction
-              </span>
+              </span> */}
               <select
                 value={selectedJurisdiction}
                 onChange={(event) => setSelectedJurisdiction(event.target.value)}
@@ -678,14 +842,16 @@ export default function DashboardPage() {
 
           <div className="relative">
             <button
+              type="button"
+              onClick={() => setNotificationsOpen(true)}
               aria-label="Notifications"
               className="w-9 h-9 rounded-md bg-white flex items-center justify-center text-on-surface-variant hover:bg-surface-high transition-colors"
             >
               <Bell size={16} />
             </button>
-            {(statut?.alertesCritiques ?? 0) > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-on-error-container text-white text-[10px] font-bold flex items-center justify-center">
-                {statut?.alertesCritiques}
+            {notificationMeta.summary.unread > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-on-error-container px-1 text-[9px] font-bold leading-none text-white tabular-nums">
+                {unreadCountLabel}
               </span>
             )}
           </div>
@@ -822,45 +988,16 @@ export default function DashboardPage() {
           <div className="rounded-lg bg-white p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-                Synthèse du jour
+                Raccourcis
               </p>
               <span className="text-[11px] font-medium text-on-surface-variant">
-                Données en direct
+                {shortcutCards.length} pages
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-md bg-surface-low p-3">
-                <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-                  Actifs
-                </p>
-                <p className="text-lg font-bold text-primary leading-tight mt-1">
-                  {statut?.actifs ?? "—"}
-                </p>
-              </div>
-              <div className="rounded-md bg-surface-low p-3">
-                <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-                  À configurer
-                </p>
-                <p className="text-lg font-bold text-on-error-container leading-tight mt-1">
-                  {statut?.aConfigurer ?? "—"}
-                </p>
-              </div>
-              <div className="rounded-md bg-surface-low p-3">
-                <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-                  Alertes critiques
-                </p>
-                <p className="text-lg font-bold text-on-error-container leading-tight mt-1">
-                  {statut?.alertesCritiques ?? "—"}
-                </p>
-              </div>
-              <div className="rounded-md bg-surface-low p-3">
-                <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-                  Rapports
-                </p>
-                <p className="text-lg font-bold text-on-surface leading-tight mt-1">
-                  {statut?.rapportsEnAttente ?? "—"}
-                </p>
-              </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {shortcutCards.map((shortcut) => (
+                <ShortcutCard key={shortcut.to} {...shortcut} />
+              ))}
             </div>
           </div>
 
@@ -939,6 +1076,21 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      <NotificationsDrawer
+        open={notificationsOpen}
+        notifications={recentNotifications}
+        unreadCount={notificationMeta.summary.unread}
+        loading={notificationsLoading}
+        onClose={() => setNotificationsOpen(false)}
+        onRefresh={() => void refetchNotifications()}
+        onOpenNotification={(notification) => {
+          if (!notification.lu) {
+            void markNotificationAsRead(notification.id);
+          }
+          setNotificationsOpen(false);
+        }}
+      />
     </div>
   );
 }

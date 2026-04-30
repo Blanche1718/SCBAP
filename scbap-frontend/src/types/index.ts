@@ -24,10 +24,20 @@ export interface Beneficiaire {
   profilConfirmeLe?: string | null;
   createdAt: string;
   dossier?: Dossier;
+  zones?: Zone[];
   documents?: Document[];
   obligations?: Obligation[];
   pointages?: Pointage[];
   alertes?: Alerte[];
+}
+
+export interface Zone {
+  id: string;
+  beneficiaireId: string;
+  nom: string;
+  type: "AUTORISEE" | "INTERDITE";
+  geometrie?: unknown;
+  rayon?: number | null;
 }
 
 export interface Document {
@@ -108,6 +118,103 @@ export interface Alerte {
   source: string;
   statut: string;
   createdAt: string;
+}
+
+export interface AlerteSurveillance {
+  id: string;
+  beneficiaireId: string;
+  braceletId?: string | null;
+  regleSurveillanceId?: string | null;
+  positionGPSId?: string | null;
+  type: string;
+  niveau: string;
+  message: string;
+  source: string;
+  statut: string;
+  actionRecommandee?: string | null;
+  declencheeLe: string;
+  resolueLe?: string | null;
+  beneficiaire?: Beneficiaire;
+  bracelet?: {
+    id: string;
+    codeImei: string;
+    identifiantPorteur?: string | null;
+  } | null;
+  positionGPS?: {
+    id: string;
+    latitude?: number | string | null;
+    longitude?: number | string | null;
+    zoneStatus?: string | null;
+    dateHeure?: string | null;
+  } | null;
+  regleSurveillance?: {
+    id: string;
+    type: string;
+    severite: string;
+    description?: string | null;
+  } | null;
+}
+
+export interface NotificationBeneficiaire {
+  id: string;
+  dossier?: {
+    id: string;
+    numeroDossier: string;
+    nom: string;
+    prenom: string;
+    juridiction?: {
+      id: string;
+      nom: string;
+    } | null;
+  } | null;
+}
+
+export interface NotificationAlerte {
+  id: string;
+  type: string;
+  niveau: string;
+  message: string;
+  statut: string;
+  declencheeLe: string;
+}
+
+export interface NotificationPointage {
+  id: string;
+  dateHeure: string;
+  lieu?: string | null;
+  type: string;
+  statut: string;
+  commentaire?: string | null;
+}
+
+export interface Notification {
+  id: string;
+  userId?: string | null;
+  beneficiaireId?: string | null;
+  alerteId?: string | null;
+  pointageId?: string | null;
+  type: string;
+  priorite: "CRITIQUE" | "NORMALE" | "INFO" | string;
+  targetType: "ALERTE" | "BENEFICIAIRE" | "POINTAGE" | "SYSTEME" | string;
+  targetId: string;
+  canal: string;
+  message: string;
+  statut: string;
+  lu: boolean;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  dateEnvoi?: string | null;
+  beneficiaire?: NotificationBeneficiaire | null;
+  alerte?: NotificationAlerte | null;
+  pointage?: {
+    id: string;
+    dateHeure: string;
+    lieu?: string | null;
+    type: string;
+    statut: string;
+    commentaire?: string | null;
+    beneficiaire?: NotificationBeneficiaire | null;
+  } | null;
 }
 
 

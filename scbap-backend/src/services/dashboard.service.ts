@@ -2,6 +2,7 @@ import type { AuthenticatedUser } from "../auth/auth.types";
 import type { Prisma } from "@prisma/client";
 import prisma from "../prisma";
 import { getUserJuridictionCode } from "../utils/juridiction";
+import { APP_TIME_ZONE, formatInAppTimeZone } from "../utils/timezone";
 
 export interface StatutGlobal {
   totalBeneficiaires: number;
@@ -256,7 +257,7 @@ export async function getRecentEvents(
         p.statut === "ABSENT"
           ? `Absence de pointage détectée — ${p.lieu ?? "Lieu inconnu"}`
           : `Pointage enregistré — ${p.lieu ?? "Lieu inconnu"}`,
-      heure: new Date(p.dateHeure).toLocaleTimeString("fr-FR", {
+      heure: formatInAppTimeZone(p.dateHeure, {
         hour: "2-digit",
         minute: "2-digit",
       }),
@@ -270,7 +271,7 @@ export async function getRecentEvents(
       beneficiaireCode: "ALERTE",
       beneficiaireNom: "Système",
       message: a.message,
-      heure: new Date(a.createdAt).toLocaleTimeString("fr-FR", {
+      heure: formatInAppTimeZone(a.createdAt, {
         hour: "2-digit",
         minute: "2-digit",
       }),
@@ -343,7 +344,7 @@ export async function getComplianceByWeek(
 
   const weekdayFormatter = new Intl.DateTimeFormat("en-US", {
     weekday: "short",
-    timeZone: "Africa/Porto-Novo",
+    timeZone: APP_TIME_ZONE,
   });
 
   const weekdayToIndex: Record<string, number> = {
@@ -387,10 +388,10 @@ export async function getComplianceTrend30Days(
 ): Promise<PointComplianceTrend[]> {
   const scope = resolveDashboardScope(user, requestedJurisdiction);
   const formatterKey = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Africa/Porto-Novo",
+    timeZone: APP_TIME_ZONE,
   });
   const formatterLabel = new Intl.DateTimeFormat("fr-FR", {
-    timeZone: "Africa/Porto-Novo",
+    timeZone: APP_TIME_ZONE,
     day: "2-digit",
     month: "short",
   });

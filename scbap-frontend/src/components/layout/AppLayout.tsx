@@ -21,6 +21,7 @@ export default function AppLayout() {
   const isAdmin = user?.role.nom === "ADMIN";
   const navItems = [
     { to: "/dashboard", icon: BarChart2, label: "Tableau de bord" },
+    { to: "/notifications", icon: Bell, label: "Notifications" },
     ...(isAdmin ? [{ to: "/dossiers", icon: FileText, label: "Dossiers" }] : []),
     { to: "/beneficiaires", icon: Users, label: "Bénéficiaires" },
     { to: "/pointages", icon: Radio, label: "Pointages" },

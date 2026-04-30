@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { HttpError } from "../errorHandler";
-import { getPointageById, getPointages } from "../services/pointage.service";
+import { getPointageById, getPointages, checkAndCreateAbsentPointages } from "../services/pointage.service";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -91,6 +91,26 @@ export async function getPointageByIdController(
     res.status(200).json({
       message: "Pointage recupere avec succes",
       data: pointage,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function checkAbsencesController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const absences = await checkAndCreateAbsentPointages();
+
+    res.status(200).json({
+      message: `${absences.length} absence(s) détectée(s) et alerte(s) créée(s)`,
+      data: {
+        count: absences.length,
+        alerts: absences,
+      },
     });
   } catch (error) {
     next(error);

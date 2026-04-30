@@ -329,7 +329,7 @@ async function seedDossiers() {
             type: payload.type,
             frequence: payload.frequence,
             jourSemaine: payload.jour_semaine,
-            heure: payload.heure ? new Date(`1970-01-01T${payload.heure}Z`) : null,
+            heure: payload.heure ? new Date(`1970-01-01T${payload.heure}`) : null,
             lieu: payload.lieu,
             statutStructuration: "A_VERIFIER",
             statut: "EN_COURS",

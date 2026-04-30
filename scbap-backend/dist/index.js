@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("dotenv/config");
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const http_1 = require("http");
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const categorie_obligation_routes_1 = __importDefault(require("./routes/categorie-obligation.routes"));
 const dossier_routes_1 = __importDefault(require("./routes/dossier.routes"));
@@ -20,10 +21,14 @@ const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"))
 const juridiction_routes_1 = __importDefault(require("./routes/juridiction.routes"));
 const users_routes_1 = __importDefault(require("./routes/users.routes"));
 const biometrie_routes_1 = __importDefault(require("./routes/biometrie.routes"));
+const alertes_routes_1 = __importDefault(require("./routes/alertes.routes"));
+const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
 const biometrie_scheduler_1 = require("./jobs/biometrie.scheduler");
 const client_1 = require("./integrations/mqtt/client");
 const mqtt_service_1 = require("./services/mqtt.service");
 const webhooks_routes_1 = __importDefault(require("./routes/webhooks.routes"));
+const surveillance_realtime_service_1 = require("./services/surveillance-realtime.service");
+const absence_check_job_1 = require("./jobs/absence-check.job");
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
@@ -44,12 +49,17 @@ app.use("/dashboard", dashboard_routes_1.default);
 app.use("/juridictions", juridiction_routes_1.default);
 app.use("/users", users_routes_1.default);
 app.use("/biometrie", biometrie_routes_1.default);
+app.use("/alertes", alertes_routes_1.default);
+app.use("/notifications", notification_routes_1.default);
 app.use(errorHandler_1.errorHandler);
 const port = Number(process.env.PORT) || 3000;
-app.listen(port, () => {
+const server = (0, http_1.createServer)(app);
+(0, surveillance_realtime_service_1.initializeSurveillanceRealtime)(server);
+server.listen(port, () => {
     console.log(`SCBAP backend running on port ${port}`);
     (0, biometrie_scheduler_1.startBiometrieScheduler)();
     (0, client_1.startMqttSubscriber)(mqtt_service_1.handleMqttMessage);
+    (0, absence_check_job_1.initializeAbsenceCheckJob)();
 });
 exports.default = app;
 //# sourceMappingURL=index.js.map

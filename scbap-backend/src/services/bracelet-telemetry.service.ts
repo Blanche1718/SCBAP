@@ -5,6 +5,11 @@ import {
   BraceletTelemetrySchema,
   type BraceletTelemetryInput,
 } from "../schemas/bracelet-telemetry.schema";
+import {
+  broadcastSurveillanceAlert,
+  broadcastSurveillanceTelemetry,
+} from "./surveillance-realtime.service";
+import { createNotification } from "./notification.service";
 
 type TelemetryFinding = {
   type: string;
@@ -202,6 +207,7 @@ async function createAlertesAndIncidents(args: {
   beneficiaireId: string;
   braceletId: string;
   positionGPSId: string;
+  scopeJurisdictionId?: string | null;
   findings: TelemetryFinding[];
   rawPayload: BraceletTelemetryInput;
 }) {
@@ -218,6 +224,42 @@ async function createAlertesAndIncidents(args: {
         statut: "OUVERTE",
         actionRecommandee: finding.actionRecommandee ?? null,
         metadata: args.rawPayload as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await broadcastSurveillanceAlert({
+      id: alerte.id,
+      beneficiaireId: args.beneficiaireId,
+      braceletId: args.braceletId,
+      positionGPSId: args.positionGPSId,
+      type: finding.type,
+      niveau: finding.niveau,
+      message: finding.message,
+      source: "BRACELET",
+      statut: "OUVERTE",
+      actionRecommandee: finding.actionRecommandee ?? null,
+      declencheeLe: new Date().toISOString(),
+    }, {
+      jurisdictionId: args.scopeJurisdictionId,
+    });
+
+    await createNotification({
+      beneficiaireId: args.beneficiaireId,
+      type: finding.type,
+      priorite: finding.niveau,
+      targetType: "ALERTE_SURVEILLANCE",
+      targetId: alerte.id,
+      message: finding.message,
+      dateEnvoi: new Date(),
+      metadata: {
+        ...args.rawPayload,
+        surveillanceAlerteId: alerte.id,
+        finding: {
+          type: finding.type,
+          niveau: finding.niveau,
+          message: finding.message,
+        },
+        eventAt: new Date().toISOString(),
       },
     });
 
@@ -248,6 +290,7 @@ export async function handleBraceletTelemetryMessage(payload: Buffer | string | 
   }
 
   const { bracelet, beneficiaire } = await resolveBraceletOrThrow(input);
+  const scopeJurisdictionId = beneficiaire.dossier.juridictionId ?? null;
   const findings = buildFindings(input);
   const statutConnexion = buildConnectionStatus(input, findings);
   const commentaire = buildCommentaire(input, findings);
@@ -291,8 +334,13 @@ export async function handleBraceletTelemetryMessage(payload: Buffer | string | 
     beneficiaireId: beneficiaire.id,
     braceletId: bracelet.id,
     positionGPSId: positionGPS.id,
+    scopeJurisdictionId,
     findings,
     rawPayload: input,
+  });
+
+  await broadcastSurveillanceTelemetry(input as unknown as Record<string, unknown>, {
+    jurisdictionId: scopeJurisdictionId,
   });
 
   return {

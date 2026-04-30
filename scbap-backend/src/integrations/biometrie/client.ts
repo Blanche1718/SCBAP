@@ -92,17 +92,18 @@ async function biometrieRequest<T>(path: string, attempt = 0): Promise<T> {
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), BIOMETRIE_TIMEOUT_MS);
+  const requestUrl = `${BIOMETRIE_API_BASE_URL}${path}`;
 
   try {
     logBiometrieDebug("request", {
-      url: `${BIOMETRIE_API_BASE_URL}${path}`,
+      url: requestUrl,
       headers: {
         "X-Api-Key": maskValue(BIOMETRIE_API_KEY),
         Authorization: BIOMETRIE_AUTH_TOKEN ? `Bearer ${maskValue(BIOMETRIE_AUTH_TOKEN)}` : "",
       },
     });
 
-    const response = await fetch(`${BIOMETRIE_API_BASE_URL}${path}`, {
+    const response = await fetch(requestUrl, {
       method: path.includes("call-get") ? "POST" : "GET",
       headers: buildBiometrieHeaders(),
       signal: controller.signal,
@@ -141,6 +142,25 @@ async function biometrieRequest<T>(path: string, attempt = 0): Promise<T> {
       await sleep(750 * (attempt + 1));
       return biometrieRequest<T>(path, attempt + 1);
     }
+
+    const cause =
+      error instanceof Error && "cause" in error
+        ? (error as Error & { cause?: unknown }).cause
+        : undefined;
+
+    logBiometrieDebug("request-failed", {
+      url: requestUrl,
+      attempt,
+      errorName: error instanceof Error ? error.name : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      cause:
+        cause instanceof Error
+          ? {
+              name: cause.name,
+              message: cause.message,
+            }
+          : cause,
+    });
 
     throw error;
   } finally {

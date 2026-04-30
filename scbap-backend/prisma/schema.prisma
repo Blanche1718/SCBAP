@@ -273,6 +273,7 @@ model Pointage {
   beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
   obligation     Obligation?   @relation(fields: [obligationId], references: [id])
   agent          User?         @relation(fields: [agentId], references: [id])
+  notifications  Notification[]
 
   @@map("pointages")
 }
@@ -346,19 +347,29 @@ model Alerte {
 
 model Notification {
   id             String @id @default(uuid())
-  userId String?      @map("user_id")
-  beneficiaireId String?      @map("beneficiaire_id")
-  alerteId String?      @map("alerte_id")
-  canal          String    // SMS, EMAIL, INTERFACE
+  userId         String?   @map("user_id")
+  beneficiaireId String?   @map("beneficiaire_id")
+  alerteId       String?   @map("alerte_id")
+  pointageId     String?   @map("pointage_id")
+  type           String    // NOUVEAU_BENEFICIAIRE, BIOMETRIE_CONFIGUREE, SORTIE_ZONE...
+  priorite       String    // CRITIQUE, NORMALE, INFO
+  targetType     String    @map("target_type")
+  targetId       String    @map("target_id")
+  canal          String    // INTERFACE, EMAIL, SMS
   message        String
   statut         String    // ENVOYE, ECHEC, EN_ATTENTE
   lu             Boolean   @default(false)
+  metadata       Json?     @map("metadata")
   dateEnvoi      DateTime? @map("date_envoi")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   user           User?         @relation(fields: [userId], references: [id])
   beneficiaire   Beneficiaire? @relation(fields: [beneficiaireId], references: [id])
   alerte         Alerte?       @relation(fields: [alerteId], references: [id])
+  pointage       Pointage?     @relation(fields: [pointageId], references: [id])
 
+  @@index([lu, createdAt])
+  @@index([targetType, targetId])
   @@map("notifications")
 }
 

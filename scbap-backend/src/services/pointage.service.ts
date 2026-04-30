@@ -1,6 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { HttpError } from "../errorHandler";
 import prisma from "../prisma";
+import { createNotification } from "./notification.service";
+import type { AlerteSurveillance } from "@prisma/client";
+import { buildDateInAppTimeZone, getStartOfAppDay, getTimeZoneDateParts } from "../utils/timezone";
 
 type PointageFilters = {
   search?: string;
@@ -276,6 +279,27 @@ export async function createBiometricPointage(input: BiometricPointageInput) {
     },
   });
 
+  if (statut !== "VALIDE") {
+    await createNotification({
+      beneficiaireId: beneficiaire.id,
+      pointageId: pointage.id,
+      type: "POINTAGE_ANOMALIE",
+      priorite: "NORMALE",
+      targetType: "POINTAGE",
+      targetId: pointage.id,
+      message: "Pointage anormal détecté",
+      dateEnvoi: pointage.dateHeure,
+      metadata: {
+        pointageId: pointage.id,
+        statut,
+        centreNom: input.centreNom ?? null,
+        deviceId: input.deviceId ?? null,
+        success: input.success,
+        eventAt: pointage.dateHeure.toISOString(),
+      },
+    });
+  }
+
   return {
     pointage,
     beneficiaire: {
@@ -286,4 +310,166 @@ export async function createBiometricPointage(input: BiometricPointageInput) {
       badgeNfc: nfc,
     },
   };
+}
+
+export async function checkAndCreateAbsentPointages() {
+  const now = new Date();
+  const today = getStartOfAppDay(now);
+  const todayParts = getTimeZoneDateParts(now);
+  const endOfDay = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+
+  // Get all active POINTAGE obligations
+  const obligations = await prisma.obligation.findMany({
+    where: {
+      type: "POINTAGE",
+      statut: "EN_COURS",
+      dateDebut: {
+        lte: today,
+      },
+      OR: [
+        {
+          dateFin: {
+            gte: today,
+          },
+        },
+        {
+          dateFin: null,
+        },
+      ],
+    },
+    include: {
+      beneficiaire: {
+        include: {
+          dossier: true,
+        },
+      },
+      reglesHoraires: true,
+    },
+  });
+
+  const absentPointages: AlerteSurveillance[] = [];
+
+  function parseObligationTime(value: Date | string | null | undefined) {
+    if (!value) {
+      return null;
+    }
+
+    if (value instanceof Date) {
+      return {
+        hours: value.getUTCHours(),
+        minutes: value.getUTCMinutes(),
+      };
+    }
+
+    const match = String(value).match(/^(\d{2}):(\d{2})/);
+    if (!match) {
+      return null;
+    }
+
+    return {
+      hours: Number(match[1]),
+      minutes: Number(match[2]),
+    };
+  }
+
+  for (const obligation of obligations) {
+    // Get scheduled time from obligation
+    const scheduledTime = parseObligationTime(obligation.heure);
+    if (!scheduledTime) {
+      continue;
+    }
+
+    const { hours, minutes } = scheduledTime;
+
+    // Validate parsed time
+    if (isNaN(hours) || isNaN(minutes)) continue;
+
+    const scheduledDate = buildDateInAppTimeZone({
+      year: todayParts.year,
+      month: todayParts.month,
+      day: todayParts.day,
+      hour: hours,
+      minute: minutes,
+      second: 0,
+    });
+
+    // Check if scheduled time has already passed
+    if (scheduledDate > now) continue;
+
+    // Check if there's already a VALIDE pointage for today at this obligation
+    const existingPointage = await prisma.pointage.findFirst({
+      where: {
+        obligationId: obligation.id,
+        dateHeure: {
+          gte: today,
+          lt: endOfDay,
+        },
+        statut: "VALIDE",
+      },
+    });
+
+    if (existingPointage) continue;
+
+    // Create absent pointage
+    const absentPointage = await prisma.pointage.create({
+      data: {
+        beneficiaireId: obligation.beneficiaireId,
+        obligationId: obligation.id,
+        dateHeure: scheduledDate,
+        lieu: obligation.lieu || obligation.beneficiaire.dossier.prisonName || null,
+        type: "AUTOMATIQUE",
+        statut: "ABSENT",
+        source: "SYSTEME",
+        commentaire: `Absence détectée automatiquement à ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
+      },
+      include: {
+        beneficiaire: {
+          include: {
+            dossier: true,
+          },
+        },
+      },
+    });
+
+    // Create alert
+    const alert = await prisma.alerteSurveillance.create({
+      data: {
+        beneficiaireId: obligation.beneficiaireId,
+        type: "ABSENCE_POINTAGE",
+        niveau: "NORMALE",
+        message: `${obligation.beneficiaire.dossier.prenom} ${obligation.beneficiaire.dossier.nom} est absent du pointage programmé à ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")} au ${obligation.lieu || "lieu programmé"}`,
+        source: "SYSTEME",
+        statut: "OUVERTE",
+        actionRecommandee: "Vérifier l'absence et contacter le détenu si nécessaire",
+        metadata: {
+          obligationId: obligation.id,
+          pointageId: absentPointage.id,
+          scheduledTime: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
+          lieu: obligation.lieu,
+        },
+      },
+    });
+
+    absentPointages.push(alert);
+
+    // Create notification
+    await createNotification({
+      beneficiaireId: obligation.beneficiaireId,
+      pointageId: absentPointage.id,
+      type: "ABSENCE_POINTAGE",
+      priorite: "NORMALE",
+      targetType: "POINTAGE",
+      targetId: absentPointage.id,
+      message: `Absence détectée au pointage de ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
+      dateEnvoi: scheduledDate,
+      metadata: {
+        pointageId: absentPointage.id,
+        obligationId: obligation.id,
+        lieu: obligation.lieu,
+        eventAt: scheduledDate.toISOString(),
+      },
+    });
+  }
+
+  return absentPointages;
 }

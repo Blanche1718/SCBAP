@@ -18,7 +18,6 @@ Le depot integre deja plusieurs flux metiers:
 - dashboard par juridiction
 - fondations de surveillance electronique
 
-Ce README a volontairement ete ecrit comme un document de reprise. L'objectif est qu'un nouveau developpeur puisse comprendre le projet, le relancer en local et savoir ou chercher dans le code sans aide supplementaire.
 
 ---
 

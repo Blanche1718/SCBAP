@@ -17,9 +17,13 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useAuth } from "../../auth/AuthContext";
+import { CompactPaginationControls } from "../../components/pagination/CompactPaginationControls";
 import { useBeneficiaires } from "../../hooks/useBeneficiaires";
 import { api } from "../../lib/api";
 import type { Beneficiaire } from "../../types";
+import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
+import { formatInAppTimeZone, formatPointageInAppTimeZone } from "../../utils/timezone";
 
 type ComplianceStatus = "NON_CONFORME" | "ACTIF" | "TERMINE" | "A_CONFIGURER";
 type RiskLevel = "Faible" | "Moyen" | "Eleve";
@@ -52,6 +56,16 @@ function getNumeroDossier(beneficiaire: Beneficiaire) {
   return beneficiaire.dossier?.numeroDossier ?? "—";
 }
 
+function getUserInitials(prenom?: string | null, nom?: string | null) {
+  const initials = [prenom, nom]
+    .filter(Boolean)
+    .map((value) => value?.trim()?.[0] ?? "")
+    .join("")
+    .toUpperCase();
+
+  return initials || "SC";
+}
+
 function isNewBeneficiaire(beneficiaire: Beneficiaire) {
   const dossier = beneficiaire.dossier;
   if (!dossier) return false;
@@ -70,27 +84,22 @@ function formatDossierCreatedAt(dateStr?: string | null) {
   const parsed = new Date(dateStr);
   if (Number.isNaN(parsed.getTime())) return "—";
 
-  return parsed.toLocaleString("fr-FR", {
+  return formatInAppTimeZone(parsed, {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Africa/Porto-Novo",
   });
 }
 
 function formatLastPointage(dateHeure?: string | null) {
   if (!dateHeure) return "—";
-  const parsed = new Date(dateHeure);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  const formatted = parsed.toLocaleString("fr-FR", {
+  return formatPointageInAppTimeZone(dateHeure, {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Africa/Porto-Novo",
   });
-  return `${formatted} WAT`;
 }
 
 function StatusBadge({ status }: { status: ComplianceStatus }) {
@@ -109,7 +118,7 @@ function StatusBadge({ status }: { status: ComplianceStatus }) {
       : status === "TERMINE"
         ? "TERMINE"
         : status === "A_CONFIGURER"
-          ? "A CONFIGURER"
+          ? "Non configuré"
         : "ACTIF";
 
   return (
@@ -159,6 +168,7 @@ function RiskBadge({ level }: { level: RiskLevel }) {
 }
 
 export default function BeneficiairesPage() {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -196,9 +206,13 @@ export default function BeneficiairesPage() {
     conformes: beneficiaires.filter((b) => getComplianceStatus(b) === "ACTIF").length,
     critiques: beneficiaires.filter((b) => getComplianceStatus(b) === "NON_CONFORME").length,
   };
+  const userDisplayName = user ? `${user.prenom} ${user.nom}`.trim() : "Utilisateur";
+  const userSubtitle = user?.role?.nom ?? "Session active";
+  const userInitials = getUserInitials(user?.prenom, user?.nom);
 
   const pageStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const pageEnd = meta.total === 0 ? 0 : pageStart + beneficiaires.length - 1;
+  const totalPages = Math.max(meta.totalPages, 1);
 
   function goToPreviousPage() {
     setPage((currentPage) => Math.max(1, currentPage - 1));
@@ -285,11 +299,11 @@ export default function BeneficiairesPage() {
           </button>
           <div className="hidden sm:flex items-center gap-3 pl-2">
             <div className="text-right">
-              <p className="text-xs font-semibold text-on-surface">Officier Sarah Vance</p>
-              <p className="text-[10px] text-on-secondary-container">Superviseur Senior</p>
+              <p className="text-xs font-semibold text-on-surface">{userDisplayName}</p>
+              <p className="text-[10px] text-on-secondary-container">{userSubtitle}</p>
             </div>
             <div className="w-9 h-9 rounded-full bg-[#2e4d44] text-primary-fixed flex items-center justify-center text-xs font-bold">
-              SV
+              {userInitials}
             </div>
           </div>
         </div>
@@ -342,7 +356,7 @@ export default function BeneficiairesPage() {
               className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="TOUS">Tous les statuts</option>
-              <option value="A_CONFIGURER">A configurer</option>
+              <option value="A_CONFIGURER">Non configuré</option>
               <option value="ACTIF">Actif</option>
               <option value="NON_CONFORME">Non-conforme</option>
               <option value="TERMINE">Termine</option>
@@ -393,6 +407,15 @@ export default function BeneficiairesPage() {
               Effacer filtres
             </button>
           </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <CompactPaginationControls
+            page={page}
+            totalPages={meta.totalPages}
+            loading={loading}
+            onPrevious={goToPreviousPage}
+            onNext={goToNextPage}
+          />
         </div>
       </div>
 
@@ -445,7 +468,7 @@ export default function BeneficiairesPage() {
             const numero = getNumeroDossier(item);
             const statut = getComplianceStatus(item);
             const risque = getRiskLevel(item);
-            const lastPointage = item.pointages?.[0]?.dateHeure;
+            const lastPointage = item.pointages?.find((pointage) => pointage.statut !== "ABSENT")?.dateHeure;
             const isNew = isNewBeneficiaire(item);
 
             return (
@@ -530,9 +553,9 @@ export default function BeneficiairesPage() {
                 onChange={handleLimitChange}
                 className="rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
               >
-                {[10, 20, 50].map((option) => (
+                {getPageSizeOptions([10, 20, 50]).map((option) => (
                   <option key={option} value={option}>
-                    {option}
+                    {getPageSizeOptionLabel(option)}
                   </option>
                 ))}
               </select>
@@ -548,7 +571,7 @@ export default function BeneficiairesPage() {
                 Precedent
               </button>
               <div className="min-w-28 text-center text-sm font-medium text-on-surface">
-                Page {meta.page} / {Math.max(meta.totalPages, 1)}
+                Page {meta.page} / {totalPages}
               </div>
               <button
                 type="button"

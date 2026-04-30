@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { createServer } from "http";
 import authRouter from "./routes/auth.routes";
 import categorieObligationRouter from "./routes/categorie-obligation.routes";
 import dossierRouter from "./routes/dossier.routes";
@@ -15,10 +16,14 @@ import dashboardRouter from "./routes/dashboard.routes";
 import juridictionRouter from "./routes/juridiction.routes";
 import usersRouter from "./routes/users.routes";
 import biometrieRouter from "./routes/biometrie.routes";
+import alertesRouter from "./routes/alertes.routes";
+import notificationRouter from "./routes/notification.routes";
 import { startBiometrieScheduler } from "./jobs/biometrie.scheduler";
 import { startMqttSubscriber } from "./integrations/mqtt/client";
 import { handleMqttMessage } from "./services/mqtt.service";
 import webhooksRouter from "./routes/webhooks.routes";
+import { initializeSurveillanceRealtime } from "./services/surveillance-realtime.service";
+import { initializeAbsenceCheckJob } from "./jobs/absence-check.job";
 
 
 const app = express();
@@ -43,15 +48,21 @@ app.use("/dashboard", dashboardRouter);
 app.use("/juridictions", juridictionRouter);
 app.use("/users", usersRouter);
 app.use("/biometrie", biometrieRouter);
+app.use("/alertes", alertesRouter);
+app.use("/notifications", notificationRouter);
 
 app.use(errorHandler);
 
 const port = Number(process.env.PORT) || 3000;
+const server = createServer(app);
 
-app.listen(port, () => {
+initializeSurveillanceRealtime(server);
+
+server.listen(port, () => {
   console.log(`SCBAP backend running on port ${port}`);
   startBiometrieScheduler();
   startMqttSubscriber(handleMqttMessage);
+  initializeAbsenceCheckJob();
 });
 
 export default app;

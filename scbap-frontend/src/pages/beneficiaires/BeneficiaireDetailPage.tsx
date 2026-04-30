@@ -21,8 +21,9 @@ import {
   Upload,
 } from "lucide-react";
 import { useBeneficiaire } from "../../hooks/useBeneficiaires";
-import { API_BASE_URL, api } from "../../lib/api";
+import { api } from "../../lib/api";
 import type { Document as BeneficiaireDocument, Obligation, Beneficiaire } from "../../types";
+import { formatInAppTimeZone, formatPointageInAppTimeZone } from "../../utils/timezone";
 
 type ObligationFormState = {
   type: string;
@@ -48,23 +49,27 @@ type BiometrieStatusLocal = "AUCUN" | "EN_COURS" | "CONFIRME" | "ECHEC";
 
 function formatLastPointage(dateHeure?: string | null) {
   if (!dateHeure) return "—";
-  const parsed = new Date(dateHeure);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  const formatted = parsed.toLocaleString("fr-FR", {
+  return formatPointageInAppTimeZone(dateHeure, {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Africa/Porto-Novo",
   });
-  return `${formatted} WAT`;
 }
 
 function formatTimeOnly(value?: string | null) {
   if (!value) return null;
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return formatInAppTimeZone(parsed, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
   const parts = value.split("T");
   if (parts.length < 2) return value;
-  return `${parts[1].slice(0, 5)} WAT`;
+  return parts[1].slice(0, 5);
 }
 
 function toDateInput(value?: string | null) {
@@ -119,12 +124,11 @@ function formatCreatedAt(dateStr?: string | null) {
   const parsed = new Date(dateStr);
   if (Number.isNaN(parsed.getTime())) return "—";
 
-  return parsed.toLocaleString("fr-FR", {
+  return formatInAppTimeZone(parsed, {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Africa/Porto-Novo",
   });
 }
 
@@ -150,6 +154,16 @@ function getDocumentTitle(item: Record<string, unknown>, fallback: string) {
   );
 }
 
+function getDocumentLink(record: Record<string, unknown>) {
+  return (
+    asText(record.url) ??
+    asText(record.pdf_url) ??
+    asText(record.lien) ??
+    asText(record.file_url) ??
+    undefined
+  );
+}
+
 function extractDocumentCards(othersData?: Record<string, unknown> | null) {
   const cards: Array<{
     title: string;
@@ -162,6 +176,7 @@ function extractDocumentCards(othersData?: Record<string, unknown> | null) {
 
   const arrete = asRecord(othersData?.arrete);
   if (arrete) {
+    const href = getDocumentLink(arrete);
     cards.push({
       title: getDocumentTitle(arrete, "Arrêté ministériel"),
       kind: "Arrêté",
@@ -169,12 +184,8 @@ function extractDocumentCards(othersData?: Record<string, unknown> | null) {
         [asText(arrete.statut), asText(arrete.date_signature), asText(arrete.date_arrete)]
           .filter(Boolean)
           .join(" • ") || undefined,
-      href:
-        asText(arrete.url) ??
-        asText(arrete.pdf_url) ??
-        asText(arrete.lien) ??
-        asText(arrete.file_url) ??
-        undefined,
+      href,
+      previewUrl: href,
     });
   }
 
@@ -182,6 +193,7 @@ function extractDocumentCards(othersData?: Record<string, unknown> | null) {
   tousArretes.forEach((item, index) => {
     const record = asRecord(item);
     if (!record) return;
+    const href = getDocumentLink(record);
     cards.push({
       title: getDocumentTitle(record, `Arrêté ${index + 1}`),
       kind: "Arrêté",
@@ -189,12 +201,8 @@ function extractDocumentCards(othersData?: Record<string, unknown> | null) {
         [asText(record.statut), asText(record.date_signature), asText(record.date_arrete)]
           .filter(Boolean)
           .join(" • ") || undefined,
-      href:
-        asText(record.url) ??
-        asText(record.pdf_url) ??
-        asText(record.lien) ??
-        asText(record.file_url) ??
-        undefined,
+      href,
+      previewUrl: href,
     });
   });
 
@@ -204,6 +212,7 @@ function extractDocumentCards(othersData?: Record<string, unknown> | null) {
   justificatifs.forEach((item, index) => {
     const record = asRecord(item);
     if (!record) return;
+    const href = getDocumentLink(record);
     cards.push({
       title: getDocumentTitle(record, `Document ${index + 1}`),
       kind: asText(record.type_document) ?? asText(record.type) ?? "Justificatif",
@@ -211,12 +220,8 @@ function extractDocumentCards(othersData?: Record<string, unknown> | null) {
         [asText(record.date), asText(record.created_at), asText(record.createdAt)]
           .filter(Boolean)
           .join(" • ") || undefined,
-      href:
-        asText(record.url) ??
-        asText(record.pdf_url) ??
-        asText(record.file_url) ??
-        asText(record.lien) ??
-        undefined,
+      href,
+      previewUrl: href,
     });
   });
 
@@ -271,6 +276,8 @@ function StatusBadge({ status }: { status: ComplianceStatus }) {
 }
 
 function mapStoredDocument(document: BeneficiaireDocument) {
+  const downloadPath = document.downloadUrl || `/documents/${document.id}/download`;
+
   return {
     title: document.titre,
     kind: document.typeDocument,
@@ -281,8 +288,8 @@ function mapStoredDocument(document: BeneficiaireDocument) {
       ]
         .filter(Boolean)
         .join(" • ") || undefined,
-    href: `${API_BASE_URL}/documents/${document.id}/download`,
-    previewUrl: `${API_BASE_URL}/documents/${document.id}/download`,
+    href: downloadPath,
+    previewUrl: downloadPath,
     mimeType: document.mimeType ?? undefined,
   };
 }
@@ -308,7 +315,9 @@ export default function BeneficiaireDetailPage() {
     title: string;
     url: string;
     mimeType?: string;
+    revokeOnClose?: boolean;
   } | null>(null);
+  const [previewLoadingIndex, setPreviewLoadingIndex] = useState<number | null>(null);
   const documentNoticeTimerRef = useRef<number | null>(null);
   const [documentForm, setDocumentForm] = useState({
     typeDocument: "JUSTIFICATIF",
@@ -328,6 +337,14 @@ export default function BeneficiaireDetailPage() {
     raisonModification: "",
     raisonAutre: "",
   });
+
+  useEffect(() => {
+    return () => {
+      if (previewDocument?.revokeOnClose) {
+        URL.revokeObjectURL(previewDocument.url);
+      }
+    };
+  }, [previewDocument]);
 
   useEffect(() => {
     if (!documentNotice) return;
@@ -433,13 +450,15 @@ export default function BeneficiaireDetailPage() {
   const fullName = dossier ? `${dossier.nom} ${dossier.prenom}` : "—";
   const profilConfirme = getProfilStatut(beneficiaire) === "ACTIF";
   const biometrieStatut = beneficiaire.biometrieEnrolementStatut ?? "AUCUN";
+  const biometrieCode = beneficiaire.biometrieEnrolementCode?.trim() || null;
   const biometrieConfirmee = biometrieStatut === "CONFIRME";
   const biometrieEnCours = biometrieStatut === "EN_COURS";
   
   const complianceStatus = getComplianceStatus(beneficiaire);
   const riskLevel = getRiskLevel(beneficiaire);
 
-  const lastPointage = beneficiaire.pointages?.[0]?.dateHeure ?? null;
+  const lastPointage =
+    beneficiaire.pointages?.find((pointage) => pointage.statut !== "ABSENT")?.dateHeure ?? null;
   const storedDocumentCards = (beneficiaire.documents ?? []).map(mapStoredDocument);
   const documentCards = [
     ...storedDocumentCards,
@@ -478,6 +497,55 @@ export default function BeneficiaireDetailPage() {
     });
     setSaveError(null);
     setIsModalOpen(true);
+  }
+
+  function closePreviewDocument() {
+    if (previewDocument?.revokeOnClose) {
+      URL.revokeObjectURL(previewDocument.url);
+    }
+    setPreviewDocument(null);
+  }
+
+  async function handlePreviewDocument(document: {
+    title: string;
+    previewUrl?: string;
+    mimeType?: string;
+  }, index: number) {
+    if (!document.previewUrl) {
+      return;
+    }
+
+    try {
+      setDocumentError(null);
+      setPreviewLoadingIndex(index);
+
+      if (/^https?:\/\//i.test(document.previewUrl)) {
+        setPreviewDocument({
+          title: document.title,
+          url: document.previewUrl,
+          mimeType: document.mimeType,
+        });
+        return;
+      }
+
+      const { blob } = await api.download(document.previewUrl);
+      const objectUrl = URL.createObjectURL(blob);
+
+      if (previewDocument?.revokeOnClose) {
+        URL.revokeObjectURL(previewDocument.url);
+      }
+
+      setPreviewDocument({
+        title: document.title,
+        url: objectUrl,
+        mimeType: document.mimeType || blob.type || undefined,
+        revokeOnClose: true,
+      });
+    } catch (err) {
+      setDocumentError((err as Error).message);
+    } finally {
+      setPreviewLoadingIndex(null);
+    }
   }
 
   function handleCloseModal() {
@@ -600,17 +668,11 @@ export default function BeneficiaireDetailPage() {
         sizeBytes: documentForm.file.size,
       });
 
-      const uploadResponse = await fetch(`${API_BASE_URL}${created.data.uploadPath}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": documentForm.file.type || "application/octet-stream",
-        },
-        body: documentForm.file,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload echoue (${uploadResponse.status})`);
-      }
+      await api.upload(
+        created.data.uploadPath,
+        documentForm.file,
+        documentForm.file.type || "application/octet-stream",
+      );
 
       setDocumentForm({
         typeDocument: "JUSTIFICATIF",
@@ -762,7 +824,7 @@ export default function BeneficiaireDetailPage() {
                   </div>
                 <div>
                   <p className="uppercase tracking-wider text-[10px] font-bold text-on-surface-variant">Biométrie</p>
-                  <div className="mt-1">
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
                     {biometrieConfirmee ? (
                       <span className="inline-flex items-center rounded-full bg-primary-fixed px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-[#2e4d44]">
                         Configuré
@@ -787,6 +849,16 @@ export default function BeneficiaireDetailPage() {
                       </button>
                     )}
                   </div>
+                  {biometrieCode && (
+                    <div className="mt-2 w-full rounded-md bg-surface-high px-3 py-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                        Code de la biometrie
+                      </p>
+                      <p className="mt-1 w-full break-all font-mono text-xs font-bold text-on-surface">
+                        {biometrieCode}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 {/* <div>
                   <p className="uppercase tracking-wider text-[10px] font-bold text-on-surface-variant">Risque</p>
@@ -1171,17 +1243,16 @@ export default function BeneficiaireDetailPage() {
                           {document.previewUrl ? (
                             <button
                               type="button"
-                              onClick={() =>
-                                setPreviewDocument({
-                                  title: document.title,
-                                  url: document.previewUrl!,
-                                  mimeType: document.mimeType,
-                                })
-                              }
+                              onClick={() => void handlePreviewDocument(document, index)}
+                              disabled={previewLoadingIndex === index}
                               className="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-surface-high transition-colors"
                             >
-                              <Eye size={12} />
-                              Aperçu
+                              {previewLoadingIndex === index ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <Eye size={12} />
+                              )}
+                              {previewLoadingIndex === index ? "Chargement" : "Aperçu"}
                             </button>
                           ) : (
                             <span className="rounded-md bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-outline-variant">
@@ -1307,7 +1378,7 @@ export default function BeneficiaireDetailPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setPreviewDocument(null)}
+                onClick={closePreviewDocument}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-surface-high bg-white text-on-secondary-container hover:bg-surface-low"
                 aria-label="Fermer l'aperçu"
               >
@@ -1321,7 +1392,7 @@ export default function BeneficiaireDetailPage() {
                   alt={previewDocument.title}
                   className="h-full w-full object-contain"
                 />
-              ) : (
+              ): (
                 <iframe
                   src={previewDocument.url}
                   title={previewDocument.title}
@@ -1422,7 +1493,7 @@ export default function BeneficiaireDetailPage() {
                     onChange={(event) => setForm((prev) => ({ ...prev, heure: event.target.value }))}
                     className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
                   />
-                  <p className="mt-1 text-[10px] text-on-secondary-container">Fuseau : WAT</p>
+                  <p className="mt-1 text-[10px] text-on-secondary-container">Fuseau : UTC</p>
                   </label>
                   <label className="text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
                   Lieu

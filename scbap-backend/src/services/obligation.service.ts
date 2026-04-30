@@ -34,8 +34,15 @@ function parseDate(date?: string) {
 function parseTime(time?: string) {
   if (!time) return null;
 
-  const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time;
-  const parsed = new Date(`1970-01-01T${normalizedTime}Z`);
+  const match = time.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) {
+    throw new HttpError(400, "Heure d'obligation invalide");
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3] ?? "0");
+  const parsed = new Date(Date.UTC(1970, 0, 1, hours, minutes, seconds));
 
   if (isNaN(parsed.getTime())) {
     throw new HttpError(400, "Heure d'obligation invalide");

@@ -17,8 +17,11 @@ import {
   Plus,
 } from "lucide-react";
 import { useState } from "react";
+import { CompactPaginationControls } from "../../components/pagination/CompactPaginationControls";
 import { usePointages } from "../../hooks/usePointages";
 import type { Pointage } from "../../types";
+import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
+import { formatPointageInAppTimeZone } from "../../utils/timezone";
 
 type PointageStatus = "VALIDE" | "ABSENT" | "EN_RETARD" | "ANOMALIE";
 
@@ -34,14 +37,11 @@ function getNumeromandat(pointage: Pointage) {
 
 function formatDateTime(dateStr?: string | null) {
   if (!dateStr) return "—";
-  const parsed = new Date(dateStr);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  return parsed.toLocaleString("fr-FR", {
+  return formatPointageInAppTimeZone(dateStr, {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Africa/Porto-Novo",
   });
 }
 
@@ -115,12 +115,14 @@ export default function PointagesPage() {
     total: meta.total,
     valides: meta.globalStats?.valide ?? 0,
     absences: meta.globalStats?.absent ?? 0,
+    anomalies: meta.globalStats?.anomalie ?? 0,
   };
 
   const currentPageAbsences = filtered.filter((p) => p.statut === "ABSENT").length;
 
   const pageStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const pageEnd = meta.total === 0 ? 0 : pageStart + pointages.length - 1;
+  const totalPages = Math.max(meta.totalPages, 1);
 
   function goToPreviousPage() {
     setPage((currentPage) => Math.max(1, currentPage - 1));
@@ -202,6 +204,9 @@ export default function PointagesPage() {
           <div className="px-4 py-2 rounded-md bg-error-container text-on-error-container text-xs font-bold uppercase tracking-wider">
             {counts.absences} absences
           </div>
+          <div className="px-4 py-2 rounded-md bg-[#ffe9c7] text-[#6b3d00] text-xs font-bold uppercase tracking-wider">
+            {counts.anomalies} anomalies
+          </div>
         </div>
       </div>
 
@@ -231,6 +236,7 @@ export default function PointagesPage() {
               <option value="TOUS">Tous les statuts</option>
               <option value="VALIDE">Valides</option>
               <option value="ABSENT">Absences</option>
+              <option value="ANOMALIE">Anomalies</option>
               <option value="EN_RETARD">Retards</option>
             </select>
           </label>
@@ -260,6 +266,15 @@ export default function PointagesPage() {
               Effacer filtres
             </button>
           </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <CompactPaginationControls
+            page={page}
+            totalPages={meta.totalPages}
+            loading={loading}
+            onPrevious={goToPreviousPage}
+            onNext={goToNextPage}
+          />
         </div>
       </div>
 
@@ -396,9 +411,9 @@ export default function PointagesPage() {
                 onChange={handleLimitChange}
                 className="rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
               >
-                {[10, 20, 50].map((option) => (
+                {getPageSizeOptions([10, 20, 50]).map((option) => (
                   <option key={option} value={option}>
-                    {option}
+                    {getPageSizeOptionLabel(option)}
                   </option>
                 ))}
               </select>
@@ -414,7 +429,7 @@ export default function PointagesPage() {
                 Precedent
               </button>
               <div className="min-w-28 text-center text-sm font-medium text-on-surface">
-                Page {meta.page} / {Math.max(meta.totalPages, 1)}
+                Page {meta.page} / {totalPages}
               </div>
               <button
                 type="button"

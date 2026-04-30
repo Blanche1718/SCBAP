@@ -14,9 +14,10 @@ import {
   // CheckCircle2,
 } from "lucide-react";
 import { useDossier } from "../../hooks/useDossiers";
+import { formatInAppTimeZone } from "../../utils/timezone";
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("fr-FR", {
+  return formatInAppTimeZone(new Date(dateStr), {
     day: "2-digit", month: "long", year: "numeric",
   });
 }
