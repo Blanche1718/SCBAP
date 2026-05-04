@@ -23,6 +23,9 @@ const users_routes_1 = __importDefault(require("./routes/users.routes"));
 const biometrie_routes_1 = __importDefault(require("./routes/biometrie.routes"));
 const alertes_routes_1 = __importDefault(require("./routes/alertes.routes"));
 const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
+const service_externe_routes_1 = __importDefault(require("./routes/service-externe.routes"));
+const portail_routes_1 = __importDefault(require("./routes/portail.routes"));
+const rapport_routes_1 = __importDefault(require("./routes/rapport.routes"));
 const biometrie_scheduler_1 = require("./jobs/biometrie.scheduler");
 const client_1 = require("./integrations/mqtt/client");
 const mqtt_service_1 = require("./services/mqtt.service");
@@ -30,9 +33,13 @@ const webhooks_routes_1 = __importDefault(require("./routes/webhooks.routes"));
 const surveillance_realtime_service_1 = require("./services/surveillance-realtime.service");
 const absence_check_job_1 = require("./jobs/absence-check.job");
 const app = (0, express_1.default)();
-app.use((0, cors_1.default)());
+app.use((0, cors_1.default)({
+    origin: true,
+    credentials: true,
+}));
 app.use(express_1.default.json());
 app.use("/auth", auth_routes_1.default);
+app.use("/portail", portail_routes_1.default);
 app.use("/webhooks", webhooks_routes_1.default);
 app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
@@ -51,6 +58,8 @@ app.use("/users", users_routes_1.default);
 app.use("/biometrie", biometrie_routes_1.default);
 app.use("/alertes", alertes_routes_1.default);
 app.use("/notifications", notification_routes_1.default);
+app.use("/services-externes", service_externe_routes_1.default);
+app.use("/rapports", rapport_routes_1.default);
 app.use(errorHandler_1.errorHandler);
 const port = Number(process.env.PORT) || 3000;
 const server = (0, http_1.createServer)(app);
