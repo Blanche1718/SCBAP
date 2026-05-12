@@ -40,4 +40,3 @@ exports.UpdateObligationSchema = BaseObligationSchema.partial()
     }
 });
 exports.ValidateObligationSchema = BaseObligationSchema.partial();
-//# sourceMappingURL=obligation.schema.js.map

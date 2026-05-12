@@ -10,4 +10,3 @@ if (!connectionString) {
 const adapter = new adapter_pg_1.PrismaPg({ connectionString });
 const prisma = new client_1.PrismaClient({ adapter });
 exports.default = prisma;
-//# sourceMappingURL=prisma.js.map

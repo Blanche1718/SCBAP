@@ -21,4 +21,3 @@ main()
     .finally(async () => {
     await prisma_1.default.$disconnect();
 });
-//# sourceMappingURL=seed-categories-obligations.js.map

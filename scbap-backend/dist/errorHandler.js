@@ -58,4 +58,3 @@ function errorHandler(error, _req, res, _next) {
         message: "Erreur interne du serveur",
     });
 }
-//# sourceMappingURL=errorHandler.js.map

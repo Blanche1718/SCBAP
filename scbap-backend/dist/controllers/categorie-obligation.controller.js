@@ -77,4 +77,3 @@ async function deleteCategorieObligationController(req, res, next) {
         next(error);
     }
 }
-//# sourceMappingURL=categorie-obligation.controller.js.map

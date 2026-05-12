@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDossiers = getDossiers;
 exports.buildDossiersExportWorkbook = buildDossiersExportWorkbook;
 exports.getDossierById = getDossierById;
+exports.createDossier = createDossier;
 exports.updateDossier = updateDossier;
 exports.softDeleteDossier = softDeleteDossier;
 const errorHandler_1 = require("../errorHandler");
@@ -178,6 +179,47 @@ async function getDossierById(id, user) {
         },
     });
 }
+async function createDossier(input, user) {
+    const data = dossier_schema_1.DossierSchema.parse(input);
+    const accessFilter = buildDossierAccessFilter(user);
+    const juridictionId = data.juridiction_id ?? accessFilter.juridictionId;
+    return prisma_1.default.dossier.create({
+        data: {
+            numeroDossier: data.numero_dossier,
+            juridictionId,
+            prisonId: data.prison_id,
+            prisonName: data.prison_name,
+            nom: data.nom,
+            prenom: data.prenom,
+            dateNaissance: parseDate(data.date_naissance),
+            lieuNaissance: data.lieu_naissance,
+            nationalite: data.nationalite,
+            sexe: data.sexe,
+            profession: data.profession,
+            adresse: data.adresse,
+            telephoneContact: data.telephone_contact,
+            infractions: data.infractions,
+            numeroMandatDepot: data.numero_mandat_depot,
+            dateMandatDepot: parseDate(data.date_mandat_depot),
+            condamnation: data.condamnation,
+            dateFinPeine: parseDate(data.date_fin_peine),
+            dureePeineMois: data.duree_peine_mois,
+            decisionDapg: data.decision_dapg ?? "acceptée",
+            dateDecisionDapg: data.date_decision_dapg
+                ? parseDate(data.date_decision_dapg)
+                : new Date(),
+            dureeTempsEpreuve: data.duree_temps_epreuve,
+            observations: data.observations,
+            obligations: data.obligations,
+            othersData: data.others_data,
+            statut: "accepte_dapg",
+        },
+        include: {
+            beneficiaire: true,
+            juridiction: true,
+        },
+    });
+}
 async function updateDossier(id, input, user) {
     const data = dossier_schema_1.UpdateDossierSchema.parse(input);
     await prisma_1.default.dossier.findFirstOrThrow({
@@ -252,4 +294,3 @@ async function softDeleteDossier(id, user) {
         },
     });
 }
-//# sourceMappingURL=dossier.service.js.map

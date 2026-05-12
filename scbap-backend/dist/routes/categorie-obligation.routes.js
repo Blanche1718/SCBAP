@@ -9,4 +9,3 @@ categorieObligationRouter.post("/", categorie_obligation_controller_1.createCate
 categorieObligationRouter.put("/:id", categorie_obligation_controller_1.updateCategorieObligationController);
 categorieObligationRouter.delete("/:id", categorie_obligation_controller_1.deleteCategorieObligationController);
 exports.default = categorieObligationRouter;
-//# sourceMappingURL=categorie-obligation.routes.js.map

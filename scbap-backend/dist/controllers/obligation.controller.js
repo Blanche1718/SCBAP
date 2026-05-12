@@ -5,8 +5,13 @@ exports.createObligationController = createObligationController;
 exports.getObligationByIdController = getObligationByIdController;
 exports.updateObligationController = updateObligationController;
 exports.validateObligationController = validateObligationController;
+exports.listSpecificObligationReferencesController = listSpecificObligationReferencesController;
+exports.syncSpecificObligationReferencesController = syncSpecificObligationReferencesController;
+exports.updateSpecificObligationReferenceController = updateSpecificObligationReferenceController;
+exports.deleteSpecificObligationReferenceController = deleteSpecificObligationReferenceController;
 const errorHandler_1 = require("../errorHandler");
 const obligation_service_1 = require("../services/obligation.service");
+const obligation_specifique_reference_service_1 = require("../services/obligation-specifique-reference.service");
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function parseUuid(value, label) {
     if (typeof value !== "string" || !UUID_REGEX.test(value)) {
@@ -79,4 +84,53 @@ async function validateObligationController(req, res, next) {
         next(error);
     }
 }
-//# sourceMappingURL=obligation.controller.js.map
+async function listSpecificObligationReferencesController(_req, res, next) {
+    try {
+        const references = await (0, obligation_specifique_reference_service_1.listSpecificObligationReferences)();
+        res.status(200).json({
+            message: "Obligations specifiques recuperees avec succes",
+            data: references,
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+}
+async function syncSpecificObligationReferencesController(_req, res, next) {
+    try {
+        const result = await (0, obligation_specifique_reference_service_1.syncDapgSpecificObligationReferences)();
+        res.status(200).json({
+            message: "Obligations specifiques synchronisees avec succes",
+            data: result,
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+}
+async function updateSpecificObligationReferenceController(req, res, next) {
+    try {
+        const id = parseUuid(req.params.id, "obligation specifique");
+        const reference = await (0, obligation_specifique_reference_service_1.updateSpecificObligationReference)(id, req.body);
+        res.status(200).json({
+            message: "Obligation specifique mise a jour avec succes",
+            data: reference,
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+}
+async function deleteSpecificObligationReferenceController(req, res, next) {
+    try {
+        const id = parseUuid(req.params.id, "obligation specifique");
+        const reference = await (0, obligation_specifique_reference_service_1.deleteSpecificObligationReference)(id);
+        res.status(200).json({
+            message: "Obligation specifique supprimee avec succes",
+            data: reference,
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+}

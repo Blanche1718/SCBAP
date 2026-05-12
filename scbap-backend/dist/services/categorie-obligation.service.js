@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DEFAULT_CATEGORIES_OBLIGATION = void 0;
+exports.DEFAULT_CATEGORIES_OBLIGATION = exports.LEGACY_CATEGORIES_OBLIGATION = exports.DAPG_CATEGORIES_OBLIGATION = void 0;
 exports.getCategoriesObligation = getCategoriesObligation;
 exports.getCategorieObligationById = getCategorieObligationById;
 exports.createCategorieObligation = createCategorieObligation;
@@ -13,7 +13,41 @@ exports.seedCategoriesObligation = seedCategoriesObligation;
 const errorHandler_1 = require("../errorHandler");
 const prisma_1 = __importDefault(require("../prisma"));
 const categorie_obligation_schema_1 = require("../schemas/categorie-obligation.schema");
-exports.DEFAULT_CATEGORIES_OBLIGATION = [
+exports.DAPG_CATEGORIES_OBLIGATION = [
+    {
+        nom: "Obligations de domiciliation",
+        description: "Categorie officielle DAPG des obligations de domiciliation.",
+    },
+    {
+        nom: "Obligations de pointage au commissariat de la localité",
+        description: "Categorie officielle DAPG des obligations de pointage.",
+    },
+    {
+        nom: "Obligations générales de conduite",
+        description: "Categorie officielle DAPG des obligations generales de conduite.",
+    },
+    {
+        nom: "Insertion professionnelle",
+        description: "Categorie officielle DAPG des obligations d'insertion professionnelle.",
+    },
+    {
+        nom: "Suivi social et médical",
+        description: "Categorie officielle DAPG des obligations de suivi social et medical.",
+    },
+    {
+        nom: "Relations avec les victimes",
+        description: "Categorie officielle DAPG des obligations relatives aux victimes.",
+    },
+    {
+        nom: "Interdictions liées aux substances",
+        description: "Categorie officielle DAPG des interdictions liees aux substances.",
+    },
+    {
+        nom: "Obligations particulières complémentaires",
+        description: "Categorie officielle DAPG des obligations particulieres complementaires.",
+    },
+];
+exports.LEGACY_CATEGORIES_OBLIGATION = [
     {
         nom: "POINTAGE",
         description: "Obligation de se presenter a une structure a une frequence definie.",
@@ -34,6 +68,10 @@ exports.DEFAULT_CATEGORIES_OBLIGATION = [
         nom: "OBLIGATION_TRAVAIL",
         description: "Obligation d'activite professionnelle ou de formation.",
     },
+];
+exports.DEFAULT_CATEGORIES_OBLIGATION = [
+    ...exports.DAPG_CATEGORIES_OBLIGATION,
+    ...exports.LEGACY_CATEGORIES_OBLIGATION,
 ];
 async function ensureCategoryNameAvailable(nom, excludeId) {
     const existingCategory = await prisma_1.default.categorieObligation.findFirst({
@@ -118,4 +156,3 @@ async function seedCategoriesObligation() {
         createdCategories: categoriesToCreate,
     };
 }
-//# sourceMappingURL=categorie-obligation.service.js.map

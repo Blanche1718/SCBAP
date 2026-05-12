@@ -33,4 +33,3 @@ exports.DossierSchema = zod_1.z.object({
 exports.UpdateDossierSchema = exports.DossierSchema.partial().refine((data) => Object.keys(data).length > 0, {
     message: "Aucune donnee a mettre a jour",
 });
-//# sourceMappingURL=dossier.schema.js.map

@@ -9,4 +9,3 @@ exports.CategorieObligationSchema = zod_1.z.object({
 exports.UpdateCategorieObligationSchema = exports.CategorieObligationSchema.partial().refine((data) => Object.keys(data).length > 0, {
     message: "Aucune donnee de categorie a mettre a jour",
 });
-//# sourceMappingURL=categorie-obligation.schema.js.map

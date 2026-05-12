@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDossiersController = getDossiersController;
 exports.exportDossiersController = exportDossiersController;
 exports.getDossierByIdController = getDossierByIdController;
+exports.createDossierController = createDossierController;
 exports.updateDossierController = updateDossierController;
 exports.softDeleteDossierController = softDeleteDossierController;
 const errorHandler_1 = require("../errorHandler");
@@ -70,6 +71,19 @@ async function getDossierByIdController(req, res, next) {
         console.error("Erreur lors de la recuperation du dossier:", error);
     }
 }
+async function createDossierController(req, res, next) {
+    try {
+        const dossier = await (0, dossier_service_1.createDossier)(req.body, req.user);
+        res.status(201).json({
+            message: "Dossier cree avec succes",
+            data: dossier,
+        });
+    }
+    catch (error) {
+        next(error);
+        console.error("Erreur lors de la creation du dossier:", error);
+    }
+}
 async function updateDossierController(req, res, next) {
     try {
         const id = parseDossierId(req.params.id);
@@ -98,4 +112,3 @@ async function softDeleteDossierController(req, res, next) {
         console.error("Erreur lors de la suppression logique du dossier:", error);
     }
 }
-//# sourceMappingURL=dossier.controller.js.map
