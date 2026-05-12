@@ -5,6 +5,7 @@ import {
   createObjectKey,
   MINIO_BUCKET,
   getObjectDownloadUrl,
+  deleteObjectFromMinio,
   uploadObjectToMinio,
 } from "../integrations/storage/minio";
 
@@ -165,4 +166,18 @@ export async function getBeneficiaireDocumentDownloadUrl(documentId: string) {
   }
 
   return getObjectDownloadUrl(document.objectKey);
+}
+
+export async function deleteBeneficiaireDocument(documentId: string) {
+  const document = await documentDb.document.findUniqueOrThrow({
+    where: { id: documentId },
+  });
+
+  if (!document.externalUrl) {
+    await deleteObjectFromMinio(document.objectKey).catch(() => undefined);
+  }
+
+  return documentDb.document.delete({
+    where: { id: documentId },
+  });
 }

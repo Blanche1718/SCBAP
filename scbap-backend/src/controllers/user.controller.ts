@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { HttpError } from "../errorHandler";
 import {
+  createUserByAdmin,
   getCurrentUser,
   getUsers,
   getUsersMeta,
@@ -10,6 +11,7 @@ import {
   updateUserByAdmin,
 } from "../services/user.service";
 import {
+  CreateUserAdminSchema,
   UpdateOwnPasswordSchema,
   UpdateOwnProfileSchema,
   UpdateUserAdminSchema,
@@ -52,6 +54,24 @@ export async function getUsersMetaController(
     res.status(200).json({
       message: "Metadonnees utilisateurs recuperees avec succes",
       data: meta,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function createUserByAdminController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const input = CreateUserAdminSchema.parse(req.body);
+    const result = await createUserByAdmin(input);
+
+    res.status(201).json({
+      message: "Utilisateur cree avec succes",
+      data: result,
     });
   } catch (error) {
     next(error);

@@ -105,6 +105,8 @@ export function getNotificationTitle(notification: Notification) {
       return "Biométrie configurée";
     case "NOUVEAU_BENEFICIAIRE":
       return "Nouveau bénéficiaire";
+    case "EVALUATION_SERVICE_EXTERNE_RECUE":
+      return "Évaluation reçue";
     case "POINTAGE_ANOMALIE":
       return "Pointage anomalie";
     case "POINTAGE_ABSENT":

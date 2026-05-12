@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
-  AlertCircle,
   Loader2,
   LockKeyhole,
   Save,
@@ -9,6 +8,7 @@ import {
 } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../context/ToastContext";
 import type { ApiResponse } from "../types";
 
 type CurrentUser = {
@@ -46,6 +46,7 @@ type PasswordForm = {
 
 export default function ConfigurationPage() {
   const { user, refreshUser } = useAuth();
+  const { showToast } = useToast();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileForm>({
     nom: "",
@@ -60,8 +61,6 @@ export default function ConfigurationPage() {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -82,7 +81,7 @@ export default function ConfigurationPage() {
         });
       } catch (err) {
         if (active) {
-          setError(err instanceof Error ? err.message : "Erreur de chargement");
+          showToast(err instanceof Error ? err.message : "Erreur de chargement", "error");
         }
       } finally {
         if (active) {
@@ -103,8 +102,6 @@ export default function ConfigurationPage() {
 
     try {
       setSavingProfile(true);
-      setMessage(null);
-      setError(null);
 
       await api.patch<ApiResponse<CurrentUser>>("/users/me", {
         nom: profileForm.nom.trim(),
@@ -120,9 +117,9 @@ export default function ConfigurationPage() {
         });
       }
 
-      setMessage("Vos informations ont été mises à jour.");
+      showToast("Vos informations ont été mises à jour.", "success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur lors de la mise à jour");
+      showToast(err instanceof Error ? err.message : "Erreur lors de la mise à jour", "error");
     } finally {
       setSavingProfile(false);
     }
@@ -133,8 +130,6 @@ export default function ConfigurationPage() {
 
     try {
       setSavingPassword(true);
-      setMessage(null);
-      setError(null);
 
       await api.patch<ApiResponse<{ message: string }>>("/users/me/password", passwordForm);
 
@@ -143,9 +138,12 @@ export default function ConfigurationPage() {
         newPassword: "",
         confirmPassword: "",
       });
-      setMessage("Votre mot de passe a été mis à jour.");
+      showToast("Votre mot de passe a été mis à jour.", "success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur lors du changement de mot de passe");
+      showToast(
+        err instanceof Error ? err.message : "Erreur lors du changement de mot de passe",
+        "error",
+      );
     } finally {
       setSavingPassword(false);
     }
@@ -167,18 +165,6 @@ export default function ConfigurationPage() {
             L&apos;adresse email reste verrouillée pour conserver l’identifiant de connexion.
           </p>
         </div>
-
-        {message && (
-          <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
-            {message}
-          </div>
-        )}
-        {error && (
-          <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
-            <AlertCircle size={18} className="mt-0.5 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
 
         {loading ? (
           <div className="flex items-center justify-center rounded-3xl border border-outline-variant/70 bg-white/90 py-20 text-on-surface-variant">

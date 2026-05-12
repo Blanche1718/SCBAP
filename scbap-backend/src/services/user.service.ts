@@ -5,12 +5,14 @@ import { HttpError } from "../errorHandler";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { serializeAuthenticatedUser } from "../auth/auth.service";
 import type {
+  CreateUserAdminInput,
   UpdateOwnPasswordInput,
   UpdateOwnProfileInput,
   UpdateUserAdminInput,
 } from "../schemas/user.schema";
 
 const DEFAULT_PASSWORD = process.env.DEFAULT_USER_PASSWORD || "change_me";
+const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || "10");
 
 function isBcryptHash(value: string) {
   return /^\$2[aby]\$\d{2}\$/.test(value);
@@ -86,6 +88,32 @@ export async function getUsersMeta() {
   return { roles, structures };
 }
 
+export async function createUserByAdmin(input: CreateUserAdminInput) {
+  await assertUniqueEmail(input.email);
+
+  const created = await prisma.user.create({
+    data: {
+      nom: input.nom.trim(),
+      prenom: input.prenom.trim(),
+      email: input.email.trim().toLowerCase(),
+      telephone: input.telephone?.trim() || undefined,
+      statut: input.statut,
+      roleId: input.roleId,
+      structureId: input.structureId,
+      motDePasse: await bcrypt.hash(DEFAULT_PASSWORD, BCRYPT_ROUNDS),
+    },
+    include: {
+      role: true,
+      structure: true,
+    },
+  });
+
+  return {
+    user: mapUser(created),
+    password: DEFAULT_PASSWORD,
+  };
+}
+
 export async function updateUserByAdmin(userId: string, input: UpdateUserAdminInput) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -153,7 +181,10 @@ export async function resetUserPassword(userId: string) {
   await prisma.user.update({
     where: { id: userId },
     data: {
-      motDePasse: await bcrypt.hash(DEFAULT_PASSWORD, 10),
+      motDePasse: await bcrypt.hash(DEFAULT_PASSWORD, BCRYPT_ROUNDS),
+      sessionVersion: {
+        increment: 1,
+      },
     },
   });
 
@@ -200,7 +231,10 @@ export async function updateOwnPassword(userId: string, input: UpdateOwnPassword
   await prisma.user.update({
     where: { id: userId },
     data: {
-      motDePasse: await bcrypt.hash(input.newPassword, 10),
+      motDePasse: await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS),
+      sessionVersion: {
+        increment: 1,
+      },
     },
   });
 

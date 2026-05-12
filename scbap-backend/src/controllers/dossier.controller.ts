@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { HttpError } from "../errorHandler";
 import {
   buildDossiersExportWorkbook,
+  createDossier,
   getDossierById,
   getDossiers,
   softDeleteDossier,
@@ -102,6 +103,24 @@ export async function getDossierByIdController(
   } catch (error) {
     next(error);
     console.error("Erreur lors de la recuperation du dossier:", error);
+  }
+}
+
+export async function createDossierController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const dossier = await createDossier(req.body, req.user);
+
+    res.status(201).json({
+      message: "Dossier cree avec succes",
+      data: dossier,
+    });
+  } catch (error) {
+    next(error);
+    console.error("Erreur lors de la creation du dossier:", error);
   }
 }
 

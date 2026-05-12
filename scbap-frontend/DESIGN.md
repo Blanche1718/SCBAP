@@ -9,7 +9,7 @@ To break the "template" look, we leverage **Intentional Asymmetry**. While the l
 The palette is rooted in a "Sober Green" and "Paper White" foundation, designed to reduce cognitive load during long shifts.
 
 ### The "No-Line" Rule
-**Explicit Instruction:** Designers are prohibited from using 1px solid borders to section off content. In this system, boundaries are defined exclusively through background shifts.
+**Explicit Instruction:** Designers are prohibited from using 1px solid borders to section off content. In this system, boundaries are defined exclusively through background shifts.é
 - A card should never have a stroke; it should be a `surface-container-lowest` object sitting on a `surface-container-low` background. 
 - Separation is achieved through the **Spacing Scale** (e.g., a `20` (4.5rem) gap) rather than a line.
 

@@ -68,6 +68,14 @@ export async function uploadObjectToMinio(args: {
   });
 }
 
+export async function deleteObjectFromMinio(objectKey: string) {
+  await ensureMinioBucket();
+
+  await minioClient.removeObject(MINIO_BUCKET, objectKey).catch((error) => {
+    throw new Error(`Impossible de supprimer le fichier de MinIO: ${(error as Error).message}`);
+  });
+}
+
 export async function getObjectDownloadUrl(objectKey: string) {
   await ensureMinioBucket();
 

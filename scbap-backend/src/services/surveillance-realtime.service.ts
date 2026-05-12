@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { HttpError } from "../errorHandler";
+import { getAuthCookieToken } from "../auth/auth-cookie";
 import { getAuthenticatedUserById, verifyAuthToken } from "../auth/auth.service";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { getUserJuridictionCode } from "../utils/juridiction";
@@ -163,6 +164,11 @@ function parseWsAuthToken(request: IncomingMessage) {
   const queryToken = url.searchParams.get("token")?.trim();
   if (queryToken) {
     return queryToken;
+  }
+
+  const cookieToken = getAuthCookieToken(request);
+  if (cookieToken) {
+    return cookieToken;
   }
 
   const authorization = request.headers.authorization;
@@ -406,7 +412,7 @@ export function initializeSurveillanceRealtime(server: Server) {
     try {
       const token = parseWsAuthToken(request);
       const payload = verifyAuthToken(token);
-      const rawUser = await getAuthenticatedUserById(payload.sub);
+      const rawUser = await getAuthenticatedUserById(payload.sub, payload.sessionVersion);
       const user = toAuthenticatedUser(rawUser);
       const requestedJurisdiction = parseRequestedJurisdiction(request);
       const scopeJurisdictionId = resolveScopeJurisdictionId(user, requestedJurisdiction);

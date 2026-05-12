@@ -33,4 +33,5 @@ export type JwtAuthPayload = {
   email: string;
   role: string;
   structureId: string;
+  sessionVersion: number;
 };

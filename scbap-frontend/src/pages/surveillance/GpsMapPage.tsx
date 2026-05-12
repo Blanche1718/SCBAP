@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Badge, Card } from "../../components/ui";
-import { getStoredAuthToken } from "../../auth/authStorage";
 import { api } from "../../lib/api";
 import "leaflet/dist/leaflet.css";
 import {
@@ -470,32 +469,17 @@ function buildSnapshot(initial?: Partial<SurveillanceSnapshot>): SurveillanceSna
 
 function getSurveillanceWsUrl() {
   const explicitUrl = (import.meta.env.VITE_SURVEILLANCE_WS_URL as string | undefined)?.trim();
-  const token = getStoredAuthToken();
 
   if (explicitUrl) {
-    if (!token) {
-      return explicitUrl;
-    }
-
-    const url = new URL(explicitUrl);
-    url.searchParams.set("token", token);
-    return url.toString();
+    return explicitUrl;
   }
 
   if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-    const url = new URL("ws://localhost:3000/ws/surveillance");
-    if (token) {
-      url.searchParams.set("token", token);
-    }
-    return url.toString();
+    return "ws://localhost:3000/ws/surveillance";
   }
 
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  const url = new URL(`${protocol}://${window.location.host}/ws/surveillance`);
-  if (token) {
-    url.searchParams.set("token", token);
-  }
-  return url.toString();
+  return `${protocol}://${window.location.host}/ws/surveillance`;
 }
 
 function MainMap({ tracks }: { tracks: Track[] }) {

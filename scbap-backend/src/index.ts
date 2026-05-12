@@ -18,19 +18,29 @@ import usersRouter from "./routes/users.routes";
 import biometrieRouter from "./routes/biometrie.routes";
 import alertesRouter from "./routes/alertes.routes";
 import notificationRouter from "./routes/notification.routes";
+import serviceExterneRouter from "./routes/service-externe.routes";
+import portailRouter from "./routes/portail.routes";
+import rapportRouter from "./routes/rapport.routes";
 import { startBiometrieScheduler } from "./jobs/biometrie.scheduler";
 import { startMqttSubscriber } from "./integrations/mqtt/client";
 import { handleMqttMessage } from "./services/mqtt.service";
 import webhooksRouter from "./routes/webhooks.routes";
 import { initializeSurveillanceRealtime } from "./services/surveillance-realtime.service";
 import { initializeAbsenceCheckJob } from "./jobs/absence-check.job";
+import { initializeMonthlyRapportJob } from "./jobs/monthly-rapport.job";
 
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use("/auth", authRouter);
+app.use("/portail", portailRouter);
 app.use("/webhooks", webhooksRouter);
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
@@ -50,6 +60,8 @@ app.use("/users", usersRouter);
 app.use("/biometrie", biometrieRouter);
 app.use("/alertes", alertesRouter);
 app.use("/notifications", notificationRouter);
+app.use("/services-externes", serviceExterneRouter);
+app.use("/rapports", rapportRouter);
 
 app.use(errorHandler);
 
@@ -63,6 +75,7 @@ server.listen(port, () => {
   startBiometrieScheduler();
   startMqttSubscriber(handleMqttMessage);
   initializeAbsenceCheckJob();
+  initializeMonthlyRapportJob();
 });
 
 export default app;

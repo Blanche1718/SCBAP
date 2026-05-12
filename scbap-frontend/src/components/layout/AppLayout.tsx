@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   Radio,
+  Building2,
   Menu,
   X,
 } from "lucide-react";
@@ -28,6 +29,8 @@ export default function AppLayout() {
     { to: "/surveillance", icon: MapPin, label: "Surveillance GPS" },
     { to: "/alertes", icon: Bell, label: "Alertes" },
     { to: "/rapports", icon: BarChart2, label: "Rapports" },
+    { to: "/services", icon: Building2, label: "Services" },
+    
   ];
   const bottomNavItems = isAdmin
     ? [{ to: "/administration", icon: Settings, label: "Administration" }]

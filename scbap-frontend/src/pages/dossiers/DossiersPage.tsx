@@ -20,6 +20,7 @@ import {
 import { useDossiers } from "../../hooks/useDossiers";
 import { CompactPaginationControls } from "../../components/pagination/CompactPaginationControls";
 import { Button } from "../../components/ui";
+import { useToast } from "../../context/ToastContext";
 import { api } from "../../lib/api";
 import type { Dossier } from "../../types";
 import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
@@ -94,13 +95,13 @@ function DossierRow({ dossier }: { dossier: Dossier }) {
 }
 
 export default function DossiersPage() {
+  const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useState<string | null>(null);
   const hasAutoSyncedRef = useRef(false);
   const { dossiers, meta, loading, error, refetch } = useDossiers(page, limit);
 
@@ -146,7 +147,6 @@ export default function DossiersPage() {
 
   async function handleSyncDapg() {
     setSyncing(true);
-    setSyncMessage(null);
 
     try {
       const response = await api.post<{
@@ -160,11 +160,11 @@ export default function DossiersPage() {
       }>("/dossiers/dapg/sync", {});
 
       const { createdCount, updatedCount, totalSynced } = response.data;
-      setSyncMessage(
+      showToast(
         totalSynced === 0
           ? "Aucun nouveau dossier DAPG à synchroniser."
           : `${createdCount} nouveau(x) dossier(s), ${updatedCount} mis à jour.`
-      );
+      , "success");
 
       if (page === 1) {
         await refetch();
@@ -172,7 +172,7 @@ export default function DossiersPage() {
         setPage(1);
       }
     } catch (e) {
-      setSyncMessage((e as Error).message);
+      setSyncNotice("Aucune synchronisation automatique.");
     } finally {
       setSyncing(false);
     }
@@ -180,7 +180,6 @@ export default function DossiersPage() {
 
   async function handleExportDossiers() {
     setExporting(true);
-    setExportMessage(null);
 
     try {
       const { blob, filename } = await api.download("/dossiers/export");
@@ -192,9 +191,9 @@ export default function DossiersPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      setExportMessage("Export Excel généré avec succès.");
+      showToast("Export Excel généré avec succès.", "success");
     } catch (e) {
-      setExportMessage((e as Error).message);
+      showToast((e as Error).message, "error");
     } finally {
       setExporting(false);
     }
@@ -314,17 +313,11 @@ export default function DossiersPage() {
           </Button>
         </div>
       </div>
-      {syncMessage && (
-        <p className="mb-4 text-xs font-medium text-on-secondary-container">
-          {syncMessage}
-        </p>
+      {syncNotice && (
+        <div className="mb-4 rounded-md border border-[#ffe9c7] bg-[#fff8ec] px-4 py-2 text-xs font-semibold text-[#6b3d00]">
+          {syncNotice}
+        </div>
       )}
-      {exportMessage && (
-        <p className="mb-4 text-xs font-medium text-on-secondary-container">
-          {exportMessage}
-        </p>
-      )}
-
       {/* ── Search ── */}
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full lg:max-w-3xl">

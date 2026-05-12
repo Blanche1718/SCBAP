@@ -1,5 +1,4 @@
 const DEFAULT_APP_TIME_ZONE = "Africa/Porto-Novo";
-const POINTAGE_DISPLAY_SHIFT_MS = 60 * 60 * 1000;
 
 function resolveAppTimeZone() {
   const configuredTimeZone = import.meta.env.VITE_APP_TIME_ZONE?.trim();
@@ -14,15 +13,7 @@ function parseDateValue(value: Date | string | number) {
 }
 
 export function normalizePointageDateValue(value: Date | string | number) {
-  const parsed = parseDateValue(value);
-  if (!parsed) {
-    return null;
-  }
-
-  // Pointage-related timestamps currently arrive one hour ahead of the
-  // correctly rendered alert/surveillance feeds. We normalize them here so
-  // the affected pages reuse the same final formatter and visible hour model.
-  return new Date(parsed.getTime() - POINTAGE_DISPLAY_SHIFT_MS);
+  return parseDateValue(value);
 }
 
 export function formatInAppTimeZone(

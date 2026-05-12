@@ -10,6 +10,11 @@ import {
 } from "../schemas/beneficiaire.schema";
 import { z } from "zod";
 import { getUserJuridictionCode } from "../utils/juridiction";
+import {
+    getObligationCategoryByNameOrThrow,
+    normalizeSpecificObligationsPayload,
+    upsertSpecificObligationReferences,
+} from "./obligation-specifique-reference.service";
 
 type CreateBeneficiaireInput = z.infer<typeof CreateBeneficiaireSchema>;
 type UpdateBeneficiaireInput = z.infer<typeof UpdateBeneficiaireSchema>;
@@ -290,28 +295,6 @@ export async function confirmBeneficiaireProfil(id: string, user?: AccessContext
     return updated;
 }
 
-async function ensureObligationCategoryExists(categorieNom: string) {
-    const existing = await prisma.categorieObligation.findFirst({
-        where: {
-            nom: {
-                equals: categorieNom,
-                mode: "insensitive",
-            },
-        },
-    });
-
-    if (existing) {
-        return existing;
-    }
-
-    return prisma.categorieObligation.create({
-        data: {
-            nom: categorieNom,
-            description: `Categorie synchronisee depuis la DAPG: ${categorieNom}`,
-        },
-    });
-}
-
 export async function syncSpecificObligationsForBeneficiaire(
     beneficiaireId: string,
     obligations: SpecificObligationInput[],
@@ -331,6 +314,25 @@ export async function syncSpecificObligationsForBeneficiaire(
         throw new HttpError(409, "Le profil est deja confirme");
     }
 
+    const normalizedObligations = normalizeSpecificObligationsPayload(obligations);
+    await upsertSpecificObligationReferences(normalizedObligations);
+
+    const references = normalizedObligations.length
+        ? await prisma.obligationSpecifiqueReference.findMany({
+            where: {
+                code: {
+                    in: normalizedObligations.map((obligation) => obligation.code),
+                },
+            },
+            include: {
+                categorie: true,
+            },
+        })
+        : [];
+    const referencesByCode = new Map(
+        references.map((reference) => [reference.code, reference]),
+    );
+
     await prisma.obligation.deleteMany({
         where: {
             beneficiaireId,
@@ -341,17 +343,25 @@ export async function syncSpecificObligationsForBeneficiaire(
     const created = [];
 
     for (const obligation of obligations) {
-        const categorie = await ensureObligationCategoryExists(obligation.categorie);
+        const reference = obligation.code ? referencesByCode.get(obligation.code) : undefined;
+        const categorie = reference?.categorie ?? (await getObligationCategoryByNameOrThrow(obligation.categorie));
+        const code = reference?.code ?? obligation.code ?? null;
+        const section = reference?.section ?? obligation.section ?? null;
+        const libelle = reference?.libelle ?? obligation.libelle;
 
-created.push(
+        created.push(
             await prisma.obligation.create({
                 data: {
                     beneficiaireId,
                     dossierId: beneficiaire.dossierId,
                     categorieId: categorie.id,
+                    obligationSpecifiqueReferenceId: reference?.id ?? null,
                     source: "DAPG_SPECIFIC",
-                    description: obligation.libelle,
-                    type: obligation.type ?? obligation.categorie,
+                    code,
+                    section,
+                    libelle,
+                    description: libelle,
+                    type: obligation.type ?? categorie.nom,
                     frequence: obligation.frequence,
                     jourSemaine: obligation.jourSemaine,
                     heure: obligation.heure
@@ -379,10 +389,13 @@ created.push(
                     statut: "EN_COURS",
                     metadata: {
                         source: "dapg_specific",
-                        code: obligation.code ?? null,
-                        section: obligation.section ?? null,
-                        categorie: obligation.categorie,
-                        libelle: obligation.libelle,
+                        code,
+                        section,
+                        categorie: categorie.nom,
+                        libelle,
+                        referenceId: reference?.id ?? null,
+                        dapgReferenceId: reference?.dapgId ?? null,
+                        referenceMatched: Boolean(reference),
                     },
                 },
                 include: {

@@ -19,9 +19,10 @@ import {
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { CompactPaginationControls } from "../../components/pagination/CompactPaginationControls";
+import { useToast } from "../../context/ToastContext";
 import { useBeneficiaires } from "../../hooks/useBeneficiaires";
 import { api } from "../../lib/api";
-import type { Beneficiaire } from "../../types";
+import type { Beneficiaire, Dossier } from "../../types";
 import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
 import { formatInAppTimeZone, formatPointageInAppTimeZone } from "../../utils/timezone";
 
@@ -55,6 +56,12 @@ function getDisplayName(beneficiaire: Beneficiaire) {
 function getNumeroDossier(beneficiaire: Beneficiaire) {
   return beneficiaire.dossier?.numeroDossier ?? "—";
 }
+
+function getNumeroMandatDepot(dossier:Dossier) {
+  return dossier.numeroMandatDepot ?? "—";
+}
+
+
 
 function getUserInitials(prenom?: string | null, nom?: string | null) {
   const initials = [prenom, nom]
@@ -169,14 +176,15 @@ function RiskBadge({ level }: { level: RiskLevel }) {
 
 export default function BeneficiairesPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [statusFilter, setStatusFilter] = useState<"TOUS" | ComplianceStatus>("TOUS");
   const [riskFilter, setRiskFilter] = useState<"TOUS" | RiskLevel>("TOUS");
-  const [agentFilter, setAgentFilter] = useState<"TOUS" | "Agent A." | "Agent B.">("TOUS");
+  const [agentFilter] = useState<"TOUS" | "Agent A." | "Agent B.">("TOUS");
   const [syncing, setSyncing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const { beneficiaires, meta, loading, error, refetch } = useBeneficiaires(page, limit);
 
   const query = search.trim().toLowerCase();
@@ -238,11 +246,11 @@ export default function BeneficiairesPage() {
   async function syncDapgDossiers() {
     try {
       setSyncing(true);
-      setSyncError(null);
       await api.post("/dossiers/dapg/sync", {});
       await refetch();
+      showToast("Synchronisation DAPG terminée.", "success");
     } catch (err) {
-      setSyncError((err as Error).message);
+      setSyncNotice("Aucune synchronisation automatique.");
     } finally {
       setSyncing(false);
     }
@@ -335,10 +343,9 @@ export default function BeneficiairesPage() {
           </button>
         </div>
       </div>
-
-      {syncError && (
-        <div className="mb-4 rounded-md bg-error-container px-4 py-3 text-xs font-semibold text-on-error-container">
-          {syncError}
+      {syncNotice && (
+        <div className="mb-4 rounded-md border border-[#ffe9c7] bg-[#fff8ec] px-4 py-2 text-xs font-semibold text-[#6b3d00]">
+          {syncNotice}
         </div>
       )}
 
@@ -378,7 +385,7 @@ export default function BeneficiairesPage() {
               <option value="Eleve">Eleve</option>
             </select>
           </label>
-          <label className="text-xs font-semibold text-on-secondary-container uppercase tracking-wider">
+          {/* <label className="text-xs font-semibold text-on-secondary-container uppercase tracking-wider">
             Agent assigne
             <select
               value={agentFilter}
@@ -392,14 +399,14 @@ export default function BeneficiairesPage() {
               <option value="Agent A.">Agent A.</option>
               <option value="Agent B.">Agent B.</option>
             </select>
-          </label>
+          </label> */}
           <div className="flex items-end">
             <button
               type="button"
               onClick={() => {
                 setStatusFilter("TOUS");
                 setRiskFilter("TOUS");
-                setAgentFilter("TOUS");
+                // setAgentFilter("TOUS");
                 setPage(1);
               }}
               className="w-full rounded-md bg-surface-high px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#2e4d44] hover:bg-[#d9dddb] transition-colors"
@@ -465,7 +472,7 @@ export default function BeneficiairesPage() {
         <div className="space-y-2">
           {filtered.map((item) => {
             const fullName = getDisplayName(item);
-            const numero = getNumeroDossier(item);
+            const numeroMandat = getNumeroMandatDepot(item.dossier ?? { numeroMandatDepot: "—" } as Dossier);
             const statut = getComplianceStatus(item);
             const risque = getRiskLevel(item);
             const lastPointage = item.pointages?.find((pointage) => pointage.statut !== "ABSENT")?.dateHeure;
@@ -496,7 +503,7 @@ export default function BeneficiairesPage() {
                     {isNew && <NewBadge />}
                   </div>
                   <p className="text-xs text-on-secondary-container font-mono mt-0.5 truncate">
-                    {numero}
+                    {numeroMandat}
                   </p>
                   {isNew && <SetupHint createdAt={item.dossier?.createdAt} />}
                 </div>

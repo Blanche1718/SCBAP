@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only --project tsconfig.json  src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "seed:categories-obligations": "ts-node src/scripts/seed-categories-obligations.ts",
@@ -33,6 +33,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.1",
+    "@types/nodemailer": "^8.0.0",
     "nodemon": "^3.1.14",
     "prisma": "^7.6.0",
     "ts-node": "^10.9.2",
@@ -52,6 +53,7 @@
     "jsonwebtoken": "^9.0.3",
     "minio": "^8.0.7",
     "mqtt": "^5.15.1",
+    "nodemailer": "^8.0.7",
     "pg": "^8.20.0",
     "ws": "^8.20.0",
     "zod": "^4.3.6"

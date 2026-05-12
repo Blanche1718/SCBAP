@@ -1,17 +1,21 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "Node16",
-    "rootDir": "./src",
-    "outDir": "./dist",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "sourceMap": true,
-    "declaration": true
+    "ignoreDeprecations": "6.0",
+    "target": "es2020", // Cible JavaScript moderne
+    "module": "commonjs", // Module CommonJS pour Node.js
+    "lib": ["es2020"], // Bibliothèques disponibles
+    "strict": true, // Active toutes les options de vérification de type strictes
+    "esModuleInterop": true, // Permet l'interopérabilité entre CommonJS et ES Modules
+    "skipLibCheck": true, // Ignore la vérification de type des fichiers de déclaration des bibliothèques
+    "forceConsistentCasingInFileNames": true, // Force une casse cohérente pour les noms de fichiers
+    "outDir": "./dist", // Répertoire de sortie pour les fichiers compilés
+    "rootDir": "./src", // Répertoire racine de vos fichiers source
+    "resolveJsonModule": true, // Permet l'importation de modules JSON
+    "emitDecoratorMetadata": true, // Active l'émission de métadonnées pour les décorateurs (si utilisés)
+    "experimentalDecorators": true, // Active les décorateurs expérimentaux (si utilisés)
+    "moduleResolution": "node", // Stratégie de résolution des modules pour Node.js
+    "types": ["node", "express"] // Inclut les types pour Node.js et Express
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts"], // Inclut tous les fichiers .ts dans le dossier src
+  "exclude": ["node_modules", "dist"] // Exclut les dossiers node_modules et dist
 }

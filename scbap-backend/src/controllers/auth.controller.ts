@@ -6,6 +6,8 @@ import {
   serializeAuthenticatedUser,
   signAuthToken,
 } from "../auth/auth.service";
+import { clearLoginFailures, markLoginFailure } from "../auth/auth.middleware";
+import { clearAuthCookie, setAuthCookie } from "../auth/auth-cookie";
 
 export async function loginController(
   req: Request,
@@ -16,12 +18,34 @@ export async function loginController(
     const { email, motDePasse } = LoginSchema.parse(req.body);
     const user = await authenticateUser(email, motDePasse);
     const token = signAuthToken(user);
+    clearLoginFailures(req);
+    setAuthCookie(res, token);
 
     res.status(200).json({
       message: "Connexion reussie",
       data: {
-        token,
         user: serializeAuthenticatedUser(user),
+      },
+    });
+  } catch (error) {
+    if (error instanceof HttpError && error.statusCode === 401) {
+      markLoginFailure(req);
+    }
+    next(error);
+  }
+}
+
+export async function logoutController(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    clearAuthCookie(res);
+    res.status(200).json({
+      message: "Déconnexion réussie",
+      data: {
+        ok: true,
       },
     });
   } catch (error) {

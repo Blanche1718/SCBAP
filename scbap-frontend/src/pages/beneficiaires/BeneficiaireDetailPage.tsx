@@ -5,6 +5,7 @@ import {
   Bell,
   AlertTriangle,
   Check,
+  ArrowUpRight,
   X,
   LayoutGrid,
   AlignLeft,
@@ -21,9 +22,19 @@ import {
   Upload,
 } from "lucide-react";
 import { useBeneficiaire } from "../../hooks/useBeneficiaires";
-import { api } from "../../lib/api";
-import type { Document as BeneficiaireDocument, Obligation, Beneficiaire } from "../../types";
+import { SideDrawer } from "../../components/ui/SideDrawer";
+import { useToast } from "../../context/ToastContext";
+import { API_BASE_URL, api } from "../../lib/api";
+import type {
+  ApiResponse,
+  Document as BeneficiaireDocument,
+  EvaluationRecue,
+  Obligation,
+  Beneficiaire,
+} from "../../types";
 import { formatInAppTimeZone, formatPointageInAppTimeZone } from "../../utils/timezone";
+import { getConformiteLabel, getConformiteTone } from "../../utils/rapports";
+import { useRapportsRediges } from "../../hooks/useRapports";
 
 type ObligationFormState = {
   type: string;
@@ -44,7 +55,7 @@ type ObligationFormState = {
 //   { value: "ORDONNE_PAR_DAPG", label: "Modification ordonnée par la DAPG" },
 //   { value: "AUTRE", label: "Autres" },
 // ] as const;
-type DetailSection = "OBLIGATIONS" | "HISTORIQUE" | "DOCUMENTS";
+type DetailSection = "OBLIGATIONS" | "HISTORIQUE" | "RAPPORTS" | "DOCUMENTS";
 type BiometrieStatusLocal = "AUCUN" | "EN_COURS" | "CONFIRME" | "ECHEC";
 
 function formatLastPointage(dateHeure?: string | null) {
@@ -154,14 +165,68 @@ function getDocumentTitle(item: Record<string, unknown>, fallback: string) {
   );
 }
 
-function getDocumentLink(record: Record<string, unknown>) {
+function looksLikeDocumentLink(value: string) {
   return (
+    /^(https?:)?\/\//i.test(value) ||
+    /\.(pdf|doc|docx|png|jpe?g)(\?|#|$)/i.test(value) ||
+    /^\/.*(document|download|fichier|file|media|storage|uploads|arrete|arr[êe]te)/i.test(value)
+  );
+}
+
+function findDocumentLink(value: unknown): string | undefined {
+  const text = asText(value);
+  if (text && looksLikeDocumentLink(text)) {
+    return text;
+  }
+
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  return Object.values(record)
+    .map((item) => findDocumentLink(item))
+    .find(Boolean);
+}
+
+function getDocumentLink(record: Record<string, unknown>): string | undefined {
+  const directLink =
     asText(record.url) ??
+    asText(record.url_arrete) ??
+    asText(record.arrete_url) ??
+    asText(record.document_url) ??
+    asText(record.download_url) ??
+    asText(record.telechargement_url) ??
     asText(record.pdf_url) ??
     asText(record.lien) ??
+    asText(record.lien_document) ??
     asText(record.file_url) ??
-    undefined
-  );
+    asText(record.fichier_url) ??
+    asText(record.fichier) ??
+    asText(record.path) ??
+    asText(record.chemin);
+
+  if (directLink) {
+    return directLink;
+  }
+
+  const nestedLink: string | undefined = [
+    asRecord(record.document),
+    asRecord(record.file),
+    asRecord(record.fichier),
+    asRecord(record.piece_jointe),
+    asRecord(record.pieceJointe),
+  ]
+    .map((item) => (item ? getDocumentLink(item) : undefined))
+    .find(Boolean);
+
+  return nestedLink ?? findDocumentLink(record);
+}
+
+function resolveDocumentHref(href?: string) {
+  if (!href) return undefined;
+  if (/^(https?:)?\/\//i.test(href) || /^(blob|data):/i.test(href)) return href;
+  return href.startsWith("/") ? `${API_BASE_URL}${href}` : href;
 }
 
 function extractDocumentCards(othersData?: Record<string, unknown> | null) {
@@ -176,7 +241,7 @@ function extractDocumentCards(othersData?: Record<string, unknown> | null) {
 
   const arrete = asRecord(othersData?.arrete);
   if (arrete) {
-    const href = getDocumentLink(arrete);
+    const href = resolveDocumentHref(getDocumentLink(arrete) ?? findDocumentLink(othersData));
     cards.push({
       title: getDocumentTitle(arrete, "Arrêté ministériel"),
       kind: "Arrêté",
@@ -193,7 +258,7 @@ function extractDocumentCards(othersData?: Record<string, unknown> | null) {
   tousArretes.forEach((item, index) => {
     const record = asRecord(item);
     if (!record) return;
-    const href = getDocumentLink(record);
+    const href = resolveDocumentHref(getDocumentLink(record));
     cards.push({
       title: getDocumentTitle(record, `Arrêté ${index + 1}`),
       kind: "Arrêté",
@@ -212,7 +277,7 @@ function extractDocumentCards(othersData?: Record<string, unknown> | null) {
   justificatifs.forEach((item, index) => {
     const record = asRecord(item);
     if (!record) return;
-    const href = getDocumentLink(record);
+    const href = resolveDocumentHref(getDocumentLink(record));
     cards.push({
       title: getDocumentTitle(record, `Document ${index + 1}`),
       kind: asText(record.type_document) ?? asText(record.type) ?? "Justificatif",
@@ -249,6 +314,27 @@ function getRiskLevel(beneficiaire: Beneficiaire): RiskLevel {
   return "Moyen";
 }
 
+function hasElectronicMonitoring(obligations?: Obligation[]) {
+  return (obligations ?? []).some((obligation) => {
+    const haystack = [
+      obligation.type,
+      obligation.description,
+      obligation.categorie?.nom,
+      obligation.libelle,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return (
+      haystack.includes("bracelet") ||
+      haystack.includes("electronique") ||
+      haystack.includes("électronique") ||
+      haystack.includes("gps") ||
+      haystack.includes("surveillance")
+    );
+  });
+}
+
 function StatusBadge({ status }: { status: ComplianceStatus }) {
   const styles =
     status === "NON_CONFORME"
@@ -276,7 +362,9 @@ function StatusBadge({ status }: { status: ComplianceStatus }) {
 }
 
 function mapStoredDocument(document: BeneficiaireDocument) {
-  const downloadPath = document.downloadUrl || `/documents/${document.id}/download`;
+  const downloadPath = document.downloadUrl
+    ? `${API_BASE_URL}${document.downloadUrl}`
+    : `${API_BASE_URL}/documents/${document.id}/download`;
 
   return {
     title: document.titre,
@@ -296,29 +384,30 @@ function mapStoredDocument(document: BeneficiaireDocument) {
 
 export default function BeneficiaireDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { showToast } = useToast();
   const { beneficiaire, loading, error, refetch } = useBeneficiaire(id);
+  const { items: rapportsRediges } = useRapportsRediges();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<DetailSection>("OBLIGATIONS");
   const [selectedObligation, setSelectedObligation] = useState<Obligation | null>(null);
   const [saving, setSaving] = useState(false);
-  const [actioningId, setActioningId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [documentNotice, setDocumentNotice] = useState<string | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [documentUploading, setDocumentUploading] = useState(false);
   const [documentInputKey, setDocumentInputKey] = useState(0);
+  const [documentDrawerOpen, setDocumentDrawerOpen] = useState(false);
+  const [evaluations, setEvaluations] = useState<EvaluationRecue[]>([]);
+  const [evaluationsLoading, setEvaluationsLoading] = useState(false);
+  const [evaluationsError, setEvaluationsError] = useState<string | null>(null);
+  const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null);
+  const [evaluationDrawerOpen, setEvaluationDrawerOpen] = useState(false);
+  const [selectedRapportId, setSelectedRapportId] = useState<string | null>(null);
+  const [rapportDrawerOpen, setRapportDrawerOpen] = useState(false);
   const [biometrieLoading, setBiometrieLoading] = useState(false);
   const [biometrieNotice, setBiometrieNotice] = useState<string | null>(null);
   const [biometrieError, setBiometrieError] = useState<string | null>(null);
   const biometriePollingRef = useRef<number | null>(null);
-  const [previewDocument, setPreviewDocument] = useState<{
-    title: string;
-    url: string;
-    mimeType?: string;
-    revokeOnClose?: boolean;
-  } | null>(null);
-  const [previewLoadingIndex, setPreviewLoadingIndex] = useState<number | null>(null);
-  const documentNoticeTimerRef = useRef<number | null>(null);
   const [documentForm, setDocumentForm] = useState({
     typeDocument: "JUSTIFICATIF",
     titre: "",
@@ -339,32 +428,59 @@ export default function BeneficiaireDetailPage() {
   });
 
   useEffect(() => {
-    return () => {
-      if (previewDocument?.revokeOnClose) {
-        URL.revokeObjectURL(previewDocument.url);
+    let cancelled = false;
+
+    async function loadEvaluations() {
+      if (!id) {
+        return;
       }
-    };
-  }, [previewDocument]);
 
-  useEffect(() => {
-    if (!documentNotice) return;
+      try {
+        setEvaluationsLoading(true);
+        setEvaluationsError(null);
+        const res = await api.get<ApiResponse<EvaluationRecue[]>>(`/beneficiaires/${id}/evaluations`);
 
-    if (documentNoticeTimerRef.current) {
-      window.clearTimeout(documentNoticeTimerRef.current);
+        if (cancelled) {
+          return;
+        }
+
+        setEvaluations(res.data);
+        setSelectedEvaluationId((current) => current ?? res.data[0]?.id ?? null);
+      } catch (err) {
+        if (!cancelled) {
+          setEvaluationsError((err as Error).message);
+        }
+      } finally {
+        if (!cancelled) {
+          setEvaluationsLoading(false);
+        }
+      }
     }
 
-    documentNoticeTimerRef.current = window.setTimeout(() => {
-      setDocumentNotice(null);
-      documentNoticeTimerRef.current = null;
-    }, 2000);
+    void loadEvaluations();
 
     return () => {
-      if (documentNoticeTimerRef.current) {
-        window.clearTimeout(documentNoticeTimerRef.current);
-        documentNoticeTimerRef.current = null;
-      }
+      cancelled = true;
     };
-  }, [documentNotice]);
+  }, [id]);
+
+  // Nettoyage automatique des messages temporaires (succès et erreurs)
+  useEffect(() => {
+    const messages = [
+      { val: documentNotice, set: setDocumentNotice },
+      { val: documentError, set: setDocumentError },
+      { val: saveError, set: setSaveError },
+      { val: biometrieNotice, set: setBiometrieNotice },
+      { val: biometrieError, set: setBiometrieError },
+    ];
+
+    const timers = messages.map(({ val, set }) => {
+      if (val) return window.setTimeout(() => set(null), 5000);
+      return null;
+    });
+
+    return () => timers.forEach(t => t && window.clearTimeout(t));
+  }, [documentNotice, documentError, saveError, biometrieNotice, biometrieError]);
 
   useEffect(() => {
     if (biometriePollingRef.current) {
@@ -399,6 +515,7 @@ export default function BeneficiaireDetailPage() {
         if (response.data.statusLocal === "CONFIRME") {
           setBiometrieNotice("Biométrie configurée avec succès.");
           setBiometrieError(null);
+          showToast("Biométrie configurée avec succès.", "success");
           await refetch();
           if (biometriePollingRef.current) {
             window.clearInterval(biometriePollingRef.current);
@@ -408,6 +525,7 @@ export default function BeneficiaireDetailPage() {
       } catch (err) {
         if (cancelled) return;
         setBiometrieError((err as Error).message);
+        showToast((err as Error).message, "error");
       }
     };
 
@@ -471,22 +589,29 @@ export default function BeneficiaireDetailPage() {
     return (a.id || "").localeCompare(b.id || "");
   });
   const newBeneficiaire = isNewBeneficiaire(beneficiaire);
+  const selectedEvaluation = evaluations.find((item) => item.id === selectedEvaluationId) ?? null;
+  const beneficiaryRapports = rapportsRediges.filter((rapport) => rapport.beneficiaire.id === id);
+  const selectedRapport = beneficiaryRapports.find((rapport) => rapport.id === selectedRapportId) ?? null;
+  const electronicMonitoringEnabled = hasElectronicMonitoring(beneficiaire.obligations);
   const detailTabs = [
     { key: "OBLIGATIONS" as const, label: "Obligations", icon: Shield },
     { key: "HISTORIQUE" as const, label: "Historique de conformité", icon: Activity },
-    { key: "DOCUMENTS" as const, label: "Documents & rapports", icon: FileText },
+    { key: "RAPPORTS" as const, label: "Rapports & Évals", icon: AlignLeft },
+    { key: "DOCUMENTS" as const, label: "Documents", icon: FileText },
   ];
 
   function handleOpenModify(obligation: Obligation) {
     if (profilConfirme) {
       setSaveError("Le profil est deja confirme, les obligations sont verrouillees.");
+      showToast("Le profil est deja confirme, les obligations sont verrouillees.", "error");
       return;
     }
     setSelectedObligation(obligation);
+    const frequence = obligation.frequence ?? "";
     setForm({
       type: obligation.type ?? "",
-      frequence: obligation.frequence ?? "",
-      jourSemaine: obligation.jourSemaine ?? "",
+      frequence,
+      jourSemaine: frequence === "QUOTIDIEN" ? "" : obligation.jourSemaine ?? "",
       heure: toTimeInput(obligation.heure ?? undefined),
       lieu: obligation.lieu ?? "",
       dateDebut: toDateInput(obligation.dateDebut ?? undefined),
@@ -499,76 +624,10 @@ export default function BeneficiaireDetailPage() {
     setIsModalOpen(true);
   }
 
-  function closePreviewDocument() {
-    if (previewDocument?.revokeOnClose) {
-      URL.revokeObjectURL(previewDocument.url);
-    }
-    setPreviewDocument(null);
-  }
-
-  async function handlePreviewDocument(document: {
-    title: string;
-    previewUrl?: string;
-    mimeType?: string;
-  }, index: number) {
-    if (!document.previewUrl) {
-      return;
-    }
-
-    try {
-      setDocumentError(null);
-      setPreviewLoadingIndex(index);
-
-      if (/^https?:\/\//i.test(document.previewUrl)) {
-        setPreviewDocument({
-          title: document.title,
-          url: document.previewUrl,
-          mimeType: document.mimeType,
-        });
-        return;
-      }
-
-      const { blob } = await api.download(document.previewUrl);
-      const objectUrl = URL.createObjectURL(blob);
-
-      if (previewDocument?.revokeOnClose) {
-        URL.revokeObjectURL(previewDocument.url);
-      }
-
-      setPreviewDocument({
-        title: document.title,
-        url: objectUrl,
-        mimeType: document.mimeType || blob.type || undefined,
-        revokeOnClose: true,
-      });
-    } catch (err) {
-      setDocumentError((err as Error).message);
-    } finally {
-      setPreviewLoadingIndex(null);
-    }
-  }
-
   function handleCloseModal() {
     setIsModalOpen(false);
     setSelectedObligation(null);
     setSaveError(null);
-  }
-
-  async function handleConfirm(obligationId: string) {
-    if (profilConfirme) {
-      setSaveError("Le profil est deja confirme, les obligations sont verrouillees.");
-      return;
-    }
-    try {
-      setActioningId(obligationId);
-      setSaveError(null);
-      await api.patch(`/obligations/${obligationId}/validate`, {});
-      await refetch();
-    } catch (err) {
-      setSaveError((err as Error).message);
-    } finally {
-      setActioningId(null);
-    }
   }
 
   async function handleConfirmProfil() {
@@ -579,6 +638,7 @@ export default function BeneficiaireDetailPage() {
       await refetch();
     } catch (err) {
       setSaveError((err as Error).message);
+      showToast((err as Error).message, "error");
     } finally {
       setSaving(false);
     }
@@ -587,6 +647,7 @@ export default function BeneficiaireDetailPage() {
   async function handleConfigurerBiometrie() {
     if (!id) {
       setBiometrieError("Identifiant de beneficiaire invalide.");
+      showToast("Identifiant de beneficiaire invalide.", "error");
       return;
     }
 
@@ -613,12 +674,15 @@ export default function BeneficiaireDetailPage() {
       if (response.data.statusLocal === "CONFIRME") {
         setBiometrieNotice("Biométrie configurée avec succès.");
         setBiometrieError(null);
+        showToast("Biométrie configurée avec succès.", "success");
       } else {
         setBiometrieNotice("Enrôlement biométrique lancé. Suivi de confirmation en cours.");
+        showToast("Enrôlement biométrique lancé. Suivi de confirmation en cours.", "info");
       }
       await refetch();
     } catch (err) {
       setBiometrieError((err as Error).message);
+      showToast((err as Error).message, "error");
     } finally {
       setBiometrieLoading(false);
     }
@@ -628,21 +692,25 @@ export default function BeneficiaireDetailPage() {
     event.preventDefault();
     if (!id) {
       setDocumentError("Identifiant de bénéficiaire invalide.");
+      showToast("Identifiant de bénéficiaire invalide.", "error");
       return;
     }
 
     if (!documentForm.typeDocument.trim()) {
       setDocumentError("Le type de document est requis.");
+      showToast("Le type de document est requis.", "error");
       return;
     }
 
     if (!documentForm.titre.trim()) {
       setDocumentError("Le titre du document est requis.");
+      showToast("Le titre du document est requis.", "error");
       return;
     }
 
     if (!documentForm.file) {
       setDocumentError("Choisis un fichier avant de téléverser.");
+      showToast("Choisis un fichier avant de téléverser.", "error");
       return;
     }
 
@@ -682,9 +750,12 @@ export default function BeneficiaireDetailPage() {
       });
       setDocumentInputKey((value) => value + 1);
       setDocumentNotice("Document televerse avec succes.");
+      showToast("Document televerse avec succes.", "success");
+      setDocumentDrawerOpen(false);
       await refetch();
     } catch (error) {
       setDocumentError((error as Error).message);
+      showToast((error as Error).message, "error");
     } finally {
       setDocumentUploading(false);
     }
@@ -702,7 +773,7 @@ export default function BeneficiaireDetailPage() {
     const payload = {
       type: form.type || undefined,
       frequence: form.frequence || undefined,
-      jour_semaine: form.jourSemaine || undefined,
+      jour_semaine: form.frequence === "QUOTIDIEN" ? undefined : form.jourSemaine || undefined,
       heure: form.heure || undefined,
       lieu: form.lieu || undefined,
       date_debut: form.dateDebut || undefined,
@@ -750,13 +821,13 @@ export default function BeneficiaireDetailPage() {
           >
             <Bell size={16} />
           </button>
-          <button
-            type="button"
+          <Link
+            to="/rapports/rediges"
             className="flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold text-on-error-container bg-error-container hover:bg-error-container/80 transition-colors uppercase tracking-wider flex-1 sm:flex-none"
           >
             <AlertTriangle size={14} />
             Alerte d&apos;urgence
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -777,7 +848,7 @@ export default function BeneficiaireDetailPage() {
                 Nouveau beneficiaire importé depuis la DAPG
               </h2>
               <p className="mt-1 text-sm text-on-secondary-container">
-                Ce profil vient d&apos;être généré automatiquement. Vérifie les informations, complète les champs manquants et valide les obligations structurées.
+                Ce profil vient d&apos;être généré automatiquement. Vérifiez les informations, complètez les champs manquants et validez les obligations structurées.
               </p>
             </div>
             <div className="rounded-md bg-white px-3 py-2 text-xs font-medium text-on-secondary-container">
@@ -804,7 +875,7 @@ export default function BeneficiaireDetailPage() {
               </div>
               <h1 className="text-lg font-bold text-on-surface mt-3 truncate">{fullName}</h1>
               <p className="text-xs text-on-secondary-container font-mono mt-1">
-                {dossier?.numeroDossier ?? "—"}
+                {dossier?.numeroMandatDepot ?? "—"}
               </p>
 
               <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-on-secondary-container">
@@ -891,8 +962,13 @@ export default function BeneficiaireDetailPage() {
             )}
           </div>
 
+          {electronicMonitoringEnabled && (
           <Section title="Boucle GPS récente">
-            <div className="rounded-md h-36 flex items-center justify-center relative overflow-hidden bg-[linear-gradient(135deg,#0f2620_0%,#17362e_100%)]">
+            <Link
+              to="/surveillance"
+              className="rounded-md h-36 flex items-center justify-center relative overflow-hidden bg-[linear-gradient(135deg,#0f2620_0%,#17362e_100%)] outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Ouvrir la page de surveillance GPS"
+            >
               <MapPin size={18} className="text-primary-fixed z-10" />
               <div
                 className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(0deg,transparent,transparent_12px,#c7eade_12px,#c7eade_13px),repeating-linear-gradient(90deg,transparent,transparent_12px,#c7eade_12px,#c7eade_13px)]"
@@ -902,11 +978,12 @@ export default function BeneficiaireDetailPage() {
                   Suivi actif
                 </span>
               </div>
-            </div>
-            <p className="text-xs text-on-secondary-container mt-3">
+            </Link>
+            {/* <p className="text-xs text-on-secondary-container mt-3">
               Dernière position connue : Zone 4
-            </p>
+            </p> */}
           </Section>
+          )}
 
           {dossier?.obligations && (
             <Section title="Obligations (texte brut DAPG)">
@@ -946,17 +1023,17 @@ export default function BeneficiaireDetailPage() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-col xs:flex-row items-stretch gap-2">
-              {/* <button className="px-3 py-2 rounded-md bg-surface-low text-xs font-bold text-[#2e4d44] hover:bg-surface-high transition-colors whitespace-nowrap">
+            {/* <div className="flex flex-col xs:flex-row items-stretch gap-2">
+              <button className="px-3 py-2 rounded-md bg-surface-low text-xs font-bold text-[#2e4d44] hover:bg-surface-high transition-colors whitespace-nowrap">
                 Mettre à jour le risque
-              </button> */}
+              </button> 
               <button className="px-3 py-2 rounded-md bg-primary text-xs font-bold text-white hover:bg-[#2e4d44] transition-colors whitespace-nowrap">
                 Ajouter un rapport
               </button>
-            </div>
+            </div> */}
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-4">
             {detailTabs.map((tab) => {
               const Icon = tab.icon;
               const active = activeSection === tab.key;
@@ -1021,25 +1098,13 @@ export default function BeneficiaireDetailPage() {
                               : "bg-error-container text-on-error-container"
                           }`}
                         >
-                          {profilConfirme || obligation.statutStructuration === "VALIDE" ? "Validé" : "A valider"}
+                          {profilConfirme || obligation.statutStructuration === "VALIDE" ? "Configuré" : "A configurer"}
                         </span>
                         <div className="flex items-center gap-2">
-                          {!profilConfirme && obligation.statutStructuration !== "VALIDE" && (
-                            <button
-                              type="button"
-                              onClick={() => handleConfirm(obligation.id)}
-                              disabled={actioningId === obligation.id || saving}
-                              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors bg-[#ffb86b] text-[#2b1600] hover:bg-[#ffa94d]"
-                            >
-                              <Check size={12} />
-                              Confirmer
-                            </button>
-                          )}
-
                           <button
                             type="button"
                             onClick={() => handleOpenModify(obligation)}
-                            disabled={profilConfirme || actioningId === obligation.id || saving}
+                            disabled={profilConfirme || saving}
                             className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
                               profilConfirme
                                 ? "bg-surface-high text-outline-variant cursor-not-allowed"
@@ -1047,7 +1112,7 @@ export default function BeneficiaireDetailPage() {
                             }`}
                           >
                             <Pencil size={12} />
-                            Configurer
+                            {obligation.statutStructuration === "VALIDE" ? "Modifier" : "Configurer"}
                           </button>
                         </div>
                       </div>
@@ -1191,16 +1256,106 @@ export default function BeneficiaireDetailPage() {
                       Profil eligible a un assouplissement du suivi nocturne.
                     </p>
                   </div>
-                  <button className="w-full mt-2 rounded-md bg-primary text-white text-xs font-bold py-2 hover:bg-primary/90 transition-colors">
+                  <Link to="/rapports/rediges" className="block w-full mt-2 rounded-md bg-primary text-center text-white text-xs font-bold py-2 hover:bg-primary/90 transition-colors">
                     Générer un dossier officiel
-                  </button>
+                  </Link>
                 </div>
               </Section>
             </div>
           )}
 
+          {activeSection === "RAPPORTS" && (
+            <Section title="Évaluations et rapports reçus">
+              <div className="space-y-3">
+                {beneficiaryRapports.map((rapport) => (
+                  <button
+                    key={rapport.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedRapportId(rapport.id);
+                      setRapportDrawerOpen(true);
+                    }}
+                    className="grid w-full grid-cols-[minmax(0,1.2fr)_140px_120px_44px] items-center gap-4 rounded-xl border border-surface-high bg-white px-5 py-4 text-left transition-all hover:border-primary/30"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-on-surface">
+                        {rapport.titre ?? `Rapport ${rapport.type.toLowerCase()}`}
+                      </p>
+                      <p className="mt-1 text-xs text-on-surface-variant">
+                        Rapport rédigé
+                      </p>
+                    </div>
+                    <div className="text-xs text-on-surface-variant">
+                      {rapport.createdAt.slice(0, 10)}
+                    </div>
+                    <div>
+                      <span className="inline-flex rounded-full bg-primary-fixed px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#2e4d44]">
+                        {rapport.statut}
+                      </span>
+                    </div>
+                    <div className="flex justify-end text-primary">
+                      <Eye size={14} />
+                    </div>
+                  </button>
+                ))}
+                {evaluationsError ? (
+                  <div className="rounded-md border border-error/20 bg-error/10 px-4 py-3 text-sm text-on-error-container">
+                    {evaluationsError}
+                  </div>
+                ) : evaluationsLoading ? (
+                  <div className="flex min-h-32 items-center justify-center rounded-md border border-surface-low bg-white text-on-surface-variant">
+                    <Loader2 size={18} className="animate-spin" />
+                  </div>
+                ) : evaluations.length > 0 ? (
+                  evaluations.map((evaluation) => {
+                    const selected = selectedEvaluation?.id === evaluation.id;
+                    return (
+                      <button
+                        key={evaluation.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedEvaluationId(evaluation.id);
+                          setEvaluationDrawerOpen(true);
+                        }}
+                        className={`grid w-full grid-cols-[minmax(0,1.2fr)_140px_120px_44px] items-center gap-4 rounded-xl border px-5 py-4 text-left transition-all ${
+                          selected
+                            ? "border-primary bg-primary-fixed/10"
+                            : "border-surface-high bg-white hover:border-primary/30"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-on-surface">
+                            {evaluation.affectation.libelleSuivi}
+                          </p>
+                          <p className="mt-1 text-xs text-on-surface-variant">
+                            Par {evaluation.service.nom}
+                          </p>
+                        </div>
+                        <div className="text-xs text-on-surface-variant">
+                          Période : <span className="font-bold">{evaluation.periodeMois}</span>
+                        </div>
+                        <div>
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${getConformiteTone(evaluation.conformite)}`}>
+                            {getConformiteLabel(evaluation.conformite)}
+                          </span>
+                        </div>
+                        <div className="flex justify-end text-primary">
+                          <Eye size={14} />
+                        </div>
+                      </button>
+                    );
+                  })
+                ) : beneficiaryRapports.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-surface-high bg-surface-low p-8 text-center text-xs text-on-secondary-container">
+                    Aucun rapport reçu pour le moment.
+                  </div>
+                ) : null}
+              </div>
+            </Section>
+          )}
+
           {activeSection === "DOCUMENTS" && (
-            <Section title="Documents du détenu">
+            <Section title="Gestion documentaire">
               {documentNotice && (
                 <div className="mb-3 flex items-start gap-2 rounded-md border border-[#86efac] bg-[#dcfce7] px-3 py-2 text-xs font-semibold text-[#166534]">
                   <Check size={14} className="mt-0.5 shrink-0" />
@@ -1212,197 +1367,272 @@ export default function BeneficiaireDetailPage() {
                   {documentError}
                 </div>
               )}
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <div className="rounded-md border border-surface-low bg-white p-4">
-                    <div className="flex items-center gap-2 text-primary font-semibold text-sm">
-                      <FolderOpen size={14} />
-                      Documents disponibles
-                    </div>
-                    <p className="mt-1 text-xs text-on-secondary-container">
-                      Arrêtés, justificatifs, rapports et pièces jointes liés au bénéficiaire.
-                    </p>
-                  </div>
-
-                  {documentCards.length > 0 ? (
-                    documentCards.map((document, index) => (
-                      <div key={`${document.title}-${index}`} className="flex items-start gap-3 rounded-md bg-surface-low p-3">
-                        <div className="w-9 h-9 rounded-md bg-primary-fixed flex items-center justify-center text-[#2e4d44]">
-                          <FileText size={14} />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-on-surface">{document.title}</p>
-                          <p className="text-xs text-on-secondary-container mt-1">{document.kind}</p>
-                          {document.subtitle && (
-                            <p className="text-[10px] uppercase tracking-wider text-on-secondary-container mt-2">
-                              {document.subtitle}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {document.previewUrl ? (
-                            <button
-                              type="button"
-                              onClick={() => void handlePreviewDocument(document, index)}
-                              disabled={previewLoadingIndex === index}
-                              className="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-surface-high transition-colors"
-                            >
-                              {previewLoadingIndex === index ? (
-                                <Loader2 size={12} className="animate-spin" />
-                              ) : (
-                                <Eye size={12} />
-                              )}
-                              {previewLoadingIndex === index ? "Chargement" : "Aperçu"}
-                            </button>
-                          ) : (
-                            <span className="rounded-md bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-outline-variant">
-                              Sans aperçu
-                            </span>
-                          )}
-                        </div>
+              <div className="space-y-3">
+                <div className="rounded-md border border-surface-low bg-white p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+                        <FolderOpen size={14} />
+                        Tous les documents
                       </div>
-                    ))
-                  ) : (
-                    <div className="rounded-md border border-dashed border-surface-low bg-white p-4 text-xs text-on-secondary-container">
-                      Aucun document disponible pour le moment.
+                      <p className="mt-1 text-xs text-on-secondary-container">
+                        Arrêtés, pièces jointes des évaluations et fichiers téléversés.
+                      </p>
                     </div>
-                  )}
-                </div>
-
-                <form onSubmit={handleDocumentSubmit} className="rounded-md border border-surface-low bg-white p-4 space-y-4">
-                  <div className="flex items-center gap-2 text-primary font-semibold text-sm">
-                    <Upload size={14} />
-                    Charger un document
-                  </div>
-                  <p className="text-xs text-on-secondary-container">
-                    Dépose ici les justificatifs, rapports, demandes ou tout document lié au détenu.
-                  </p>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
-                    Type de document <span className="text-on-error-container">*</span>
-                    <span className="ml-2 text-[10px] font-medium normal-case tracking-normal text-on-error-container">
-                      Champ requis
-                    </span>
-                    <select
-                      value={documentForm.typeDocument}
-                      onChange={(event) => {
-                        setDocumentError(null);
-                        setDocumentForm((prev) => ({ ...prev, typeDocument: event.target.value }));
-                      }}
-                      aria-required="true"
-                      className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
-                    >
-                      <option value="JUSTIFICATIF">Justificatif</option>
-                      <option value="RAPPORT">Rapport</option>
-                      <option value="DEMANDE">Demande</option>
-                      <option value="ARRETE">Arrêté</option>
-                      <option value="AUTRE">Autre</option>
-                    </select>
-                  </label>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
-                    Titre <span className="text-on-error-container">*</span>
-                    <span className="ml-2 text-[10px] font-medium normal-case tracking-normal text-on-error-container">
-                      Champ requis
-                    </span>
-                    <input
-                      type="text"
-                      value={documentForm.titre}
-                      onChange={(event) => {
-                        setDocumentError(null);
-                        setDocumentForm((prev) => ({ ...prev, titre: event.target.value }));
-                      }}
-                      aria-required="true"
-                      className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
-                      placeholder="Ex. Arrêté ministériel"
-                    />
-                  </label>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
-                    Description
-                    <textarea
-                      value={documentForm.description}
-                      onChange={(event) =>
-                        setDocumentForm((prev) => ({ ...prev, description: event.target.value }))
-                      }
-                      rows={3}
-                      className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
-                      placeholder="Décris le document ou le contexte"
-                    />
-                  </label>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
-                    Fichier <span className="text-on-error-container">*</span>
-                    <span className="ml-2 text-[10px] font-medium normal-case tracking-normal text-on-error-container">
-                      Champ requis
-                    </span>
-                    <input
-                      key={documentInputKey}
-                      type="file"
-                      onChange={(event) => {
-                        setDocumentError(null);
-                        setDocumentForm((prev) => ({
-                          ...prev,
-                          file: event.target.files?.[0] ?? null,
-                        }));
-                      }}
-                      aria-required="true"
-                      className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none"
-                    />
-                    <span className="mt-2 block text-[11px] normal-case tracking-normal text-on-secondary-container">
-                      {documentForm.file ? documentForm.file.name : "Aucun fichier sélectionné"}
-                    </span>
-                  </label>
-                  <div className="flex items-center justify-end">
                     <button
-                      type="submit"
-                      disabled={documentUploading}
-                      className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#2e4d44] disabled:cursor-not-allowed disabled:opacity-60"
+                      type="button"
+                      onClick={() => {
+                        setDocumentError(null);
+                        setDocumentDrawerOpen(true);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#2e4d44]"
                     >
-                      {documentUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                      Téléverser le document
+                      <Upload size={14} />
+                      Téléverser
                     </button>
                   </div>
-                </form>
+                </div>
+
+                {documentCards.length > 0 ? (
+                  documentCards.map((document, index) => (
+                    <div key={`${document.title}-${index}`} className="flex items-start gap-3 rounded-md bg-surface-low p-3">
+                      <div className="w-9 h-9 rounded-md bg-primary-fixed flex items-center justify-center text-[#2e4d44]">
+                        <FileText size={14} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-on-surface">{document.title}</p>
+                        <p className="text-xs text-on-secondary-container mt-1">{document.kind}</p>
+                        {document.subtitle && (
+                          <p className="text-[10px] uppercase tracking-wider text-on-secondary-container mt-2">
+                            {document.subtitle}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {document.href ? (
+                          <a
+                            href={document.href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-surface-high transition-colors"
+                          >
+                            <ArrowUpRight size={12} />
+                            Télécharger
+                          </a>
+                        ) : (
+                          <span className="rounded-md bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-outline-variant">
+                            Sans fichier
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-md border border-dashed border-surface-low bg-white p-4 text-xs text-on-secondary-container">
+                    Aucun document disponible pour le moment.
+                  </div>
+                )}
               </div>
             </Section>
           )}
         </div>
       </div>    
 
-      {previewDocument && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-[2px] p-4">
-          <div className="w-full max-w-4xl overflow-hidden rounded-xl border border-surface-high bg-white shadow-2xl">
-            <div className="flex items-center justify-between gap-4 border-b border-surface-high bg-surface px-5 py-4">
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-on-secondary-container">
-                  Aperçu du document
-                </p>
-                <p className="truncate text-base font-bold text-on-surface">{previewDocument.title}</p>
-              </div>
-              <button
-                type="button"
-                onClick={closePreviewDocument}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-surface-high bg-white text-on-secondary-container hover:bg-surface-low"
-                aria-label="Fermer l'aperçu"
-              >
-                <X size={16} />
-              </button>
+      <SideDrawer open={evaluationDrawerOpen && !!selectedEvaluation} onClose={() => setEvaluationDrawerOpen(false)} showCloseButton>
+        {selectedEvaluation ? (
+          <div className="flex h-full flex-col overflow-y-auto p-6">
+            <div className="pr-12">
+              <span className={`mb-3 inline-block rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.25em] ${getConformiteTone(selectedEvaluation.conformite)}`}>
+                {getConformiteLabel(selectedEvaluation.conformite)}
+              </span>
+              <h2 className="text-[28px] font-extrabold leading-tight text-[#17362e]">
+                {selectedEvaluation.affectation.libelleSuivi}
+              </h2>
+              <p className="mt-2 text-sm text-[#414845]">
+                Évaluation soumise par {selectedEvaluation.service.nom}.
+              </p>
             </div>
-            <div className="h-[75vh] bg-surface-low">
-              {previewDocument.mimeType?.startsWith("image/") ? (
-                <img
-                  src={previewDocument.url}
-                  alt={previewDocument.title}
-                  className="h-full w-full object-contain"
-                />
-              ): (
-                <iframe
-                  src={previewDocument.url}
-                  title={previewDocument.title}
-                  className="h-full w-full border-0"
-                />
-              )}
+            <div className="mt-6 space-y-4">
+              <div className="rounded-lg bg-[#f2f4f3] p-4 text-sm text-[#191c1c]">
+                <p><span className="font-semibold">Code suivi :</span> {selectedEvaluation.affectation.codeSuivi}</p>
+                <p className="mt-2"><span className="font-semibold">Période :</span> {selectedEvaluation.periodeMois}</p>
+                <p className="mt-2"><span className="font-semibold">Observations :</span> {selectedEvaluation.observations || "Aucune observation renseignée."}</p>
+              </div>
+              <div>
+                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.24em] text-[#17362e]">
+                  Présences
+                </p>
+                <div className="max-h-64 overflow-y-auto rounded-lg border border-surface-high bg-white p-2">
+                  <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                    {selectedEvaluation.occurrences.map((occ) => (
+                      <div key={occ.id} className="flex items-center justify-between rounded-md bg-surface-low px-2 py-1.5 text-xs">
+                        <span className="font-mono font-medium">{occ.dateSuivi}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${occ.present ? "bg-primary-fixed text-[#17362e]" : "bg-error-container text-on-error-container"}`}>
+                          {occ.present ? "Présent" : "Absent"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        ) : null}
+      </SideDrawer>
+
+      <SideDrawer open={rapportDrawerOpen && !!selectedRapport} onClose={() => setRapportDrawerOpen(false)} showCloseButton>
+        {selectedRapport ? (
+          <div className="flex h-full flex-col overflow-y-auto p-6">
+            <div className="pr-12">
+              <span className="mb-3 inline-block rounded-full bg-primary-fixed px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-[#2e4d44]">
+                Rapport
+              </span>
+              <h2 className="text-[28px] font-extrabold leading-tight text-[#17362e]">
+                {selectedRapport.titre ?? `Rapport ${selectedRapport.type.toLowerCase()}`}
+              </h2>
+              <p className="mt-2 text-sm text-[#414845]">
+                Statut : {selectedRapport.statut}
+              </p>
+            </div>
+            <div className="mt-6 space-y-3">
+              {selectedRapport.contenu?.sections?.map((section) => (
+                <div key={section.titre} className="rounded-lg border border-surface-high bg-white p-4">
+                  <h3 className="text-[11px] font-black uppercase tracking-[0.22em] text-[#17362e]">
+                    {section.titre}
+                  </h3>
+                  {section.colonnes ? (
+                    <div className="mt-3 overflow-hidden rounded-lg border border-surface-high">
+                      <table className="w-full text-left text-xs">
+                        <tbody>
+                          {section.lignes.map((ligne, index) => (
+                            <tr key={index} className="border-t border-surface-high first:border-t-0">
+                              {(Array.isArray(ligne) ? ligne : typeof ligne === "object" && "cellules" in ligne ? ligne.cellules ?? [] : [String(ligne)]).map((cell, cellIndex) => (
+                                <td key={cellIndex} className="px-3 py-2">{cell}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#191c1c]">
+                      {section.texte ?? section.lignes.map((ligne) => Array.isArray(ligne) ? ligne.join(" - ") : String(ligne)).join("\n")}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </SideDrawer>
+
+      <SideDrawer open={documentDrawerOpen} onClose={() => setDocumentDrawerOpen(false)} showCloseButton>
+        <div className="flex h-full flex-col overflow-y-auto p-6">
+          <div className="space-y-6">
+            <div className="pr-12">
+              <span className="mb-3 inline-block rounded-full bg-primary-fixed px-2 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#2e4d44]">
+                Téléversement
+              </span>
+              <h2 className="text-[28px] font-extrabold leading-tight text-[#17362e]">
+                Ajouter un document
+              </h2>
+              <p className="mt-2 text-sm text-[#414845]">
+                Dépose ici les justificatifs, rapports, demandes ou tout document lié au bénéficiaire.
+              </p>
+            </div>
+
+            {documentError && (
+              <div className="rounded-xl border border-error/20 bg-error/10 px-4 py-3 text-sm text-on-error-container">
+                {documentError}
+              </div>
+            )}
+
+            <form onSubmit={handleDocumentSubmit} className="space-y-4">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
+                Type de document <span className="text-on-error-container">*</span>
+                <select
+                  value={documentForm.typeDocument}
+                  onChange={(event) => {
+                    setDocumentError(null);
+                    setDocumentForm((prev) => ({ ...prev, typeDocument: event.target.value }));
+                  }}
+                  aria-required="true"
+                  className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="JUSTIFICATIF">Justificatif</option>
+                  <option value="RAPPORT">Rapport</option>
+                  <option value="DEMANDE">Demande</option>
+                  <option value="ARRETE">Arrêté</option>
+                  <option value="AUTRE">Autre</option>
+                </select>
+              </label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
+                Titre <span className="text-on-error-container">*</span>
+                <input
+                  type="text"
+                  value={documentForm.titre}
+                  onChange={(event) => {
+                    setDocumentError(null);
+                    setDocumentForm((prev) => ({ ...prev, titre: event.target.value }));
+                  }}
+                  aria-required="true"
+                  className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder="Ex. Arrêté ministériel"
+                />
+              </label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
+                Description
+                <textarea
+                  value={documentForm.description}
+                  onChange={(event) =>
+                    setDocumentForm((prev) => ({ ...prev, description: event.target.value }))
+                  }
+                  rows={4}
+                  className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder="Décris le document ou le contexte"
+                />
+              </label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#6f0015]">
+                Fichier <span className="text-on-error-container">*</span>
+                <input
+                  key={documentInputKey}
+                  type="file"
+                  onChange={(event) => {
+                    setDocumentError(null);
+                    setDocumentForm((prev) => ({
+                      ...prev,
+                      file: event.target.files?.[0] ?? null,
+                    }));
+                  }}
+                  aria-required="true"
+                  className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none"
+                />
+                <span className="mt-2 block text-[11px] normal-case tracking-normal text-on-secondary-container">
+                  {documentForm.file ? documentForm.file.name : "Aucun fichier sélectionné"}
+                </span>
+              </label>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDocumentDrawerOpen(false)}
+                  className="inline-flex items-center gap-2 rounded-md border border-surface-high bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-on-surface transition-colors hover:bg-surface-low"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={documentUploading}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#2e4d44] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {documentUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                  Téléverser le document
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      )}
+      </SideDrawer>
 
       {isModalOpen && selectedObligation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4">
@@ -1458,7 +1688,14 @@ export default function BeneficiaireDetailPage() {
                   Frequence
                   <select
                     value={form.frequence}
-                    onChange={(event) => setForm((prev) => ({ ...prev, frequence: event.target.value }))}
+                    onChange={(event) => {
+                      const frequence = event.target.value;
+                      setForm((prev) => ({
+                        ...prev,
+                        frequence,
+                        jourSemaine: frequence === "QUOTIDIEN" ? "" : prev.jourSemaine,
+                      }));
+                    }}
                     className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
                   >
                     <option value="">—</option>
@@ -1473,7 +1710,8 @@ export default function BeneficiaireDetailPage() {
                   <select
                     value={form.jourSemaine}
                     onChange={(event) => setForm((prev) => ({ ...prev, jourSemaine: event.target.value }))}
-                    className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
+                    disabled={form.frequence === "QUOTIDIEN"}
+                    className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-surface-high disabled:text-on-secondary-container disabled:opacity-60"
                   >
                     <option value="">—</option>
                     <option value="LUNDI">Lundi</option>

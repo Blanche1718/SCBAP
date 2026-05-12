@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  createDossierController,
   exportDossiersController,
   getDossierByIdController,
   getDossiersController,
@@ -21,6 +22,7 @@ dossierRouter.get("/", getDossiersController);
 dossierRouter.get("/export", exportDossiersController);
 dossierRouter.post("/dapg/sync", syncAllDapgLiberationConditionnellesController);
 dossierRouter.post("/dapg/:dapgId/sync", syncDapgLiberationConditionnelleController);
+dossierRouter.post("/", createDossierController);
 dossierRouter.get("/:id", getDossierByIdController);
 dossierRouter.get("/:dossierId/obligations", getObligationsByDossierController);
 dossierRouter.post("/:dossierId/obligations", createObligationController);

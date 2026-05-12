@@ -1,5 +1,5 @@
 import { DAPG_API_KEY, DAPG_BASE_URL } from "./config";
-import type { DapgLiberationConditionnelle } from "./types";
+import type { DapgLiberationConditionnelle, DapgObligationSpecifique } from "./types";
 
 const DAPG_TIMEOUT_MS = 30_000;
 const RETRIABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
@@ -79,4 +79,13 @@ export async function getDapgLiberationConditionnelle(
   );
 
   return response.data;
+}
+
+export async function listDapgObligationsSpecifiques(
+  page = 1,
+  perPage = 50,
+): Promise<DapgPaginatedResponse<DapgObligationSpecifique>> {
+  return dapgRequest<DapgPaginatedResponse<DapgObligationSpecifique>>(
+    `/obligations/specifiques?page=${page}&per_page=${perPage}`,
+  );
 }

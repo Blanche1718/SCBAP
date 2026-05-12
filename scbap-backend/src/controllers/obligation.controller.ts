@@ -7,6 +7,12 @@ import {
   updateObligation,
   validateObligation,
 } from "../services/obligation.service";
+import {
+  deleteSpecificObligationReference,
+  listSpecificObligationReferences,
+  syncDapgSpecificObligationReferences,
+  updateSpecificObligationReference,
+} from "../services/obligation-specifique-reference.service";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -103,6 +109,76 @@ export async function validateObligationController(
     res.status(200).json({
       message: "Obligation validee avec succes",
       data: obligation,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function listSpecificObligationReferencesController(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const references = await listSpecificObligationReferences();
+
+    res.status(200).json({
+      message: "Obligations specifiques recuperees avec succes",
+      data: references,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function syncSpecificObligationReferencesController(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const result = await syncDapgSpecificObligationReferences();
+
+    res.status(200).json({
+      message: "Obligations specifiques synchronisees avec succes",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateSpecificObligationReferenceController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = parseUuid(req.params.id, "obligation specifique");
+    const reference = await updateSpecificObligationReference(id, req.body);
+
+    res.status(200).json({
+      message: "Obligation specifique mise a jour avec succes",
+      data: reference,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteSpecificObligationReferenceController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = parseUuid(req.params.id, "obligation specifique");
+    const reference = await deleteSpecificObligationReference(id);
+
+    res.status(200).json({
+      message: "Obligation specifique supprimee avec succes",
+      data: reference,
     });
   } catch (error) {
     next(error);

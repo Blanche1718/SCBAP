@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  createUserByAdminController,
   getCurrentUserController,
   getUsersController,
   getUsersMetaController,
@@ -18,6 +19,7 @@ usersRouter.patch("/me/password", updateOwnPasswordController);
 
 usersRouter.get("/", requireRole("ADMIN"), getUsersController);
 usersRouter.get("/meta", requireRole("ADMIN"), getUsersMetaController);
+usersRouter.post("/", requireRole("ADMIN"), createUserByAdminController);
 usersRouter.patch("/:id", requireRole("ADMIN"), updateUserByAdminController);
 usersRouter.post(
   "/:id/reset-password",

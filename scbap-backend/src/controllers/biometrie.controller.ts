@@ -9,6 +9,7 @@ import {
   startBiometrieEnrolement,
   forceVerifyBiometrieEnrolement,
 } from "../services/biometrie.service";
+import { syncBeneficiaireNfcBadges } from "../services/nfc-sync.service";
 
 export async function startBiometrieEnrolementController(
   req: Request,
@@ -82,6 +83,31 @@ export async function forceVerifyBiometrieEnrolementController(
 
     res.status(200).json({
       message: result.message,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function syncNfcBadgesController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    if (!req.user) {
+      throw new HttpError(401, "Utilisateur non authentifie");
+    }
+
+    if (req.user.role?.nom !== "ADMIN") {
+      throw new HttpError(403, "Seuls les administrateurs peuvent synchroniser les NFC");
+    }
+
+    const result = await syncBeneficiaireNfcBadges();
+
+    res.status(200).json({
+      message: `${result.updated} NFC associé(s), ${result.unchanged} déjà à jour`,
       data: result,
     });
   } catch (error) {

@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   AlertCircle,
+  ArrowRight,
   Building2,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   KeyRound,
   Loader2,
+  Plus,
   RefreshCw,
   Search,
   Save,
@@ -13,8 +17,11 @@ import {
   UserRoundCog,
   Users,
 } from "lucide-react";
+import { SideDrawer } from "../../components/ui/SideDrawer";
+import { useToast } from "../../context/ToastContext";
 import { api } from "../../lib/api";
 import type { ApiResponse } from "../../types";
+import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
 
 type Role = {
   id: string;
@@ -56,6 +63,37 @@ type FormState = {
   structureId: string;
 };
 
+type AdminSection = "MENU" | "USERS" | "OBLIGATIONS" | "NFC";
+
+type ObligationReference = {
+  id: string;
+  dapgId?: number | null;
+  section?: string | null;
+  code: string;
+  libelle: string;
+  active: boolean;
+  categorieId: string;
+  categorie: {
+    id: string;
+    nom: string;
+  };
+};
+
+type NfcSyncResult = {
+  fetched: number;
+  recordsWithNfc: number;
+  matched: number;
+  updated: number;
+  unchanged: number;
+  conflicts: number;
+  missingInScbap: number;
+  issues: Array<{
+    numeroMandat?: string;
+    nfc?: string;
+    message: string;
+  }>;
+};
+
 const DEFAULT_FORM: FormState = {
   nom: "",
   prenom: "",
@@ -67,17 +105,29 @@ const DEFAULT_FORM: FormState = {
 };
 
 export default function AdministrationPage() {
+  const { showToast } = useToast();
+  const [adminSection, setAdminSection] = useState<AdminSection>("MENU");
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [userCreateDrawerOpen, setUserCreateDrawerOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<FormState>(DEFAULT_FORM);
   const [meta, setMeta] = useState<UsersMeta>({ roles: [], structures: [] });
+  const [obligationReferences, setObligationReferences] = useState<ObligationReference[]>([]);
+  const [obligationsLoading, setObligationsLoading] = useState(false);
+  const [obligationsError, setObligationsError] = useState<string | null>(null);
+  const [editingReferenceId, setEditingReferenceId] = useState<string | null>(null);
+  const [nfcSyncing, setNfcSyncing] = useState(false);
+  const [nfcSyncResult, setNfcSyncResult] = useState<NfcSyncResult | null>(null);
+  const [nfcSyncError, setNfcSyncError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
   const [roleFilter, setRoleFilter] = useState("TOUS");
   const [structureFilter, setStructureFilter] = useState("TOUS");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
 
@@ -109,6 +159,7 @@ export default function AdministrationPage() {
         }
       } catch (err) {
         if (active) {
+          showToast(err instanceof Error ? err.message : "Erreur de chargement", "error");
           setError(err instanceof Error ? err.message : "Erreur de chargement");
         }
       } finally {
@@ -178,8 +229,30 @@ export default function AdministrationPage() {
     };
   }, [users]);
 
-  const pageStart = filteredUsers.length === 0 ? 0 : 1;
-  const pageEnd = filteredUsers.length;
+  const totalPages = Math.max(Math.ceil(filteredUsers.length / limit), 1);
+  const currentPage = Math.min(page, totalPages);
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * limit;
+    return filteredUsers.slice(start, start + limit);
+  }, [currentPage, filteredUsers, limit]);
+  const pageStart = filteredUsers.length === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const pageEnd = filteredUsers.length === 0 ? 0 : pageStart + paginatedUsers.length - 1;
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, roleFilter, structureFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  useEffect(() => {
+    if (adminSection === "OBLIGATIONS" && obligationReferences.length === 0) {
+      void reloadObligationReferences(true);
+    }
+  }, [adminSection]);
 
   async function reloadUsers() {
     setLoading(true);
@@ -199,6 +272,82 @@ export default function AdministrationPage() {
     }
   }
 
+  async function reloadObligationReferences(sync = false) {
+    setObligationsLoading(true);
+    setObligationsError(null);
+    try {
+      if (sync) {
+        await api.post<ApiResponse<unknown>>("/obligations/references/specifiques/sync", {});
+      }
+      const res = await api.get<ApiResponse<ObligationReference[]>>("/obligations/references/specifiques");
+      setObligationReferences(res.data);
+    } catch (err) {
+      setObligationsError(err instanceof Error ? err.message : "Erreur de chargement");
+      showToast(err instanceof Error ? err.message : "Erreur de chargement", "error");
+    } finally {
+      setObligationsLoading(false);
+    }
+  }
+
+  async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setSaving(true);
+      setError(null);
+      const res = await api.post<ApiResponse<{ user: UserRow; password: string }>>("/users", {
+        nom: createForm.nom.trim(),
+        prenom: createForm.prenom.trim(),
+        email: createForm.email.trim().toLowerCase(),
+        telephone: createForm.telephone.trim() || null,
+        statut: createForm.statut,
+        roleId: createForm.roleId,
+        structureId: createForm.structureId,
+      });
+      setUsers((current) => [res.data.user, ...current]);
+      setSelectedId(res.data.user.id);
+      setGeneratedPassword(res.data.password);
+      setCreateForm(DEFAULT_FORM);
+      setUserCreateDrawerOpen(false);
+      showToast("Utilisateur créé avec succès.", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Erreur lors de la création", "error");
+      setError(err instanceof Error ? err.message : "Erreur lors de la création");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleUpdateReference(reference: ObligationReference) {
+    try {
+      setEditingReferenceId(reference.id);
+      const res = await api.put<ApiResponse<ObligationReference>>(
+        `/obligations/references/specifiques/${reference.id}`,
+        reference,
+      );
+      setObligationReferences((current) =>
+        current.map((item) => (item.id === reference.id ? res.data : item)),
+      );
+      showToast("Obligation mise à jour.", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Erreur de mise à jour", "error");
+    } finally {
+      setEditingReferenceId(null);
+    }
+  }
+
+  async function handleDeleteReference(id: string) {
+    try {
+      setEditingReferenceId(id);
+      await api.delete<ApiResponse<ObligationReference>>(`/obligations/references/specifiques/${id}`);
+      setObligationReferences((current) => current.filter((item) => item.id !== id));
+      showToast("Obligation supprimée.", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Erreur de suppression", "error");
+    } finally {
+      setEditingReferenceId(null);
+    }
+  }
+
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedUser) {
@@ -208,7 +357,6 @@ export default function AdministrationPage() {
     try {
       setSaving(true);
       setError(null);
-      setMessage(null);
       setGeneratedPassword(null);
 
       const payload = {
@@ -228,8 +376,9 @@ export default function AdministrationPage() {
         current.map((user) => (user.id === updatedUser.id ? updatedUser : user)),
       );
       setSelectedId(updatedUser.id);
-      setMessage("Utilisateur mis à jour avec succès.");
+      showToast("Utilisateur mis à jour avec succès.", "success");
     } catch (err) {
+      showToast(err instanceof Error ? err.message : "Erreur lors de la mise à jour", "error");
       setError(err instanceof Error ? err.message : "Erreur lors de la mise à jour");
     } finally {
       setSaving(false);
@@ -240,7 +389,6 @@ export default function AdministrationPage() {
     try {
       setResettingId(userId);
       setError(null);
-      setMessage(null);
       setGeneratedPassword(null);
 
       const res = await api.post<ApiResponse<{ password: string }>>(
@@ -249,15 +397,279 @@ export default function AdministrationPage() {
       );
 
       setGeneratedPassword(res.data.password);
-      setMessage("Mot de passe réinitialisé.");
+      showToast("Mot de passe réinitialisé.", "success");
     } catch (err) {
+      showToast(err instanceof Error ? err.message : "Erreur lors du reset", "error");
       setError(err instanceof Error ? err.message : "Erreur lors du reset");
     } finally {
       setResettingId(null);
     }
   }
 
+  async function handleSyncNfcBadges() {
+    try {
+      setNfcSyncing(true);
+      setNfcSyncError(null);
+      const res = await api.post<ApiResponse<NfcSyncResult>>("/biometrie/nfc/sync", {});
+      setNfcSyncResult(res.data);
+      showToast(res.message || "Synchronisation NFC terminée.", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erreur de synchronisation NFC";
+      setNfcSyncError(message);
+      showToast(message, "error");
+    } finally {
+      setNfcSyncing(false);
+    }
+  }
+
+  function handleLimitChange(event: ChangeEvent<HTMLSelectElement>) {
+    setLimit(Number(event.target.value));
+    setPage(1);
+  }
+
+  function goToPreviousPage() {
+    setPage((currentValue) => Math.max(1, currentValue - 1));
+  }
+
+  function goToNextPage() {
+    setPage((currentValue) => Math.min(totalPages, currentValue + 1));
+  }
+
+  if (adminSection === "MENU") {
+    return (
+      <div className="min-h-full bg-surface p-4 sm:p-8">
+        <div className="mb-8">
+          <h1 className="text-xl font-bold text-on-surface">Administration</h1>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            Choisissez une section de gestion.
+          </p>
+        </div>
+        <div className="grid gap-5 lg:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => setAdminSection("USERS")}
+            className="group rounded-[24px] border border-surface-high bg-white p-6 text-left shadow-[0_14px_40px_rgba(23,54,46,0.06)] transition hover:border-primary/30"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-fixed text-[#2e4d44]">
+              <Users size={20} />
+            </div>
+            <h2 className="mt-6 text-lg font-bold text-on-surface">Gestion des utilisateurs</h2>
+            <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+              Administrer les comptes, rôles, structures et mots de passe.
+            </p>
+            <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+              Ouvrir <ArrowRight size={15} />
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdminSection("OBLIGATIONS")}
+            className="group rounded-[24px] border border-surface-high bg-white p-6 text-left shadow-[0_14px_40px_rgba(23,54,46,0.06)] transition hover:border-primary/30"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-fixed text-[#2e4d44]">
+              <Shield size={20} />
+            </div>
+            <h2 className="mt-6 text-lg font-bold text-on-surface">Gestion des obligations</h2>
+            <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+              Synchroniser, modifier et supprimer les obligations spécifiques.
+            </p>
+            <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+              Ouvrir <ArrowRight size={15} />
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdminSection("NFC")}
+            className="group rounded-[24px] border border-surface-high bg-white p-6 text-left shadow-[0_14px_40px_rgba(23,54,46,0.06)] transition hover:border-primary/30"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-fixed text-[#2e4d44]">
+              <RefreshCw size={20} />
+            </div>
+            <h2 className="mt-6 text-lg font-bold text-on-surface">Synchronisation NFC</h2>
+            <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+              Récupérer les badges NFC depuis l'API des détenus et les associer aux bénéficiaires.
+            </p>
+            <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+              Ouvrir <ArrowRight size={15} />
+            </span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (adminSection === "NFC") {
+    return (
+      <div className="min-h-full bg-surface p-4 sm:p-8">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <button
+              type="button"
+              onClick={() => setAdminSection("MENU")}
+              className="mb-3 text-sm font-semibold text-on-surface-variant hover:text-primary"
+            >
+              ← Retour à l'administration
+            </button>
+            <h1 className="text-xl font-bold text-on-surface">Synchronisation NFC</h1>
+            <p className="mt-1 max-w-2xl text-sm text-on-surface-variant">
+              Le système récupère les détenus, lit le NFC et l'associe au bénéficiaire via le numéro de mandat.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSyncNfcBadges()}
+            disabled={nfcSyncing}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#2e4d44] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {nfcSyncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            Synchroniser les NFC
+          </button>
+        </div>
+
+        {nfcSyncError && (
+          <div className="mb-4 rounded-md bg-error-container px-4 py-3 text-sm text-on-error-container">
+            {nfcSyncError}
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-3">
+          {[
+            ["Détenus lus", nfcSyncResult?.fetched ?? 0],
+            ["NFC trouvés", nfcSyncResult?.recordsWithNfc ?? 0],
+            ["Bénéficiaires matchés", nfcSyncResult?.matched ?? 0],
+            ["Mis à jour", nfcSyncResult?.updated ?? 0],
+            ["Déjà à jour", nfcSyncResult?.unchanged ?? 0],
+            ["Non trouvés SCBAP", nfcSyncResult?.missingInScbap ?? 0],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg bg-white p-5">
+              <p className="text-2xl font-bold text-on-surface">{value}</p>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                {label}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {nfcSyncResult?.conflicts ? (
+          <div className="mt-5 rounded-lg border border-error/20 bg-error/10 p-4">
+            <p className="text-sm font-bold text-on-error-container">
+              {nfcSyncResult.conflicts} conflit(s) détecté(s)
+            </p>
+            <div className="mt-3 space-y-2">
+              {nfcSyncResult.issues.map((issue, index) => (
+                <p key={`${issue.numeroMandat}-${index}`} className="text-xs text-on-error-container">
+                  {issue.numeroMandat ?? "Mandat inconnu"} • {issue.nfc ?? "NFC inconnu"} : {issue.message}
+                </p>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (adminSection === "OBLIGATIONS") {
+    return (
+      <div className="min-h-full bg-surface p-4 sm:p-8">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <button
+              type="button"
+              onClick={() => setAdminSection("MENU")}
+              className="mb-3 text-sm font-semibold text-on-surface-variant hover:text-primary"
+            >
+              ← Retour à l'administration
+            </button>
+            <h1 className="text-xl font-bold text-on-surface">Gestion des obligations</h1>
+          </div>
+          <button
+            type="button"
+            onClick={() => void reloadObligationReferences(true)}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#2e4d44]"
+          >
+            <RefreshCw size={14} />
+            Synchroniser DAPG
+          </button>
+        </div>
+        {obligationsError && (
+          <div className="mb-4 rounded-md bg-error-container px-4 py-3 text-sm text-on-error-container">
+            {obligationsError}
+          </div>
+        )}
+        {obligationsLoading ? (
+          <div className="flex min-h-64 items-center justify-center text-on-surface-variant">
+            <Loader2 size={20} className="animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="hidden grid-cols-[140px_minmax(0,1fr)_180px_110px_150px] items-center gap-4 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#17362e] md:grid">
+              <span>Code</span>
+              <span>Libellé</span>
+              <span>Catégorie</span>
+              <span>Actif</span>
+              <span className="text-right">Actions</span>
+            </div>
+            {obligationReferences.map((reference) => (
+              <div key={reference.id} className="grid gap-3 rounded-lg border border-surface-high bg-white p-4 md:grid-cols-[140px_minmax(0,1fr)_180px_110px_150px] md:items-center">
+                <input
+                  value={reference.code}
+                  onChange={(event) =>
+                    setObligationReferences((current) =>
+                      current.map((item) => item.id === reference.id ? { ...item, code: event.target.value } : item),
+                    )
+                  }
+                  className="rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <input
+                  value={reference.libelle}
+                  onChange={(event) =>
+                    setObligationReferences((current) =>
+                      current.map((item) => item.id === reference.id ? { ...item, libelle: event.target.value } : item),
+                    )
+                  }
+                  className="rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <span className="text-sm text-on-surface-variant">{reference.categorie.nom}</span>
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
+                  <input
+                    type="checkbox"
+                    checked={reference.active}
+                    onChange={(event) =>
+                      setObligationReferences((current) =>
+                        current.map((item) => item.id === reference.id ? { ...item, active: event.target.checked } : item),
+                      )
+                    }
+                  />
+                  Active
+                </label>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleUpdateReference(reference)}
+                    disabled={editingReferenceId === reference.id}
+                    className="rounded-md bg-primary px-3 py-2 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-60"
+                  >
+                    Enregistrer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteReference(reference.id)}
+                    disabled={editingReferenceId === reference.id}
+                    className="rounded-md bg-error-container px-3 py-2 text-xs font-bold uppercase tracking-wider text-on-error-container disabled:opacity-60"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
+    <>
     <div className="p-4 sm:p-8 min-h-full bg-surface">
       <div className="rounded-lg px-6 py-5 mb-8 grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-center gap-6 lg:gap-8 text-white"
         style={{ background: "linear-gradient(135deg, #17362e 0%, #2e4d44 60%, #93000a 160%)" }}
@@ -305,6 +717,13 @@ export default function AdministrationPage() {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
+          <button
+            type="button"
+            onClick={() => setAdminSection("MENU")}
+            className="mb-3 text-sm font-semibold text-on-surface-variant hover:text-primary"
+          >
+            ← Retour à l'administration
+          </button>
           <h1 className="text-xl font-bold text-on-surface flex items-center gap-2">
             <UserRoundCog size={20} className="text-primary" />
             Administration
@@ -314,14 +733,18 @@ export default function AdministrationPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full bg-primary-fixed px-3 py-1 text-[11px] font-bold text-[#2e4d44] uppercase tracking-wider">
-            <Shield size={12} />
-            Accès sensible
-          </span>
+          <button
+            type="button"
+            onClick={() => setUserCreateDrawerOpen(true)}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#2e4d44]"
+          >
+            <Plus size={14} />
+            Nouvel utilisateur
+          </button>
           <button
             type="button"
             onClick={reloadUsers}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#2e4d44]"
+            className="inline-flex items-center gap-2 rounded-md border border-surface-high bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-on-surface transition-colors hover:bg-surface-low"
           >
             <RefreshCw size={14} />
             Recharger
@@ -329,11 +752,8 @@ export default function AdministrationPage() {
         </div>
       </div>
 
-      {(message || generatedPassword || error) && (
+      {(generatedPassword || error) && (
         <div className="mb-4 space-y-2">
-          {message && (
-            <p className="text-xs font-medium text-on-secondary-container">{message}</p>
-          )}
           {generatedPassword && (
             <p className="text-xs font-medium text-on-secondary-container">
               Mot de passe par défaut: <span className="font-bold">{generatedPassword}</span>
@@ -349,15 +769,40 @@ export default function AdministrationPage() {
       )}
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
-        <div className="relative w-full lg:max-w-lg">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant" />
-          <input
-            type="text"
-            placeholder="Rechercher un utilisateur..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-md bg-surface-highest text-sm placeholder:text-outline-variant outline-none focus:border-b-2 focus:border-primary transition-all"
-          />
+        <div className="flex w-full flex-col gap-3 lg:max-w-2xl lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant" />
+            <input
+              type="text"
+              placeholder="Rechercher un utilisateur..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 rounded-md bg-surface-highest text-sm placeholder:text-outline-variant outline-none focus:border-b-2 focus:border-primary transition-all"
+            />
+          </div>
+          <div className="flex items-center gap-2 self-start lg:self-auto">
+            <button
+              type="button"
+              onClick={goToPreviousPage}
+              disabled={loading || currentPage <= 1}
+              aria-label="Page précédente"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-surface-low text-on-surface-variant transition-colors hover:bg-surface-high disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="min-w-24 text-center text-xs font-semibold text-on-surface-variant">
+              Page {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={goToNextPage}
+              disabled={loading || filteredUsers.length === 0 || currentPage >= totalPages}
+              aria-label="Page suivante"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-surface-low text-on-surface-variant transition-colors hover:bg-surface-high disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:w-[38rem]">
           <label className="text-xs font-semibold text-on-secondary-container uppercase tracking-wider">
@@ -452,7 +897,7 @@ export default function AdministrationPage() {
             </div>
           ) : (
             <div className="space-y-1.5">
-              {filteredUsers.map((user) => {
+              {paginatedUsers.map((user) => {
                 const isSelected = user.id === selectedId;
 
                 return (
@@ -541,8 +986,42 @@ export default function AdministrationPage() {
                 </>
               )}
             </div>
-            <div className="text-xs text-on-surface-variant">
-              Sélectionnez une ligne pour charger la fiche détaillée à droite.
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                Par page
+                <select
+                  value={limit}
+                  onChange={handleLimitChange}
+                  className="rounded-md bg-surface-low px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  {getPageSizeOptions([10, 20, 50]).map((option) => (
+                    <option key={option} value={option}>
+                      {getPageSizeOptionLabel(option)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={goToPreviousPage}
+                  disabled={loading || currentPage <= 1}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-low text-xs font-semibold text-on-surface-variant hover:bg-surface-high transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Précédent
+                </button>
+                <div className="min-w-28 text-center text-sm font-medium text-on-surface">
+                  Page {currentPage} / {totalPages}
+                </div>
+                <button
+                  type="button"
+                  onClick={goToNextPage}
+                  disabled={loading || filteredUsers.length === 0 || currentPage >= totalPages}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-xs font-semibold text-white hover:bg-[#2e4d44] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Suivant
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -682,5 +1161,67 @@ export default function AdministrationPage() {
         </aside>
       </div>
     </div>
+
+    <SideDrawer open={userCreateDrawerOpen} onClose={() => setUserCreateDrawerOpen(false)} showCloseButton>
+      <div className="flex h-full flex-col overflow-y-auto p-6">
+        <div className="pr-12">
+          <span className="mb-3 inline-block rounded-full bg-primary-fixed px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-[#2e4d44]">
+            Nouvel accès
+          </span>
+          <h2 className="text-[28px] font-extrabold leading-tight text-[#17362e]">
+            Nouvel utilisateur
+          </h2>
+        </div>
+        <form className="mt-8 space-y-4" onSubmit={handleCreateUser}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
+              Nom
+              <input value={createForm.nom} onChange={(event) => setCreateForm({ ...createForm, nom: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required />
+            </label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
+              Prénom
+              <input value={createForm.prenom} onChange={(event) => setCreateForm({ ...createForm, prenom: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required />
+            </label>
+          </div>
+          <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
+            Email
+            <input type="email" value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required />
+          </label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
+            Téléphone
+            <input value={createForm.telephone} onChange={(event) => setCreateForm({ ...createForm, telephone: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" />
+          </label>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
+              Rôle
+              <select value={createForm.roleId} onChange={(event) => setCreateForm({ ...createForm, roleId: event.target.value })} className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required>
+                <option value="">Sélectionner</option>
+                {meta.roles.map((role) => <option key={role.id} value={role.id}>{role.nom}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
+              Structure
+              <select value={createForm.structureId} onChange={(event) => setCreateForm({ ...createForm, structureId: event.target.value })} className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required>
+                <option value="">Sélectionner</option>
+                {meta.structures.map((structure) => <option key={structure.id} value={structure.id}>{structure.nom}</option>)}
+              </select>
+            </label>
+          </div>
+          <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
+            Statut
+            <select value={createForm.statut} onChange={(event) => setCreateForm({ ...createForm, statut: event.target.value })} className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary">
+              <option value="ACTIF">ACTIF</option>
+              <option value="INACTIF">INACTIF</option>
+              <option value="SUSPENDU">SUSPENDU</option>
+            </select>
+          </label>
+          <button type="submit" disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#2e4d44] disabled:opacity-60">
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+            Créer l'utilisateur
+          </button>
+        </form>
+      </div>
+    </SideDrawer>
+    </>
   );
 }

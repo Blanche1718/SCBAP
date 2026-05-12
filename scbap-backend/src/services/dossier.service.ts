@@ -1,7 +1,7 @@
 import { HttpError } from "../errorHandler";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import prisma from "../prisma";
-import { UpdateDossierSchema } from "../schemas/dossier.schema";
+import { DossierSchema, UpdateDossierSchema } from "../schemas/dossier.schema";
 import { z } from "zod";
 import ExcelJS from "exceljs";
 import type { Prisma } from "@prisma/client";
@@ -9,6 +9,7 @@ import { getUserJuridictionCode } from "../utils/juridiction";
 
 // TYPE TYPESCRIPT basé sur Zod
 type UpdateDossierInput = z.infer<typeof UpdateDossierSchema>;
+type CreateDossierInput = z.infer<typeof DossierSchema>;
 type AccessContext = Pick<AuthenticatedUser, "role" | "structure"> | undefined;
 
 function isAdminAccess(user?: AccessContext) {
@@ -191,6 +192,49 @@ export async function getDossierById(id: string, user?: AccessContext) {
       id,
       deletedAt: null,
       ...buildDossierAccessFilter(user),
+    },
+    include: {
+      beneficiaire: true,
+      juridiction: true,
+    },
+  });
+}
+
+export async function createDossier(input: CreateDossierInput, user?: AccessContext) {
+  const data = DossierSchema.parse(input);
+  const accessFilter = buildDossierAccessFilter(user);
+  const juridictionId = data.juridiction_id ?? (accessFilter.juridictionId as string | undefined);
+
+  return prisma.dossier.create({
+    data: {
+      numeroDossier: data.numero_dossier,
+      juridictionId,
+      prisonId: data.prison_id,
+      prisonName: data.prison_name,
+      nom: data.nom,
+      prenom: data.prenom,
+      dateNaissance: parseDate(data.date_naissance),
+      lieuNaissance: data.lieu_naissance,
+      nationalite: data.nationalite,
+      sexe: data.sexe,
+      profession: data.profession,
+      adresse: data.adresse,
+      telephoneContact: data.telephone_contact,
+      infractions: data.infractions,
+      numeroMandatDepot: data.numero_mandat_depot,
+      dateMandatDepot: parseDate(data.date_mandat_depot),
+      condamnation: data.condamnation,
+      dateFinPeine: parseDate(data.date_fin_peine),
+      dureePeineMois: data.duree_peine_mois,
+      decisionDapg: data.decision_dapg ?? "acceptée",
+      dateDecisionDapg: data.date_decision_dapg
+        ? parseDate(data.date_decision_dapg)
+        : new Date(),
+      dureeTempsEpreuve: data.duree_temps_epreuve,
+      observations: data.observations,
+      obligations: data.obligations,
+      othersData: data.others_data,
+      statut: "accepte_dapg",
     },
     include: {
       beneficiaire: true,

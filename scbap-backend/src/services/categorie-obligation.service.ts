@@ -11,7 +11,42 @@ type UpdateCategorieObligationInput = z.infer<
   typeof UpdateCategorieObligationSchema
 >;
 
-export const DEFAULT_CATEGORIES_OBLIGATION = [
+export const DAPG_CATEGORIES_OBLIGATION = [
+  {
+    nom: "Obligations de domiciliation",
+    description: "Categorie officielle DAPG des obligations de domiciliation.",
+  },
+  {
+    nom: "Obligations de pointage au commissariat de la localité",
+    description: "Categorie officielle DAPG des obligations de pointage.",
+  },
+  {
+    nom: "Obligations générales de conduite",
+    description: "Categorie officielle DAPG des obligations generales de conduite.",
+  },
+  {
+    nom: "Insertion professionnelle",
+    description: "Categorie officielle DAPG des obligations d'insertion professionnelle.",
+  },
+  {
+    nom: "Suivi social et médical",
+    description: "Categorie officielle DAPG des obligations de suivi social et medical.",
+  },
+  {
+    nom: "Relations avec les victimes",
+    description: "Categorie officielle DAPG des obligations relatives aux victimes.",
+  },
+  {
+    nom: "Interdictions liées aux substances",
+    description: "Categorie officielle DAPG des interdictions liees aux substances.",
+  },
+  {
+    nom: "Obligations particulières complémentaires",
+    description: "Categorie officielle DAPG des obligations particulieres complementaires.",
+  },
+];
+
+export const LEGACY_CATEGORIES_OBLIGATION = [
   {
     nom: "POINTAGE",
     description: "Obligation de se presenter a une structure a une frequence definie.",
@@ -32,6 +67,11 @@ export const DEFAULT_CATEGORIES_OBLIGATION = [
     nom: "OBLIGATION_TRAVAIL",
     description: "Obligation d'activite professionnelle ou de formation.",
   },
+];
+
+export const DEFAULT_CATEGORIES_OBLIGATION = [
+  ...DAPG_CATEGORIES_OBLIGATION,
+  ...LEGACY_CATEGORIES_OBLIGATION,
 ];
 
 async function ensureCategoryNameAvailable(nom: string, excludeId?: string) {

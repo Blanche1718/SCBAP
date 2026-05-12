@@ -14,6 +14,7 @@ const NOTIFICATION_TYPES = [
   { value: "BATTERIE_FAIBLE", label: "Batterie faible" },
   { value: "POWER_FAIL", label: "Coupure d'alimentation" },
   { value: "NOUVEAU_BENEFICIAIRE", label: "Nouveau bénéficiaire" },
+  { value: "EVALUATION_SERVICE_EXTERNE_RECUE", label: "Évaluation reçue" },
   { value: "BIOMETRIE_CONFIGUREE", label: "Biométrie configurée" },
   { value: "POINTAGE_ANOMALIE", label: "Pointage anomalie" },
   { value: "POINTAGE_ABSENT", label: "Pointage absent" },

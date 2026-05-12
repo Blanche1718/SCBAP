@@ -21,6 +21,140 @@ type BiometricPointageInput = {
   success: boolean;
 };
 
+const DAY_NAME_TO_INDEX = new Map([
+  ["DIMANCHE", 0],
+  ["SUNDAY", 0],
+  ["LUNDI", 1],
+  ["MONDAY", 1],
+  ["MARDI", 2],
+  ["TUESDAY", 2],
+  ["MERCREDI", 3],
+  ["WEDNESDAY", 3],
+  ["JEUDI", 4],
+  ["THURSDAY", 4],
+  ["VENDREDI", 5],
+  ["FRIDAY", 5],
+  ["SAMEDI", 6],
+  ["SATURDAY", 6],
+]);
+
+function normalizeScheduleValue(value?: string | null) {
+  return value
+    ?.trim()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[\s-]+/g, "_")
+    .toUpperCase();
+}
+
+function getAppDayIndex(date: Date) {
+  const parts = getTimeZoneDateParts(date);
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+}
+
+function getAppDayOfMonth(date: Date) {
+  return getTimeZoneDateParts(date).day;
+}
+
+function getDaysInAppMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function buildStartOfAppLocalDate(year: number, month: number, day: number) {
+  return buildDateInAppTimeZone({
+    year,
+    month,
+    day,
+    hour: 0,
+    minute: 0,
+    second: 0,
+  });
+}
+
+function addDaysToAppLocalDate(parts: { year: number; month: number; day: number }, days: number) {
+  const shifted = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
+
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  };
+}
+
+function getExpectedWeekday(obligation: { jourSemaine?: string | null; dateDebut?: Date | null }) {
+  const normalizedDay = normalizeScheduleValue(obligation.jourSemaine);
+  if (normalizedDay && DAY_NAME_TO_INDEX.has(normalizedDay)) {
+    return DAY_NAME_TO_INDEX.get(normalizedDay) ?? null;
+  }
+
+  return obligation.dateDebut ? getAppDayIndex(obligation.dateDebut) : null;
+}
+
+function getPointageSchedule(
+  obligation: { frequence?: string | null; jourSemaine?: string | null; dateDebut?: Date | null },
+  today: Date,
+) {
+  const frequency = normalizeScheduleValue(obligation.frequence);
+  const todayParts = getTimeZoneDateParts(today);
+  const todayDayIndex = getAppDayIndex(today);
+
+  if (frequency === "HEBDOMADAIRE") {
+    const expectedDayIndex = getExpectedWeekday(obligation);
+    if (expectedDayIndex !== null && todayDayIndex !== expectedDayIndex) {
+      return null;
+    }
+
+    const weekStartParts = addDaysToAppLocalDate(todayParts, -((todayDayIndex + 6) % 7));
+    const weekEndParts = addDaysToAppLocalDate(weekStartParts, 7);
+
+    return {
+      periodStart: buildStartOfAppLocalDate(weekStartParts.year, weekStartParts.month, weekStartParts.day),
+      periodEnd: buildStartOfAppLocalDate(weekEndParts.year, weekEndParts.month, weekEndParts.day),
+    };
+  }
+
+  if (frequency === "MENSUEL") {
+    const expectedDayOfMonth = obligation.dateDebut
+      ? Math.min(
+          getAppDayOfMonth(obligation.dateDebut),
+          getDaysInAppMonth(todayParts.year, todayParts.month),
+        )
+      : 1;
+
+    if (todayParts.day !== expectedDayOfMonth) {
+      return null;
+    }
+
+    return {
+      periodStart: buildStartOfAppLocalDate(todayParts.year, todayParts.month, 1),
+      periodEnd:
+        todayParts.month === 12
+          ? buildStartOfAppLocalDate(todayParts.year + 1, 1, 1)
+          : buildStartOfAppLocalDate(todayParts.year, todayParts.month + 1, 1),
+    };
+  }
+
+  if (frequency === "PONCTUEL") {
+    if (!obligation.dateDebut) {
+      return null;
+    }
+
+    const expectedParts = getTimeZoneDateParts(obligation.dateDebut);
+    if (
+      todayParts.year !== expectedParts.year ||
+      todayParts.month !== expectedParts.month ||
+      todayParts.day !== expectedParts.day
+    ) {
+      return null;
+    }
+  }
+
+  return {
+    periodStart: today,
+    periodEnd: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+  };
+}
+
 export async function getPointages(
   page = 1,
   limit = 10,
@@ -316,7 +450,6 @@ export async function checkAndCreateAbsentPointages() {
   const now = new Date();
   const today = getStartOfAppDay(now);
   const todayParts = getTimeZoneDateParts(now);
-  const endOfDay = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
   // Get all active POINTAGE obligations
   const obligations = await prisma.obligation.findMany({
@@ -373,6 +506,11 @@ export async function checkAndCreateAbsentPointages() {
   }
 
   for (const obligation of obligations) {
+    const schedule = getPointageSchedule(obligation, today);
+    if (!schedule) {
+      continue;
+    }
+
     // Get scheduled time from obligation
     const scheduledTime = parseObligationTime(obligation.heure);
     if (!scheduledTime) {
@@ -396,40 +534,62 @@ export async function checkAndCreateAbsentPointages() {
     // Check if scheduled time has already passed
     if (scheduledDate > now) continue;
 
-    // Check if there's already a VALIDE pointage for today at this obligation
-    const existingPointage = await prisma.pointage.findFirst({
+    const existingValidPointage = await prisma.pointage.findFirst({
       where: {
         obligationId: obligation.id,
         dateHeure: {
-          gte: today,
-          lt: endOfDay,
+          gte: schedule.periodStart,
+          lt: schedule.periodEnd,
         },
         statut: "VALIDE",
       },
     });
 
-    if (existingPointage) continue;
+    if (existingValidPointage) continue;
 
-    // Create absent pointage
-    const absentPointage = await prisma.pointage.create({
-      data: {
-        beneficiaireId: obligation.beneficiaireId,
+    const existingAbsentPointage = await prisma.pointage.findFirst({
+      where: {
         obligationId: obligation.id,
-        dateHeure: scheduledDate,
-        lieu: obligation.lieu || obligation.beneficiaire.dossier.prisonName || null,
-        type: "AUTOMATIQUE",
+        dateHeure: {
+          gte: schedule.periodStart,
+          lt: schedule.periodEnd,
+        },
         statut: "ABSENT",
         source: "SYSTEME",
-        commentaire: `Absence détectée automatiquement à ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
-      },
-      include: {
-        beneficiaire: {
-          include: {
-            dossier: true,
-          },
-        },
       },
     });
+
+    if (existingAbsentPointage) continue;
+
+    // Create absent pointage
+    let absentPointage;
+    try {
+      absentPointage = await prisma.pointage.create({
+        data: {
+          beneficiaireId: obligation.beneficiaireId,
+          obligationId: obligation.id,
+          dateHeure: scheduledDate,
+          lieu: obligation.lieu || obligation.beneficiaire.dossier.prisonName || null,
+          type: "AUTOMATIQUE",
+          statut: "ABSENT",
+          source: "SYSTEME",
+          commentaire: `Absence détectée automatiquement à ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
+        },
+        include: {
+          beneficiaire: {
+            include: {
+              dossier: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        continue;
+      }
+
+      throw error;
+    }
 
     // Create alert
     const alert = await prisma.alerteSurveillance.create({

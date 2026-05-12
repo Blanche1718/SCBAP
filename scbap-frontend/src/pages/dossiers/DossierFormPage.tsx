@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { useDossier } from "../../hooks/useDossiers";
 import { Button } from "../../components/ui";
+import { api } from "../../lib/api";
+import type { ApiResponse, Dossier } from "../../types";
 
 function FormSection({ title, icon: Icon, children }: {
   title: string;
@@ -55,6 +57,7 @@ export default function DossierFormPage() {
   const navigate = useNavigate();
   const { dossier, loading } = useDossier(id);
   const [formData, setFormData] = useState<any>({ nom: "", prenom: "", sexe: "M" });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (dossier) setFormData(dossier);
@@ -64,6 +67,32 @@ export default function DossierFormPage() {
     const { name, value } = e.target;
     setFormData((prev: any) => ({ ...prev, [name]: value }));
   };
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    const payload = {
+      numero_dossier: formData.numeroDossier,
+      nom: formData.nom,
+      prenom: formData.prenom,
+      sexe: formData.sexe,
+      date_naissance: formData.dateNaissance || undefined,
+      lieu_naissance: formData.lieuNaissance || undefined,
+      nationalite: formData.nationalite || undefined,
+      numero_mandat_depot: formData.numeroMandatDepot,
+      date_fin_peine: formData.dateFinPeine || undefined,
+      observations: formData.observations || undefined,
+    };
+
+    try {
+      const res = isEdit && id
+        ? await api.put<ApiResponse<Dossier>>(`/dossiers/${id}`, payload)
+        : await api.post<ApiResponse<Dossier>>("/dossiers", payload);
+      navigate(`/dossiers/${res.data.id}`);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin" /></div>;
 
@@ -82,13 +111,13 @@ export default function DossierFormPage() {
           <Button variant="ghost" onClick={() => navigate(-1)} className="hidden sm:flex gap-2">
             <X size={16} /> Annuler
           </Button>
-          <Button onClick={() => {}} className="gap-2">
+          <Button type="submit" form="dossier-form" loading={saving} className="gap-2">
             <Save size={16} /> Enregistrer
           </Button>
         </div>
       </div>
 
-      <form className="space-y-6">
+      <form id="dossier-form" className="space-y-6" onSubmit={handleSubmit}>
         <FormSection title="État civil" icon={User}>
           <InputField label="Nom" name="nom" value={formData.nom} onChange={handleChange} required />
           <InputField label="Prénom" name="prenom" value={formData.prenom} onChange={handleChange} required />
@@ -118,7 +147,7 @@ export default function DossierFormPage() {
         </FormSection>
 
         <div className="flex sm:hidden pt-4 pb-8">
-          <Button onClick={() => {}} className="w-full py-4 h-auto text-lg shadow-lg gap-2">
+          <Button type="submit" loading={saving} className="w-full py-4 h-auto text-lg shadow-lg gap-2">
             <Save size={20} />
             Enregistrer le dossier
           </Button>

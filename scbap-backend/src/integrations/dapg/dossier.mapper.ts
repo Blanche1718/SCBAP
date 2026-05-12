@@ -65,12 +65,12 @@ export function mapDapgLiberationConditionnelleToDossierCreateInput(
     condamnation: payload.condamnation ?? undefined,
     dateFinPeine: parseDate(payload.date_fin_peine),
     dureePeineMois: payload.duree_peine_mois ?? undefined,
-    decisionDapg: payload.decision_dapg ?? undefined,
+    decisionDapg: payload.decision_dapg ?? "acceptée",
     dateDecisionDapg: parseDate(payload.date_decision_dapg),
     dureeTempsEpreuve: normalizeTimeValue(payload.duree_temps_epreuve),
     obligations: payload.obligations ?? undefined,
     observations: payload.observations ?? payload.observations_commission ?? undefined,
     othersData,
-    statut: payload.statut ?? undefined,
+    statut: "accepte_dapg",
   };
 }

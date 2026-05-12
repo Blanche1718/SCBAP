@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, MouseEvent } from "react";
 import {
   ArrowRight,
   Lock,
@@ -9,15 +9,16 @@ import {
 } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export default function LoginPage() {
   const { login, user, loading } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState("agent.spip@scbap.bj");
-  const [motDePasse, setMotDePasse] = useState("change_me");
+  const [email, setEmail] = useState("");
+  const [motDePasse, setMotDePasse] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const from = (location.state as { from?: string } | null)?.from || "/dashboard";
 
@@ -34,13 +35,13 @@ export default function LoginPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setError(null);
 
     try {
       await login(email, motDePasse);
+      showToast("Connexion réussie", "success");
       navigate(from, { replace: true });
     } catch (err) {
-      setError((err as Error).message);
+      showToast((err as Error).message, "error");
     } finally {
       setSubmitting(false);
     }
@@ -56,6 +57,11 @@ export default function LoginPage() {
 
   if (user) {
     return <Navigate to={from} replace />;
+  }
+
+  function handleForgotPasswordClick(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    showToast("Veuillez contacter le support Justice pour réinitialiser votre mot de passe.", "info");
   }
 
   return (
@@ -90,12 +96,6 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {error && (
-              <div className="mb-5 rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container shadow-sm">
-                {error}
-              </div>
-            )}
-
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold uppercase tracking-wider text-on-surface">
@@ -122,6 +122,7 @@ export default function LoginPage() {
                   </label>
                   <a
                     href="#"
+                    onClick={handleForgotPasswordClick}
                     className="text-xs font-bold text-error transition-all hover:underline"
                   >
                     Mot de passe oublié ?

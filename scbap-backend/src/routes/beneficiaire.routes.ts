@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   confirmBeneficiaireProfilController,
   getBeneficiaireByIdController,
+  getBeneficiaireEvaluationsController,
   getBeneficiairesController,
   updateBeneficiaireController,
   syncBeneficiaireObligationsController,
@@ -25,6 +26,7 @@ beneficiaireRouter.get("/:id/documents", listBeneficiaireDocumentsController);
 beneficiaireRouter.post("/:id/documents", createBeneficiaireDocumentController);
 beneficiaireRouter.get("/:id/zones", getBeneficiaireZonesController);
 beneficiaireRouter.post("/:id/zones", createBeneficiaireZoneController);
+beneficiaireRouter.get("/:id/evaluations", getBeneficiaireEvaluationsController);
 beneficiaireRouter.put(
   "/:id/documents/:documentId/file",
   raw({ type: "*/*", limit: "50mb" }),

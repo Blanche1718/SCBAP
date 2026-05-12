@@ -1,5 +1,3 @@
-import { clearStoredAuthToken, getStoredAuthToken } from "../auth/authStorage";
-
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -9,19 +7,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  const token = getStoredAuthToken();
-  if (token && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
+    credentials: "include",
   });
 
   if (!res.ok) {
-    if (res.status === 401 && token) {
-      clearStoredAuthToken();
+    if (res.status === 401 && path !== "/auth/login") {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("scbap:auth-invalid"));
       }
@@ -36,20 +29,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 async function download(path: string): Promise<{ blob: Blob; filename: string | null }> {
   const headers = new Headers();
-  const token = getStoredAuthToken();
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "GET",
     headers,
+    credentials: "include",
   });
 
   if (!res.ok) {
-    if (res.status === 401 && token) {
-      clearStoredAuthToken();
+    if (res.status === 401) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("scbap:auth-invalid"));
       }
@@ -70,11 +58,6 @@ async function download(path: string): Promise<{ blob: Blob; filename: string | 
 
 async function upload(path: string, body: BodyInit, contentType?: string): Promise<void> {
   const headers = new Headers();
-  const token = getStoredAuthToken();
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
 
   if (contentType) {
     headers.set("Content-Type", contentType);
@@ -84,11 +67,11 @@ async function upload(path: string, body: BodyInit, contentType?: string): Promi
     method: "PUT",
     headers,
     body,
+    credentials: "include",
   });
 
   if (!res.ok) {
-    if (res.status === 401 && token) {
-      clearStoredAuthToken();
+    if (res.status === 401) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("scbap:auth-invalid"));
       }

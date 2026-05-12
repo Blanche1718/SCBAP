@@ -34,6 +34,14 @@ export interface DapgCommissionAvis {
   created_at?: string | null;
 }
 
+export interface DapgObligationSpecifique {
+  id?: number | string | null;
+  section?: string | null;
+  code?: string | number | null;
+  categorie?: string | null;
+  libelle?: string | null;
+}
+
 export interface DapgLiberationConditionnelle {
   id?: number | string | null;
   numero_dossier?: string | null;
@@ -83,4 +91,3 @@ export interface DapgLiberationConditionnelle {
   documents_justificatifs?: unknown[] | null;
   tous_arretes?: DapgArrete[] | null;
 }
-

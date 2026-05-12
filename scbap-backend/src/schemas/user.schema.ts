@@ -14,6 +14,16 @@ export const UpdateUserAdminSchema = z
     message: "Au moins un champ doit etre fourni",
   });
 
+export const CreateUserAdminSchema = z.object({
+  nom: z.string().min(1),
+  prenom: z.string().min(1),
+  email: z.string().email(),
+  telephone: z.string().min(1).nullable().optional(),
+  statut: z.enum(["ACTIF", "INACTIF", "SUSPENDU"]).default("ACTIF"),
+  roleId: z.string().min(1),
+  structureId: z.string().min(1),
+});
+
 export const UpdateOwnProfileSchema = z
   .object({
     nom: z.string().min(1).optional(),
@@ -34,5 +44,6 @@ export const UpdateOwnPasswordSchema = z.object({
 });
 
 export type UpdateUserAdminInput = z.infer<typeof UpdateUserAdminSchema>;
+export type CreateUserAdminInput = z.infer<typeof CreateUserAdminSchema>;
 export type UpdateOwnProfileInput = z.infer<typeof UpdateOwnProfileSchema>;
 export type UpdateOwnPasswordInput = z.infer<typeof UpdateOwnPasswordSchema>;

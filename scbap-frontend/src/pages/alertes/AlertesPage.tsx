@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { getStoredAuthToken } from "../../auth/authStorage";
 import { api } from "../../lib/api";
 import { useAuth } from "../../auth/AuthContext";
 import { CompactPaginationControls } from "../../components/pagination/CompactPaginationControls";
@@ -100,16 +99,17 @@ function getAlertBadge(alert: AlerteSurveillance) {
   return (normalized.slice(0, 2) || "AL").padEnd(2, "A");
 }
 
+function isElectronicSurveillanceAlert(alert: AlerteSurveillance) {
+  return Boolean(
+    alert.braceletId ||
+      alert.bracelet ||
+      alert.positionGPS ||
+      ["SORTIE_ZONE", "BATTERIE_FAIBLE", "RETRAIT_BRACELET", "DECONNEXION_PROLONGEE", "TAMPERING"].includes(alert.type),
+  );
+}
+
 function buildWsUrl() {
-  const token = getStoredAuthToken();
-
-  if (!token) {
-    return WS_URL;
-  }
-
-  const url = new URL(WS_URL);
-  url.searchParams.set("token", token);
-  return url.toString();
+  return WS_URL;
 }
 
 export default function AlertesPage() {
@@ -199,6 +199,7 @@ export default function AlertesPage() {
     "Bénéficiaire inconnu";
 
   const selectedSeverity = selectedAlert ? getSeverity(selectedAlert) : null;
+  const selectedIsElectronic = selectedAlert ? isElectronicSurveillanceAlert(selectedAlert) : false;
 
   function goToPreviousPage() {
     setPage((currentPage) => Math.max(1, currentPage - 1));
@@ -699,10 +700,12 @@ export default function AlertesPage() {
                   <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#17362e]">Dossier n°</p>
                   <p className="mt-1 text-[13px] font-bold text-[#191c1c]">{selectedAlert.beneficiaire?.dossier?.numeroDossier ?? "—"}</p>
                 </div>
-                <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#17362e]">Bracelet ID</p>
-                  <p className="mt-1 font-mono text-[11px] font-bold text-[#191c1c]">{selectedAlert.bracelet?.codeImei ?? "—"}</p>
-                </div>
+                {selectedIsElectronic && (
+                  <div className="rounded-lg bg-[#f2f4f3] p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#17362e]">Bracelet ID</p>
+                    <p className="mt-1 font-mono text-[11px] font-bold text-[#191c1c]">{selectedAlert.bracelet?.codeImei ?? "—"}</p>
+                  </div>
+                )}
                 <div className="rounded-lg bg-[#f2f4f3] p-3">
                   <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#17362e]">Statut</p>
                   <p className="mt-1 text-[13px] font-bold text-[#191c1c]">{getStatusDisplay(selectedAlert)}</p>
@@ -740,13 +743,15 @@ export default function AlertesPage() {
                 </Link>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <Link
-                    to="/surveillance"
-                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e] ring-1 ring-[#e1e3e2] transition hover:bg-[#f2f4f3]"
-                  >
-                    <MapPin size={13} />
-                    Voir carte
-                  </Link>
+                  {selectedIsElectronic && (
+                    <Link
+                      to="/surveillance"
+                      className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e] ring-1 ring-[#e1e3e2] transition hover:bg-[#f2f4f3]"
+                    >
+                      <MapPin size={13} />
+                      Voir carte
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={async () => {

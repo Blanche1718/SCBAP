@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { HttpError } from "../errorHandler";
 import {
   createBeneficiaireDocument,
+  deleteBeneficiaireDocument,
   getBeneficiaireDocumentDownloadUrl,
   listBeneficiaireDocuments,
   uploadBeneficiaireDocumentFile,
@@ -119,6 +120,24 @@ export async function downloadDocumentController(
     const documentId = parseUuid(req.params.documentId, "document");
     const url = await getBeneficiaireDocumentDownloadUrl(documentId);
     res.redirect(302, url);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteDocumentController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const documentId = parseUuid(req.params.documentId, "document");
+    const document = await deleteBeneficiaireDocument(documentId);
+
+    res.status(200).json({
+      message: "Document supprime avec succes",
+      data: document,
+    });
   } catch (error) {
     next(error);
   }

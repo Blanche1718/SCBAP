@@ -5,7 +5,16 @@ import prisma from "../prisma";
 import { HttpError } from "../errorHandler";
 import type { AuthenticatedUser, AuthUserRecord, JwtAuthPayload } from "./auth.types";
 
-const JWT_SECRET = process.env.JWT_SECRET || "scbap-dev-secret";
+function getJwtSecret() {
+  const value = process.env.JWT_SECRET?.trim();
+  if (!value) {
+    throw new Error("JWT_SECRET est manquant dans l'environnement");
+  }
+
+  return value;
+}
+
+const JWT_SECRET = getJwtSecret();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "12h";
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || "10");
 
@@ -52,6 +61,7 @@ export function signAuthToken(user: AuthUserRecord) {
     email: user.email,
     role: user.role.nom,
     structureId: user.structureId,
+    sessionVersion: user.sessionVersion,
   };
 
   return jwt.sign(payload, JWT_SECRET, {
@@ -60,10 +70,10 @@ export function signAuthToken(user: AuthUserRecord) {
 }
 
 export function verifyAuthToken(token: string) {
-  return jwt.verify(token, JWT_SECRET) as JwtAuthPayload;
+  return jwt.verify(token, JWT_SECRET) as unknown as JwtAuthPayload;
 }
 
-export async function getAuthenticatedUserById(id: string) {
+export async function getAuthenticatedUserById(id: string, expectedSessionVersion?: number) {
   const user = await prisma.user.findUnique({
     where: { id },
     include: {
@@ -78,6 +88,13 @@ export async function getAuthenticatedUserById(id: string) {
 
   if (user.statut !== "ACTIF") {
     throw new HttpError(403, "Compte inactif");
+  }
+
+  if (
+    expectedSessionVersion !== undefined &&
+    user.sessionVersion !== expectedSessionVersion
+  ) {
+    throw new HttpError(401, "Session expirée, veuillez vous reconnecter");
   }
 
   return user;

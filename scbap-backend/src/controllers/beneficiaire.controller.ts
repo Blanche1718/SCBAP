@@ -7,6 +7,7 @@ import {
   updateBeneficiaire,
   syncSpecificObligationsForBeneficiaire,
 } from "../services/beneficiaire.service";
+import { listBeneficiaireEvaluations } from "../services/portail.service";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -123,6 +124,25 @@ export async function getBeneficiaireByIdController(
     res.status(200).json({
       message: "Beneficiaire recupere avec succes",
       data: beneficiaire,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getBeneficiaireEvaluationsController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = parseUuid(req.params.id, "beneficiaire");
+    await getBeneficiaireById(id, req.user);
+    const evaluations = await listBeneficiaireEvaluations(id);
+
+    res.status(200).json({
+      message: "Evaluations du beneficiaire recuperees avec succes",
+      data: evaluations,
     });
   } catch (error) {
     next(error);
