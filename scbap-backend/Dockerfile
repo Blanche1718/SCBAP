@@ -19,5 +19,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/prisma ./prisma
+COPY scripts/start-with-migrations.sh /app/
+RUN chmod +x /app/start-with-migrations.sh
 EXPOSE 3000
-CMD ["node", "dist/index.js"]
+CMD ["/app/start-with-migrations.sh"]
