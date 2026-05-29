@@ -104,7 +104,7 @@ type SurveillanceSnapshot = {
   tracks: Track[];
   feed: FeedEvent[];
   connected: boolean;
-  source: "DEMO" | "WEBSOCKET";
+  source: "BACKEND" | "DEMO" | "POLLING" | "WEBSOCKET";
   lastUpdated: string | null;
 };
 
@@ -684,6 +684,11 @@ function getSurveillanceWsUrl() {
   return `${protocol}://${window.location.host}/ws/surveillance`;
 }
 
+async function fetchSurveillanceSnapshot() {
+  const res = await api.get<{ data: SurveillanceSnapshot }>("/alertes/snapshot");
+  return res.data;
+}
+
 function MainMap({ tracks }: { tracks: Track[] }) {
   const map = useMap();
 
@@ -781,6 +786,7 @@ function SelectedTrackFocus({
 export default function GpsMapPage() {
   const mapSurfaceRef = useRef<HTMLElement | null>(null);
   const infoPanelRef = useRef<HTMLDivElement | null>(null);
+  const pollingIntervalRef = useRef<number | null>(null);
   const panelDragRef = useRef<{
     active: boolean;
     pointerId: number | null;
@@ -802,10 +808,50 @@ export default function GpsMapPage() {
   const [infoPanelPosition, setInfoPanelPosition] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
+    let mounted = true;
     const wsUrl = getSurveillanceWsUrl();
     const ws = new WebSocket(wsUrl);
 
+    const stopPollingFallback = () => {
+      if (pollingIntervalRef.current !== null) {
+        window.clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+
+    const pollSnapshot = async () => {
+      try {
+        const nextSnapshot = await fetchSurveillanceSnapshot();
+        if (!mounted) {
+          return;
+        }
+
+        setSnapshot({
+          ...nextSnapshot,
+          connected: false,
+          source: "POLLING",
+          lastUpdated: nextSnapshot.lastUpdated ?? new Date().toISOString(),
+        });
+      } catch {
+        if (mounted) {
+          setSnapshot((current) => ({ ...current, connected: false }));
+        }
+      }
+    };
+
+    const startPollingFallback = () => {
+      if (pollingIntervalRef.current !== null) {
+        return;
+      }
+
+      void pollSnapshot();
+      pollingIntervalRef.current = window.setInterval(() => {
+        void pollSnapshot();
+      }, 5000);
+    };
+
     ws.onopen = () => {
+      stopPollingFallback();
       setSnapshot((current) => ({ ...current, connected: true, source: "WEBSOCKET" }));
     };
 
@@ -949,13 +995,19 @@ export default function GpsMapPage() {
 
     ws.onclose = () => {
       setSnapshot((current) => ({ ...current, connected: false }));
+      startPollingFallback();
     };
 
     ws.onerror = () => {
       setSnapshot((current) => ({ ...current, connected: false }));
+      startPollingFallback();
     };
 
-    return () => ws.close();
+    return () => {
+      mounted = false;
+      stopPollingFallback();
+      ws.close();
+    };
   }, []);
 
   const filteredTracks = useMemo(() => {

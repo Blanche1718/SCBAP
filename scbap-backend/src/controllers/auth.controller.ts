@@ -18,7 +18,7 @@ export async function loginController(
     const { email, motDePasse } = LoginSchema.parse(req.body);
     const user = await authenticateUser(email, motDePasse);
     const token = signAuthToken(user);
-    clearLoginFailures(req);
+    await clearLoginFailures(req);
     setAuthCookie(res, token);
 
     res.status(200).json({
@@ -29,7 +29,7 @@ export async function loginController(
     });
   } catch (error) {
     if (error instanceof HttpError && error.statusCode === 401) {
-      markLoginFailure(req);
+      await markLoginFailure(req);
     }
     next(error);
   }

@@ -37,11 +37,23 @@ npm install
 
 ## Configuration
 
-Le fichier local `.env` doit contenir au minimum :
+Le fichier local `.env.development` doit contenir au minimum :
 
 ```env
 VITE_API_URL=http://localhost:3000
 VITE_APP_TIME_ZONE=Africa/Porto-Novo
+```
+
+Pour créer le fichier local :
+
+```bash
+cp .env.example .env
+```
+
+Pour la production, copiez :
+
+```bash
+cp .env.production.example .env.production
 ```
 
 Variable optionnelle pour forcer l'URL WebSocket de surveillance :

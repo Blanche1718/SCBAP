@@ -1,4 +1,6 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+import { validateEnv, getAllowedOrigins } from "./config/env";
 import express from "express";
 import cors from "cors";
 import { createServer } from "http";
@@ -29,17 +31,42 @@ import { initializeSurveillanceRealtime } from "./services/surveillance-realtime
 import { initializeAbsenceCheckJob } from "./jobs/absence-check.job";
 import { initializeMonthlyRapportJob } from "./jobs/monthly-rapport.job";
 import { initializeSurveillanceHealthJob } from "./jobs/surveillance-health.job";
+import { requestLogger } from "./middleware/request-logger";
+import { logger } from "./logger";
 
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+
+
+const nodeEnv = process.env.NODE_ENV || "development";
+process.env.NODE_ENV = nodeEnv;
+
+dotenv.config({ path: path.resolve(process.cwd(), `.env.${nodeEnv}`), override: true });
+
+validateEnv();
 
 const app = express();
+const allowedOrigins = getAllowedOrigins();
 
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origin not allowed by CORS"));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Webhook-Signature", "X-Webhook-Timestamp"],
   }),
 );
 app.use(express.json());
+app.use(requestLogger);
 app.use("/auth", authRouter);
 app.use("/portail", portailRouter);
 app.use("/webhooks", webhooksRouter);
@@ -72,7 +99,7 @@ const server = createServer(app);
 initializeSurveillanceRealtime(server);
 
 server.listen(port, () => {
-  console.log(`SCBAP backend running on port ${port}`);
+  logger.info("SCBAP backend started", { port });
   startBiometrieScheduler();
   startMqttSubscriber(handleMqttMessage);
   initializeAbsenceCheckJob();

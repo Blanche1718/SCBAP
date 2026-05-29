@@ -28,6 +28,12 @@ function getPortalJwtSecret() {
     );
   }
 
+  if (value.length < 32 || value.startsWith("change-me")) {
+    throw new Error(
+      "PORTAIL_JWT_SECRET doit contenir au moins 32 caracteres aleatoires",
+    );
+  }
+
   return value;
 }
 

@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { HttpError } from "../errorHandler";
+import { logger } from "../logger";
 
 type ServiceExterneAccessEmailPayload = {
   email: string;
@@ -21,13 +22,6 @@ function getMailConfig() {
   const replyTo = process.env.MAIL_REPLY_TO?.trim() || undefined;
   const portailUrl =
     process.env.PORTAIL_BASE_URL?.trim() || "http://localhost:5173/portail";
-
-  if (!smtpUser || !smtpPass || !fromEmail) {
-    throw new HttpError(
-      500,
-      "Configuration email incomplete. Renseignez SMTP_USER et SMTP_PASS. MAIL_FROM_EMAIL est optionnel.",
-    );
-  }
 
   return {
     smtpHost,
@@ -150,6 +144,20 @@ export async function sendServiceExterneAccessCodeEmail(
   payload: ServiceExterneAccessEmailPayload,
 ) {
   const config = getMailConfig();
+  if (!config.smtpUser || !config.smtpPass || !config.fromEmail) {
+    logger.warn("Email service disabled; access code email not sent", {
+      recipient: payload.email,
+      serviceNom: payload.serviceNom,
+    });
+
+    return {
+      mode: "disabled",
+      portailUrl: config.portailUrl,
+      recipient: payload.email,
+      emailId: null,
+    };
+  }
+
   const transporter = nodemailer.createTransport({
     host: config.smtpHost,
     port: config.smtpPort,
@@ -177,7 +185,7 @@ export async function sendServiceExterneAccessCodeEmail(
       emailId: info.messageId ?? null,
     };
   } catch (error) {
-    console.error("[mail.service] smtp error", error);
+    logger.error("SMTP email send failed", { error, recipient: payload.email });
     throw new HttpError(
       502,
       "Impossible d'envoyer l'email au service externe pour le moment.",

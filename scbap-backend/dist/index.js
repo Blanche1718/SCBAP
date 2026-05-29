@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 require("dotenv/config");
+const env_1 = require("./config/env");
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const http_1 = require("http");
@@ -34,12 +35,27 @@ const surveillance_realtime_service_1 = require("./services/surveillance-realtim
 const absence_check_job_1 = require("./jobs/absence-check.job");
 const monthly_rapport_job_1 = require("./jobs/monthly-rapport.job");
 const surveillance_health_job_1 = require("./jobs/surveillance-health.job");
+const request_logger_1 = require("./middleware/request-logger");
+const logger_1 = require("./logger");
+(0, env_1.validateEnv)();
 const app = (0, express_1.default)();
+const allowedOrigins = (0, env_1.getAllowedOrigins)();
 app.use((0, cors_1.default)({
-    origin: true,
+    origin: (origin, callback) => {
+        if (!origin) {
+            return callback(null, true);
+        }
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        return callback(new Error("Origin not allowed by CORS"));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Webhook-Signature", "X-Webhook-Timestamp"],
 }));
 app.use(express_1.default.json());
+app.use(request_logger_1.requestLogger);
 app.use("/auth", auth_routes_1.default);
 app.use("/portail", portail_routes_1.default);
 app.use("/webhooks", webhooks_routes_1.default);
@@ -67,7 +83,7 @@ const port = Number(process.env.PORT) || 3000;
 const server = (0, http_1.createServer)(app);
 (0, surveillance_realtime_service_1.initializeSurveillanceRealtime)(server);
 server.listen(port, () => {
-    console.log(`SCBAP backend running on port ${port}`);
+    logger_1.logger.info("SCBAP backend started", { port });
     (0, biometrie_scheduler_1.startBiometrieScheduler)();
     (0, client_1.startMqttSubscriber)(mqtt_service_1.handleMqttMessage);
     (0, absence_check_job_1.initializeAbsenceCheckJob)();

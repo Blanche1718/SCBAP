@@ -3,6 +3,12 @@ import { HttpError } from "../errorHandler";
 import { getAuthenticatedUserById, verifyAuthToken } from "./auth.service";
 import type { AuthenticatedUser } from "./auth.types";
 import { getAuthCookieToken } from "./auth-cookie";
+import {
+  clearLoginFailureCount,
+  getLoginFailureCount,
+  incrementLoginFailureCount,
+} from "../services/login-rate-limit.service";
+import { logger } from "../logger";
 
 const LOGIN_RATE_LIMIT_WINDOW_MS = Number(
   process.env.LOGIN_RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`,
@@ -10,6 +16,7 @@ const LOGIN_RATE_LIMIT_WINDOW_MS = Number(
 const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = Number(
   process.env.LOGIN_RATE_LIMIT_MAX_ATTEMPTS || "5",
 );
+const LOGIN_RATE_LIMIT_WINDOW_SECONDS = Math.ceil(LOGIN_RATE_LIMIT_WINDOW_MS / 1000);
 
 type LoginAttemptState = {
   count: number;
@@ -75,8 +82,34 @@ export function requireLoginRateLimit(
   res: Response,
   next: NextFunction,
 ) {
-  try {
+  void (async () => {
     const key = getLoginAttemptKey(req);
+    try {
+      const redisCount = await getLoginFailureCount(key);
+      if (redisCount !== null) {
+        if (redisCount >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS) {
+          throw new HttpError(
+            429,
+            "Trop de tentatives de connexion. Réessayez dans quelques minutes.",
+          );
+        }
+
+        res.locals.loginAttemptKey = key;
+        next();
+        return;
+      }
+    } catch (error) {
+      if (error instanceof HttpError) {
+        throw error;
+      }
+
+      if (process.env.NODE_ENV === "production") {
+        throw error;
+      }
+
+      logger.warn("Login rate limiter Redis lookup failed", { error });
+    }
+
     const now = Date.now();
     const state = loginAttempts.get(key);
 
@@ -93,13 +126,24 @@ export function requireLoginRateLimit(
 
     res.locals.loginAttemptKey = key;
     next();
-  } catch (error) {
-    next(error);
-  }
+  })().catch(next);
 }
 
-export function markLoginFailure(req: Request) {
+export async function markLoginFailure(req: Request) {
   const key = resLocalsLoginAttemptKey(req) ?? getLoginAttemptKey(req);
+  try {
+    const redisCount = await incrementLoginFailureCount(key, LOGIN_RATE_LIMIT_WINDOW_SECONDS);
+    if (redisCount !== null) {
+      return;
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === "production") {
+      throw error;
+    }
+
+    logger.warn("Login rate limiter Redis increment failed", { error });
+  }
+
   const now = Date.now();
   const current = loginAttempts.get(key);
 
@@ -122,8 +166,21 @@ export function markLoginFailure(req: Request) {
   loginAttempts.set(key, current);
 }
 
-export function clearLoginFailures(req: Request) {
+export async function clearLoginFailures(req: Request) {
   const key = resLocalsLoginAttemptKey(req) ?? getLoginAttemptKey(req);
+  try {
+    const cleared = await clearLoginFailureCount(key);
+    if (cleared) {
+      return;
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === "production") {
+      throw error;
+    }
+
+    logger.warn("Login rate limiter Redis clear failed", { error });
+  }
+
   loginAttempts.delete(key);
 }
 

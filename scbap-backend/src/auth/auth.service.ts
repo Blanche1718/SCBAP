@@ -11,6 +11,10 @@ function getJwtSecret() {
     throw new Error("JWT_SECRET est manquant dans l'environnement");
   }
 
+  if (value.length < 32 || value.startsWith("change-me")) {
+    throw new Error("JWT_SECRET doit contenir au moins 32 caracteres aleatoires");
+  }
+
   return value;
 }
 

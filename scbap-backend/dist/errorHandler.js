@@ -4,6 +4,7 @@ exports.HttpError = void 0;
 exports.errorHandler = errorHandler;
 const client_1 = require("@prisma/client");
 const zod_1 = require("zod");
+const logger_1 = require("./logger");
 class HttpError extends Error {
     constructor(statusCode, message) {
         super(message);
@@ -12,7 +13,20 @@ class HttpError extends Error {
     }
 }
 exports.HttpError = HttpError;
-function errorHandler(error, _req, res, _next) {
+function errorHandler(error, req, res, _next) {
+    const statusCode = error instanceof HttpError
+        ? error.statusCode
+        : error instanceof zod_1.ZodError
+            ? 400
+            : error instanceof client_1.Prisma.PrismaClientKnownRequestError
+                ? 400
+                : 500;
+    logger_1.logger[statusCode >= 500 ? "error" : "warn"]("Request failed", {
+        method: req.method,
+        path: req.originalUrl,
+        statusCode,
+        error: logger_1.logger.serializeError(error),
+    });
     if (error instanceof HttpError) {
         return res.status(error.statusCode).json({
             message: error.message,

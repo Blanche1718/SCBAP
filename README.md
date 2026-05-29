@@ -114,19 +114,36 @@ cd scbap-backend
 docker compose -f docker-compose.minio.yml up -d
 ```
 
-### 4. Configurer les fichiers `.env`
+### 4. Configurer les fichiers d'environnement
 
-Backend : `scbap-backend/.env`
+Pour le backend local, copiez le fichier d'exemple :
 
-Variables vraiment importantes :
+```bash
+cd scbap-backend
+cp .env.development.example .env.development
+```
+
+Pour la production, copiez le fichier d'exemple :
+
+```bash
+cp .env.production.example .env.production
+```
+
+Le backend charge automatiquement :
+- `.env`
+- `.env.local`
+- `.env.development`
+- `.env.development.local`
+- `.env.production`
+- `.env.production.local`
+
+Variables de base importantes pour le backend :
 
 ```env
+NODE_ENV=development
 DATABASE_URL="postgresql://postgres:1234@localhost:5432/scbap"
 JWT_SECRET=change-me
 PORTAIL_JWT_SECRET=change-me-too
-
-DAPG_BASE_URL=https://pprod-amenagementdepeine.justice.bj/api
-DAPG_API_KEY=
 
 BIOMETRIE_API_BASE_URL=http://pprod-fingerprints.justice.bj
 BIOMETRIE_API_KEY=
@@ -139,7 +156,20 @@ MINIO_BUCKET=scbap-documents
 MQTT_BROKER_URL=mqtt://localhost:1883
 ```
 
-Frontend : `scbap-frontend/.env`
+Pour le frontend local, copiez le fichier d'exemple :
+
+```bash
+cd scbap-frontend
+cp .env.development.example .env.development
+```
+
+Pour la production frontend, copiez le fichier d'exemple :
+
+```bash
+cp .env.production.example .env.production
+```
+
+Variables de base pour le frontend :
 
 ```env
 VITE_API_URL=http://localhost:3000

@@ -502,7 +502,9 @@ function clientCanReceive(client: ConnectedClient, eventJurisdictionId?: string 
   return client.scopeJurisdictionId === eventJurisdictionId;
 }
 
-async function buildSnapshot(access?: { scopeJurisdictionId?: string | null }): Promise<LiveSnapshot> {
+export async function buildSurveillanceSnapshot(
+  access?: { scopeJurisdictionId?: string | null },
+): Promise<LiveSnapshot> {
   const braceletWhere = buildBraceletScopeWhere(access?.scopeJurisdictionId);
   const bracelets = (await prisma.bracelet.findMany({
     ...(braceletWhere ? { where: braceletWhere } : {}),
@@ -656,7 +658,7 @@ export function initializeSurveillanceRealtime(server: Server) {
       clients.add(client);
 
       try {
-        const snapshot = await buildSnapshot({ scopeJurisdictionId });
+        const snapshot = await buildSurveillanceSnapshot({ scopeJurisdictionId });
         sendJson(socket, { type: "snapshot", payload: snapshot });
       } catch (error) {
         console.error("[surveillance-ws] snapshot error", error);
@@ -698,7 +700,7 @@ export async function broadcastSurveillanceTelemetry(
     }
   }
 
-  return buildSnapshot({ scopeJurisdictionId: scope?.jurisdictionId });
+  return buildSurveillanceSnapshot({ scopeJurisdictionId: scope?.jurisdictionId });
 }
 
 export async function broadcastSurveillanceAlert(
@@ -717,10 +719,10 @@ export async function broadcastSurveillanceAlert(
     }
   }
 
-  return buildSnapshot({ scopeJurisdictionId: scope?.jurisdictionId });
+  return buildSurveillanceSnapshot({ scopeJurisdictionId: scope?.jurisdictionId });
 }
 
 export async function getSurveillanceSnapshot(access?: { scopeJurisdictionId?: string | null }) {
   lastUpdated = lastUpdated ?? new Date().toISOString();
-  return buildSnapshot(access);
+  return buildSurveillanceSnapshot(access);
 }
