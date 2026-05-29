@@ -9,7 +9,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json tsconfig.json prisma.config.ts ./
 COPY prisma ./prisma
 COPY src ./src
-RUN npm run build
+RUN DATABASE_URL=postgresql://user:password@localhost:5432/scbap npm run build
 RUN npm prune --omit=dev
 
 FROM node:20-alpine AS runner
