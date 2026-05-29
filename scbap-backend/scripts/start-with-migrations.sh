@@ -19,6 +19,12 @@ echo "NPM version: $(npm --version)"
 echo "Prisma version:"
 npx prisma -v || true
 
+echo "Parsed DATABASE_URL properties:"
+DB_HOST=$(echo "$DATABASE_URL" | sed -E 's#^[^:]+://([^:/@]+).*#\1#')
+DB_NAME=$(echo "$DATABASE_URL" | sed -E 's#^.*/([^?]+).*#\1#')
+echo "  host=$DB_HOST"
+echo "  database=$DB_NAME"
+
 echo "Prisma schema exists:" 
 ls -la prisma || true
 echo "---- start of prisma/schema.prisma (first 200 lines) ----"
@@ -27,6 +33,17 @@ echo "---- end of prisma/schema.prisma ----"
 
 PRISMA_LOG=/tmp/prisma-migrate.log
 rm -f "$PRISMA_LOG"
+
+echo "Running: npx prisma migrate status --schema=prisma/schema.prisma"
+npx prisma migrate status --schema=prisma/schema.prisma > "$PRISMA_LOG" 2>&1
+STATUS_CODE=$?
+cat "$PRISMA_LOG" || true
+if [ "$STATUS_CODE" -ne 0 ]; then
+  echo "WARNING: Prisma migrate status failed with exit code $STATUS_CODE"
+  echo "--- Prisma migrate status log (full) ---"
+  sed -n '1,500p' "$PRISMA_LOG" || true
+  echo "--- end prisma migrate status log ---"
+fi
 
 echo "Running: npx prisma migrate deploy --schema=prisma/schema.prisma"
 # Run prisma and capture exit code portably (avoid relying on pipefail)

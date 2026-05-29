@@ -3,10 +3,11 @@ import path from "path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
-// Load appropriate .env file based on NODE_ENV
-const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env";
-const envPath = path.resolve(process.cwd(), envFile);
-dotenv.config({ path: envPath, override: true });
+const dotenvPath = process.env.DOTENV_CONFIG_PATH
+  ? path.resolve(process.cwd(), process.env.DOTENV_CONFIG_PATH)
+  : path.resolve(process.cwd(), process.env.NODE_ENV === "production" ? ".env.production" : ".env");
+
+dotenv.config({ path: dotenvPath });
 
 const connectionString = process.env.DATABASE_URL;
 

@@ -34,13 +34,18 @@ import { initializeSurveillanceHealthJob } from "./jobs/surveillance-health.job"
 import { requestLogger } from "./middleware/request-logger";
 import { logger } from "./logger";
 
-dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+const dotenvPath = process.env.DOTENV_CONFIG_PATH
+  ? path.resolve(process.cwd(), process.env.DOTENV_CONFIG_PATH)
+  : path.resolve(process.cwd(), ".env");
 
+dotenv.config({ path: dotenvPath });
 
 const nodeEnv = process.env.NODE_ENV || "development";
 process.env.NODE_ENV = nodeEnv;
 
-dotenv.config({ path: path.resolve(process.cwd(), `.env.${nodeEnv}`), override: true });
+if (!process.env.DOTENV_CONFIG_PATH) {
+  dotenv.config({ path: path.resolve(process.cwd(), `.env.${nodeEnv}`), override: true });
+}
 
 validateEnv();
 

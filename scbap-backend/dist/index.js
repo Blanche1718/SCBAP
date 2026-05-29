@@ -38,10 +38,15 @@ const monthly_rapport_job_1 = require("./jobs/monthly-rapport.job");
 const surveillance_health_job_1 = require("./jobs/surveillance-health.job");
 const request_logger_1 = require("./middleware/request-logger");
 const logger_1 = require("./logger");
-dotenv_1.default.config({ path: path_1.default.resolve(process.cwd(), ".env") });
+const dotenvPath = process.env.DOTENV_CONFIG_PATH
+    ? path_1.default.resolve(process.cwd(), process.env.DOTENV_CONFIG_PATH)
+    : path_1.default.resolve(process.cwd(), ".env");
+dotenv_1.default.config({ path: dotenvPath });
 const nodeEnv = process.env.NODE_ENV || "development";
 process.env.NODE_ENV = nodeEnv;
-dotenv_1.default.config({ path: path_1.default.resolve(process.cwd(), `.env.${nodeEnv}`), override: true });
+if (!process.env.DOTENV_CONFIG_PATH) {
+    dotenv_1.default.config({ path: path_1.default.resolve(process.cwd(), `.env.${nodeEnv}`), override: true });
+}
 (0, env_1.validateEnv)();
 const app = (0, express_1.default)();
 const allowedOrigins = (0, env_1.getAllowedOrigins)();
