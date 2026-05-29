@@ -170,8 +170,9 @@ export default function DossiersPage() {
       } else {
         setPage(1);
       }
+      localStorage.setItem("scbap:last-dapg-sync-at", String(Date.now()));
     } catch (e) {
-      setSyncNotice("Aucune synchronisation automatique.");
+      setSyncNotice((e as Error).message || "Synchronisation DAPG impossible.");
     } finally {
       setSyncing(false);
     }
@@ -205,7 +206,6 @@ export default function DossiersPage() {
     if (now - lastSyncAt < DAPG_AUTO_SYNC_INTERVAL_MS) return;
 
     hasAutoSyncedRef.current = true;
-    localStorage.setItem("scbap:last-dapg-sync-at", String(now));
     void handleSyncDapg();
   }, []);
 

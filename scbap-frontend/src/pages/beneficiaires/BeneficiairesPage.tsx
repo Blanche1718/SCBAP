@@ -253,9 +253,10 @@ export default function BeneficiairesPage() {
       setSyncing(true);
       await api.post("/dossiers/dapg/sync", {});
       await refetch();
+      localStorage.setItem("scbap:last-dapg-sync-at", String(Date.now()));
       showToast("Synchronisation DAPG terminée.", "success");
     } catch (err) {
-      setSyncNotice("Aucune synchronisation automatique.");
+      setSyncNotice((err as Error).message || "Synchronisation DAPG impossible.");
     } finally {
       setSyncing(false);
     }
@@ -269,7 +270,6 @@ export default function BeneficiairesPage() {
       return;
     }
 
-    localStorage.setItem("scbap:last-dapg-sync-at", String(now));
     void syncDapgDossiers();
   }, []);
 
