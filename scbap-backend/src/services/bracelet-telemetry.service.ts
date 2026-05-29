@@ -19,6 +19,8 @@ type TelemetryFinding = {
   incidentType?: string;
 };
 
+const ALERT_DEDUPE_WINDOW_MS = Number(process.env.SURVEILLANCE_ALERT_DEDUPE_MINUTES ?? "10") * 60 * 1000;
+
 function parseTelemetryPayload(payload: Buffer | string | unknown): BraceletTelemetryInput {
   // Le payload peut être un Buffer (MQTT), une string JSON, ou déjà un objet parsé
   const raw =
@@ -206,12 +208,36 @@ async function resolveBraceletOrThrow(input: BraceletTelemetryInput) {
 async function createAlertesAndIncidents(args: {
   beneficiaireId: string;
   braceletId: string;
+  deviceId: string;
   positionGPSId: string;
   scopeJurisdictionId?: string | null;
   findings: TelemetryFinding[];
   rawPayload: BraceletTelemetryInput;
 }) {
   for (const finding of args.findings) {
+    const dedupeSince = new Date(Date.now() - ALERT_DEDUPE_WINDOW_MS);
+    const existingOpenAlert = await prisma.alerteSurveillance.findFirst({
+      where: {
+        beneficiaireId: args.beneficiaireId,
+        braceletId: args.braceletId,
+        type: finding.type,
+        statut: "OUVERTE",
+        declencheeLe: {
+          gte: dedupeSince,
+        },
+      },
+      orderBy: {
+        declencheeLe: "desc",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingOpenAlert) {
+      continue;
+    }
+
     const alerte = await prisma.alerteSurveillance.create({
       data: {
         beneficiaireId: args.beneficiaireId,
@@ -231,6 +257,7 @@ async function createAlertesAndIncidents(args: {
       id: alerte.id,
       beneficiaireId: args.beneficiaireId,
       braceletId: args.braceletId,
+      deviceId: args.deviceId,
       positionGPSId: args.positionGPSId,
       type: finding.type,
       niveau: finding.niveau,
@@ -303,9 +330,12 @@ export async function handleBraceletTelemetryMessage(payload: Buffer | string | 
       latitude: input.location.latitude,
       longitude: input.location.longitude,
       accuracyMeters: input.location.accuracy ?? null,
+      presenceFlag: input.location.presence_flag ?? null,
+      rssiDbm: input.location.rssi_dbm ?? null,
       zoneExterneId: input.location.zone_id ?? null,
       zoneStatus: input.location.zone_status ?? null,
       batterie: input.health.battery_pct ?? null,
+      powerSource: input.health.power_source ?? null,
       gprsSignal: input.health.gprs_signal ?? null,
       gpsSatellites: input.health.gps_satellites ?? null,
       strapStatus: input.alerts.strap_status ?? null,
@@ -315,7 +345,7 @@ export async function handleBraceletTelemetryMessage(payload: Buffer | string | 
       caseTamper: input.alerts.case_tamper ?? null,
       powerLoss: input.alerts.power_loss ?? null,
       statutBracelet: input.status,
-      heartbeat: input.status === "OK",
+      heartbeat: input.heartbeat ?? input.status === "OK",
       rawPayload: input as unknown as Prisma.InputJsonValue,
       dateHeure: telemetryDate,
     },
@@ -333,6 +363,7 @@ export async function handleBraceletTelemetryMessage(payload: Buffer | string | 
   await createAlertesAndIncidents({
     beneficiaireId: beneficiaire.id,
     braceletId: bracelet.id,
+    deviceId: bracelet.codeImei,
     positionGPSId: positionGPS.id,
     scopeJurisdictionId,
     findings,

@@ -131,10 +131,10 @@ export default function AlertesPage() {
   const filters = useMemo(
     () => ({
       search,
-      type: typeFilter,
-      niveau: niveauFilter === "TOUS" ? "" : niveauFilter,
-      statut: statutFilter === "TOUS" ? "" : statutFilter,
-      juridiction: isAdmin ? jurisdictionFilter : undefined,
+      type: search.trim() ? "" : typeFilter,
+      niveau: search.trim() || niveauFilter === "TOUS" ? "" : niveauFilter,
+      statut: search.trim() || statutFilter === "TOUS" ? "" : statutFilter,
+      juridiction: search.trim() ? undefined : isAdmin ? jurisdictionFilter : undefined,
     }),
     [isAdmin, jurisdictionFilter, niveauFilter, search, statutFilter, typeFilter],
   );
@@ -288,6 +288,7 @@ export default function AlertesPage() {
                 <label className="text-xs font-semibold text-on-secondary-container uppercase tracking-wider">
                   Type d&apos;alerte
                   <select
+                    title="Filtrer par type d'alerte"
                     value={typeFilter}
                     onChange={(event) => {
                       setTypeFilter(event.target.value);
@@ -307,6 +308,7 @@ export default function AlertesPage() {
                 <label className="text-xs font-semibold text-on-secondary-container uppercase tracking-wider">
                   Niveau
                   <select
+                    title="Filtrer par niveau de sévérité"
                     value={niveauFilter}
                     onChange={(event) => {
                       setNiveauFilter(event.target.value as "TOUS" | "CRITIQUE" | "NORMALE");
@@ -323,6 +325,7 @@ export default function AlertesPage() {
                 <label className="text-xs font-semibold text-on-secondary-container uppercase tracking-wider">
                   Statut
                   <select
+                    title="Filtrer par statut de traitement"
                     value={statutFilter}
                     onChange={(event) => {
                       setStatutFilter(event.target.value as "TOUS" | "OUVERTE" | "TRAITEE" | "IGNOREE");
@@ -341,6 +344,7 @@ export default function AlertesPage() {
                   <label className="text-xs font-semibold text-on-secondary-container uppercase tracking-wider">
                     Juridictions
                     <select
+                      title="Filtrer par juridiction"
                       value={jurisdictionFilter}
                       onChange={(event) => {
                         setJurisdictionFilter(event.target.value);
@@ -614,6 +618,7 @@ export default function AlertesPage() {
               </p>
               <div className="flex items-center gap-2">
                 <select
+                  title="Nombre d'alertes par page"
                   value={limit}
                   onChange={(event) => {
                     setLimit(Number(event.target.value));
@@ -690,15 +695,15 @@ export default function AlertesPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#17362e]">Bénéficiaire</p>
+                <div className="rounded-lg bg-surface-low p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary">Bénéficiaire</p>
                   <p className="mt-1 text-[13px] font-bold text-[#191c1c]">
                     {selectedAlert.beneficiaire?.dossier?.prenom} {selectedAlert.beneficiaire?.dossier?.nom}
                   </p>
                 </div>
                 <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#17362e]">Dossier n°</p>
-                  <p className="mt-1 text-[13px] font-bold text-[#191c1c]">{selectedAlert.beneficiaire?.dossier?.numeroDossier ?? "—"}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#17362e]">Mandatc n°</p>
+                  <p className="mt-1 text-[13px] font-bold text-[#191c1c]">{selectedAlert.beneficiaire?.dossier?.numeroMandatDepot ?? "—"}</p>
                 </div>
                 {selectedIsElectronic && (
                   <div className="rounded-lg bg-[#f2f4f3] p-3">

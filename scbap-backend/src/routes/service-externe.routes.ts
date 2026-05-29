@@ -5,6 +5,7 @@ import {
   getServiceExterneByIdController,
   listServicesExternesController,
   resetServiceAccessCodeController,
+  updateServiceExterneController,
 } from "../controllers/service-externe.controller";
 
 const serviceExterneRouter = Router();
@@ -16,6 +17,7 @@ serviceExterneRouter.post(
   createAffectationServiceExterneController,
 );
 serviceExterneRouter.get("/:id", getServiceExterneByIdController);
+serviceExterneRouter.put("/:id", updateServiceExterneController);
 serviceExterneRouter.post("/:id/reset-access-code", resetServiceAccessCodeController);
 
 

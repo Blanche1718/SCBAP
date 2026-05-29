@@ -122,6 +122,16 @@ function downloadRapportPdf(rapport: RapportRedige, attachments: BeneficiaireDoc
   const usableWidth = pageWidth - margin * 2;
   const bottomMargin = 42;
   const topY = 800;
+  const colors = {
+    primary: [0.09, 0.21, 0.18],
+    primarySoft: [0.9, 0.97, 0.95],
+    mint: [0.72, 0.9, 0.86],
+    text: [0.09, 0.12, 0.16],
+    muted: [0.38, 0.43, 0.49],
+    border: [0.78, 0.82, 0.82],
+    rowAlt: [0.97, 0.99, 0.98],
+    white: [1, 1, 1],
+  } as const;
   const pages: string[] = [];
   let commands: string[] = [];
   let y = topY;
@@ -140,12 +150,25 @@ function downloadRapportPdf(rapport: RapportRedige, attachments: BeneficiaireDoc
     }
   }
 
-  function text(value: unknown, x: number, textY: number, size = 9) {
-    commands.push(`BT /F1 ${size} Tf 1 0 0 1 ${x.toFixed(2)} ${textY.toFixed(2)} Tm (${sanitizePdfText(value)}) Tj ET`);
+  function colorCommand(color: readonly number[], mode: "fill" | "stroke") {
+    return `${color.map((component) => component.toFixed(3)).join(" ")} ${mode === "fill" ? "rg" : "RG"}`;
   }
 
-  function rect(x: number, rectY: number, width: number, height: number, fill = false) {
-    commands.push(fill ? "0.95 g" : "0.82 G");
+  function text(value: unknown, x: number, textY: number, size = 9, color: readonly number[] = colors.text) {
+    commands.push(colorCommand(color, "fill"));
+    commands.push(`BT /F1 ${size} Tf 1 0 0 1 ${x.toFixed(2)} ${textY.toFixed(2)} Tm (${sanitizePdfText(value)}) Tj ET`);
+    commands.push("0 g 0 G");
+  }
+
+  function rect(
+    x: number,
+    rectY: number,
+    width: number,
+    height: number,
+    fill = false,
+    color: readonly number[] = fill ? colors.primarySoft : colors.border,
+  ) {
+    commands.push(colorCommand(color, fill ? "fill" : "stroke"));
     commands.push(`${x.toFixed(2)} ${rectY.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)} re ${fill ? "f" : "S"}`);
     commands.push("0 g 0 G");
   }
@@ -179,23 +202,26 @@ function downloadRapportPdf(rapport: RapportRedige, attachments: BeneficiaireDoc
     ensureSpace(headerHeight + 20);
     let x = margin;
     headers.forEach((header, index) => {
-      rect(x, y - headerHeight, widths[index], headerHeight, true);
-      rect(x, y - headerHeight, widths[index], headerHeight);
-      text(header.toUpperCase(), x + padding, y - 12, 7);
+      rect(x, y - headerHeight, widths[index], headerHeight, true, colors.primary);
+      rect(x, y - headerHeight, widths[index], headerHeight, false, colors.primary);
+      text(header.toUpperCase(), x + padding, y - 12, 7, colors.white);
       x += widths[index];
     });
     y -= headerHeight;
 
-    rows.forEach((row) => {
+    rows.forEach((row, rowIndex) => {
       const wrapped = row.map((cell, index) => wrapCell(cell, widths[index] - padding * 2, 8));
       const rowHeight = Math.max(20, Math.max(...wrapped.map((cellLines) => cellLines.length)) * rowLineHeight + padding * 2);
       ensureSpace(rowHeight);
 
       x = margin;
       wrapped.forEach((cellLines, index) => {
-        rect(x, y - rowHeight, widths[index], rowHeight);
+        if (rowIndex % 2 === 1) {
+          rect(x, y - rowHeight, widths[index], rowHeight, true, colors.rowAlt);
+        }
+        rect(x, y - rowHeight, widths[index], rowHeight, false, colors.border);
         cellLines.forEach((line, lineIndex) => {
-          text(line, x + padding, y - padding - 8 - lineIndex * rowLineHeight, 8);
+          text(line, x + padding, y - padding - 8 - lineIndex * rowLineHeight, 8, colors.text);
         });
         x += widths[index];
       });
@@ -205,26 +231,35 @@ function downloadRapportPdf(rapport: RapportRedige, attachments: BeneficiaireDoc
     y -= 12;
   }
 
+  function drawReportHeader() {
+    rect(margin, y - 74, usableWidth, 74, true, colors.primary);
+    rect(margin, y - 74, usableWidth, 74, false, colors.primary);
+    text("SCBAP", margin + 16, y - 19, 8, colors.mint);
+    text("Rapport de suivi", margin + 16, y - 36, 18, colors.white);
+    text(getRapportTitle(rapport), margin + 16, y - 53, 11, colors.white);
+    text(`${getBeneficiaireName(rapport)} - ${formatDateTime(rapport.createdAt)}`, margin + 16, y - 67, 8, colors.mint);
+    y -= 96;
+  }
+
   function drawTitle(value: string) {
     ensureSpace(28);
-    text(value.toUpperCase(), margin, y, 12);
-    y -= 18;
+    rect(margin, y - 18, 4, 18, true, colors.primary);
+    rect(margin + 8, y - 18, usableWidth - 8, 18, true, colors.primarySoft);
+    text(value.toUpperCase(), margin + 14, y - 12, 10, colors.primary);
+    y -= 28;
   }
 
   function drawParagraph(value: string) {
     const lines = wrapCell(value, usableWidth, 9);
     ensureSpace(lines.length * 13 + 8);
     lines.forEach((line) => {
-      text(line, margin, y, 9);
+      text(line, margin, y, 9, colors.text);
       y -= 13;
     });
     y -= 8;
   }
 
-  text(getRapportTitle(rapport), margin, y, 13);
-  y -= 16;
-  text(`${getBeneficiaireName(rapport)} - ${formatDateTime(rapport.createdAt)}`, margin, y, 9);
-  y -= 26;
+  drawReportHeader();
 
   for (const section of rapport.contenu?.sections ?? []) {
     drawTitle(section.titre);
@@ -250,7 +285,7 @@ function downloadRapportPdf(rapport: RapportRedige, attachments: BeneficiaireDoc
       function flushEvaluation() {
         if (!currentEvaluation) return;
         drawTable(["Suivi", "Service", "Conformité"], [currentEvaluation], [usableWidth * 0.28, usableWidth * 0.44, usableWidth * 0.28]);
-        text("Date et présence", margin, y, 8);
+        text("Date et présence", margin, y, 8, colors.muted);
         y -= 12;
         drawTable(["Date", "Présence"], occurrences, [usableWidth * 0.28, usableWidth * 0.28]);
         currentEvaluation = null;
@@ -275,12 +310,11 @@ function downloadRapportPdf(rapport: RapportRedige, attachments: BeneficiaireDoc
   if (attachments.length > 0) {
     drawTitle("Pièces jointes");
     drawTable(
-      ["Nom du fichier", "Type"],
+      ["Nom du fichier"],
       attachments.map((document) => [
         document.titre || document.fileName || document.id,
-        document.mimeType || document.typeDocument,
       ]),
-      [usableWidth * 0.7, usableWidth * 0.3],
+      [usableWidth],
     );
   }
 
@@ -627,6 +661,7 @@ export default function RapportsRedigesPage() {
               onNext={() => setPage((current) => Math.min(totalPages, current + 1))}
             />
             <select
+              title="Nombre de résultats par page"
               value={limit}
               onChange={(event) => {
                 setLimit(Number(event.target.value));
@@ -636,7 +671,7 @@ export default function RapportsRedigesPage() {
             >
               {getPageSizeOptions([10, 15, 20]).map((value) => (
                 <option key={value} value={value}>
-                  {getPageSizeOptionLabel(value)} / page
+                  {getPageSizeOptionLabel(value)} 
                 </option>
               ))}
             </select>
@@ -660,7 +695,7 @@ export default function RapportsRedigesPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="hidden grid-cols-[minmax(0,1.5fr)_140px_180px_140px_60px] items-center gap-4 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#17362e] md:grid">
+            <div className="hidden grid-cols-[minmax(0,1.5fr)_140px_180px_140px_60px] items-center gap-4 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#9c127a] md:grid">
               <span>Rapport</span>
               <span>Type / statut</span>
               <span>Rédigé par</span>
@@ -684,7 +719,7 @@ export default function RapportsRedigesPage() {
                   }`}
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-on-surface">
+                    <p className="text-sm font-bold text-on-error-container">
                       {getRapportTitle(rapport)}
                     </p>
                     {/* <p className="mt-1 text-xs text-on-surface-variant">
@@ -706,7 +741,7 @@ export default function RapportsRedigesPage() {
                   <div className="text-xs text-on-surface-variant">
                     {rapport.generePar.prenom} {rapport.generePar.nom}
                   </div>
-                  <div className="text-xs text-on-surface-variant">
+                  <div className="text-xs text-yellow-700">
                     {formatDateTime(rapport.createdAt)}
                   </div>
                   <div className="flex justify-end">
@@ -735,10 +770,10 @@ export default function RapportsRedigesPage() {
                   <span className="mb-3 inline-block rounded-full bg-primary-fixed px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-[#2e4d44]">
                     Rapport rédigé
                   </span>
-                  <h2 className="text-[30px] font-extrabold leading-tight text-[#17362e]">
+                  <h2 className="text-[30px] font-extrabold leading-tight text-[#a7468a]">
                     {getRapportTitle(selectedRapport)}
                   </h2>
-                  <p className="mt-2 text-sm text-[#414845]">
+                  <p className="mt-2 text-sm text-[#2f024d]">
                     Rapport {getReportTypeLabel(selectedRapport.type).toLowerCase()} rédigé le {formatDateTime(selectedRapport.createdAt)} par {selectedRapport.generePar.prenom} {selectedRapport.generePar.nom}({selectedRapport.generePar.email}).
                   </p>
                 </div>
@@ -790,15 +825,15 @@ export default function RapportsRedigesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#427546]">
                     Bénéficiaire
                   </p>
-                  <p className="mt-1 text-[13px] font-bold text-[#191c1c]">
+                  <p className="mt-1 text-[13px] font-bold  text-[#191c1c]">
                     {getBeneficiaireName(selectedRapport)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#427546]">
                     Numéro de dossier
                   </p>
                   <p className="mt-1 text-[13px] font-bold text-[#191c1c]">
@@ -806,7 +841,7 @@ export default function RapportsRedigesPage() {
                   </p>
                 </div>
                 <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#427546]">
                     Numéro mandat
                   </p>
                   <p className="mt-1 text-[13px] font-bold text-[#191c1c]">
@@ -814,7 +849,7 @@ export default function RapportsRedigesPage() {
                   </p>
                 </div>
                 <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#427546]">
                     Juridiction
                   </p>
                   <p className="mt-1 text-[13px] font-bold text-[#191c1c]">
@@ -902,7 +937,7 @@ export default function RapportsRedigesPage() {
                         {isObligations ? (
                           <div className="overflow-hidden rounded-lg border border-surface-high">
                             <table className="w-full table-fixed text-left text-sm">
-                              <thead className="bg-[#f2f4f3] text-[10px] font-black uppercase tracking-[0.14em] text-[#17362e]">
+                              <thead className="bg-[#f2f4f3] text-[10px] font-black uppercase tracking-[0.14em] text-[#8b2c3c]">
                                 <tr>
                                   <th className="px-3 py-2">Catégorie</th>
                                   <th className="px-3 py-2">Obligation</th>
@@ -987,7 +1022,7 @@ export default function RapportsRedigesPage() {
                           </div>
                         ) : isEvaluationSection && hasStructuredRows ? (
                           <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-surface-high bg-white p-2">
-                            <div className="grid grid-cols-3 gap-2 rounded-md bg-[#f2f4f3] px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#17362e]">
+                            <div className="grid grid-cols-3 gap-2 rounded-md bg-[#f2f4f3] px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#b33d81]">
                               <span>Suivi</span>
                               <span>Service</span>
                               <span>Conformité</span>
@@ -1003,7 +1038,7 @@ export default function RapportsRedigesPage() {
                                       <span>{valueOrNeant(cells[1])}</span>
                                       <span>{valueOrNeant(cells[2])}</span>
                                     </div>
-                                    <div className="ml-3 text-[10px] font-black uppercase tracking-[0.14em] text-[#17362e]">
+                                    <div className="ml-3 text-[10px] font-black uppercase tracking-[0.14em] text-[#b33d81]">
                                       Date et présence
                                     </div>
                                   </div>

@@ -16,7 +16,7 @@ import {
   Eye,
   Plus,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CompactPaginationControls } from "../../components/pagination/CompactPaginationControls";
 import { usePointages } from "../../hooks/usePointages";
 import type { Pointage } from "../../types";
@@ -91,25 +91,15 @@ export default function PointagesPage() {
     page,
     limit,
     search,
-    statusFilter === "TOUS" ? "" : statusFilter,
+    search.trim() ? "" : statusFilter === "TOUS" ? "" : statusFilter,
     "",
-    lieuFilter,
+    search.trim() ? "" : lieuFilter,
     ""
   );
 
   const query = search.trim().toLowerCase();
 
-  const filtered = pointages.filter((p) => {
-    const fullName = getDisplayName(p).toLowerCase();
-    const numero = getNumeromandat(p).toLowerCase();
-    const lieu = (p.lieu || "").toLowerCase();
-    const matchesSearch =
-      fullName.includes(query) ||
-      numero.includes(query) ||
-      lieu.includes(query);
-
-    return matchesSearch;
-  });
+  const filtered = pointages;
 
   const counts = {
     total: meta.total,
@@ -142,6 +132,10 @@ export default function PointagesPage() {
     setLimit(nextLimit);
     setPage(1);
   }
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
   return (
     <div className="p-4 sm:p-8 min-h-full bg-surface">
@@ -317,7 +311,7 @@ export default function PointagesPage() {
         <div className="text-center py-20 text-on-surface-variant">
           <Clock size={36} className="mx-auto mb-3 opacity-20" />
           <p className="text-sm">
-            {query ? "Aucun pointage trouve sur cette page" : "Aucun pointage trouve"}
+            {query ? "Aucun pointage trouve" : "Aucun pointage trouve"}
           </p>
         </div>
       ) : (

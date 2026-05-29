@@ -98,14 +98,66 @@ async function recordProfilStatutHistorique(
     });
 }
 
+export async function notifyNewBeneficiaireCreated(args: {
+    beneficiaireId: string;
+    dossier: {
+        id: string;
+        numeroDossier: string;
+        nom?: string | null;
+        prenom?: string | null;
+        createdAt?: Date | null;
+    };
+    source?: string;
+}) {
+    const eventAt = new Date();
+
+    await createNotification({
+        beneficiaireId: args.beneficiaireId,
+        type: "NOUVEAU_BENEFICIAIRE",
+        priorite: "INFO",
+        targetType: "BENEFICIAIRE",
+        targetId: args.beneficiaireId,
+        message: `Nouveau bénéficiaire créé: ${[args.dossier.prenom, args.dossier.nom].filter(Boolean).join(" ")}`.trim(),
+        dateEnvoi: eventAt,
+        metadata: {
+            dossierId: args.dossier.id,
+            numeroDossier: args.dossier.numeroDossier,
+            source: args.source ?? "MANUEL",
+            eventAt: eventAt.toISOString(),
+        },
+    });
+}
+
 // SERVICE DE RECUPERATION DES BENEFICIAIRES
-export async function getBeneficiaires(page = 1, limit = 10, user?: AccessContext) {
+function buildBeneficiaireSearchFilter(search?: string): Prisma.BeneficiaireWhereInput {
+    const query = search?.trim();
+    if (!query) {
+        return {};
+    }
+
+    return {
+        dossier: {
+            OR: [
+                { nom: { contains: query, mode: "insensitive" } },
+                { prenom: { contains: query, mode: "insensitive" } },
+                { numeroDossier: { contains: query, mode: "insensitive" } },
+                { numeroMandatDepot: { contains: query, mode: "insensitive" } },
+            ],
+        },
+    };
+}
+
+export async function getBeneficiaires(page = 1, limit = 10, user?: AccessContext, search?: string) {
     if (page <= 0 || limit <= 0) {
         throw new HttpError(400, "Parametres de pagination invalides");
     }
 
     const skip = (page - 1) * limit;
     const accessFilter = buildBeneficiaireAccessFilter(user);
+    const searchFilter = buildBeneficiaireSearchFilter(search);
+    const where: Prisma.BeneficiaireWhereInput = {
+        AND: [accessFilter, searchFilter],
+    };
     const [beneficiaires, total] = await prisma.$transaction([
         prisma.beneficiaire.findMany({
             include: {
@@ -126,7 +178,7 @@ export async function getBeneficiaires(page = 1, limit = 10, user?: AccessContex
                 },
                 
             },
-            where: accessFilter,
+            where,
             orderBy: {
                 createdAt: "desc",
             },
@@ -134,7 +186,7 @@ export async function getBeneficiaires(page = 1, limit = 10, user?: AccessContex
             take: limit,
         }),
         prisma.beneficiaire.count({
-            where: accessFilter,
+            where,
         }),
     ]);
 
@@ -232,19 +284,10 @@ export async function createBeneficiaire(input: CreateBeneficiaireInput) {
         },
     });
 
-    await createNotification({
+    await notifyNewBeneficiaireCreated({
         beneficiaireId: beneficiaire.id,
-        type: "NOUVEAU_BENEFICIAIRE",
-        priorite: "INFO",
-        targetType: "BENEFICIAIRE",
-        targetId: beneficiaire.id,
-        message: `Nouveau bénéficiaire créé: ${dossier.prenom} ${dossier.nom}`.trim(),
-        dateEnvoi: dossier.createdAt,
-        metadata: {
-            dossierId: dossier.id,
-            numeroDossier: dossier.numeroDossier,
-            eventAt: dossier.createdAt.toISOString(),
-        },
+        dossier,
+        source: "MANUEL",
     });
 
     return beneficiaire;
@@ -299,18 +342,22 @@ export async function syncSpecificObligationsForBeneficiaire(
     beneficiaireId: string,
     obligations: SpecificObligationInput[],
     user?: AccessContext,
+    options?: { allowConfirmed?: boolean },
 ) {
     const beneficiaire = await prisma.beneficiaire.findFirstOrThrow({
         where: {
             id: beneficiaireId,
-            ...buildBeneficiaireAccessFilter(user),
+            ...(user ? buildBeneficiaireAccessFilter(user) : {}),
         },
         include: {
             dossier: true,
         },
     });
 
-    if ((beneficiaire.profilStatut ?? (beneficiaire.profilConfirme ? "ACTIF" : "A_CONFIGURER")) !== "A_CONFIGURER") {
+    if (
+        !options?.allowConfirmed &&
+        (beneficiaire.profilStatut ?? (beneficiaire.profilConfirme ? "ACTIF" : "A_CONFIGURER")) !== "A_CONFIGURER"
+    ) {
         throw new HttpError(409, "Le profil est deja confirme");
     }
 

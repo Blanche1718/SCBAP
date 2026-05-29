@@ -35,6 +35,7 @@ import type {
 import { formatInAppTimeZone, formatPointageInAppTimeZone } from "../../utils/timezone";
 import { getConformiteLabel, getConformiteTone } from "../../utils/rapports";
 import { useRapportsRediges } from "../../hooks/useRapports";
+import { getDapgRawObligationsText } from "../../utils/dapgObligations";
 
 type ObligationFormState = {
   type: string;
@@ -565,6 +566,7 @@ export default function BeneficiaireDetailPage() {
   }
 
   const dossier = beneficiaire.dossier;
+  const rawObligationsText = getDapgRawObligationsText(dossier);
   const fullName = dossier ? `${dossier.nom} ${dossier.prenom}` : "—";
   const profilConfirme = getProfilStatut(beneficiaire) === "ACTIF";
   const biometrieStatut = beneficiaire.biometrieEnrolementStatut ?? "AUCUN";
@@ -985,14 +987,14 @@ export default function BeneficiaireDetailPage() {
           </Section>
           )}
 
-          {dossier?.obligations && (
+          {rawObligationsText && (
             <Section title="Obligations (texte brut DAPG)">
               <div className="rounded-md border border-surface-low bg-white p-3">
                 <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-error-container px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-on-error-container">
                   Exigences légales
                 </div>
                 <p className="whitespace-pre-wrap text-xs text-on-secondary-container leading-relaxed">
-                  {dossier.obligations}
+                  {rawObligationsText}
                 </p>
                 {/* <div className="mt-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-on-secondary-container">
                   <span className="w-2 h-2 rounded-full bg-on-error-container" />

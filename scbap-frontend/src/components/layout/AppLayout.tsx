@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Users,
   FileText,
@@ -18,6 +18,7 @@ import { useAuth } from "../../auth/AuthContext";
 export default function AppLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const isAdmin = user?.role.nom === "ADMIN";
   const navItems = [
@@ -122,6 +123,11 @@ export default function AppLayout() {
             <NavLink
               key={to}
               to={to}
+              onClick={() => {
+                if (to === "/administration" && location.pathname === "/administration") {
+                  window.dispatchEvent(new Event("scbap:administration-home"));
+                }
+              }}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all ${
                   isActive ? "bg-white/15 text-white" : "text-white/55 hover:text-white/80 hover:bg-white/8"
@@ -137,17 +143,24 @@ export default function AppLayout() {
         {/* User zone */}
         <div className="px-4 py-4 border-t border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold bg-primary text-primary-fixed">
-              {(user?.prenom?.[0] ?? "A") + (user?.nom?.[0] ?? "P")}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-xs font-semibold truncate">
-                {user ? `${user.prenom} ${user.nom}` : "Agent Pénitentiaire"}
-              </p>
-              <p className="text-white/40 text-xs truncate">
-                {user ? `${user.role.nom} • ${user.structure.nom}` : "SPIP Cotonou"}
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/configuration")}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left transition-colors hover:bg-white/8"
+              title="Configurer mon profil"
+            >
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold bg-primary text-primary-fixed">
+                {(user?.prenom?.[0] ?? "A") + (user?.nom?.[0] ?? "P")}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-xs font-semibold truncate">
+                  {user ? `${user.prenom} ${user.nom}` : "Agent Pénitentiaire"}
+                </p>
+                <p className="text-white/40 text-xs truncate">
+                  {user ? `${user.role.nom} • ${user.structure.nom}` : "SPIP Cotonou"}
+                </p>
+              </div>
+            </button>
             <button
               className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-white/80 transition-all hover:border-error/40 hover:bg-error/15 hover:text-white"
               title="Se déconnecter"

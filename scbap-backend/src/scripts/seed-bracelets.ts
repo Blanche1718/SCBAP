@@ -84,7 +84,23 @@ async function main() {
     return;
   }
 
+  const existingSeedBracelets = await prisma.bracelet.count({
+    where: {
+      codeImei: {
+        startsWith: BRACELET_PREFIX,
+      },
+    },
+  });
+
+  if (existingSeedBracelets >= TARGET_COUNT) {
+    console.log(
+      `Seed bracelets ignore: ${existingSeedBracelets} bracelet(s) ${BRACELET_PREFIX} existent deja. Utilisez RESET_SEED=1 pour les regenerer.`,
+    );
+    return;
+  }
+
   let created = 0;
+  let nextBraceletIndex = existingSeedBracelets + 1;
 
   for (let index = 0; index < beneficiaires.length && created < TARGET_COUNT; index += 1) {
     const beneficiaire = beneficiaires[index];
@@ -92,7 +108,8 @@ async function main() {
       continue;
     }
 
-    const codeImei = buildBraceletCode(created + 1);
+    const codeImei = buildBraceletCode(nextBraceletIndex);
+    nextBraceletIndex += 1;
     const bracelet = await prisma.bracelet.upsert({
       where: { codeImei },
       update: {

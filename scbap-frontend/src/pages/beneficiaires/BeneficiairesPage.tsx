@@ -23,6 +23,7 @@ import { useToast } from "../../context/ToastContext";
 import { useBeneficiaires } from "../../hooks/useBeneficiaires";
 import { api } from "../../lib/api";
 import type { Beneficiaire, Dossier } from "../../types";
+import { DAPG_AUTO_SYNC_INTERVAL_MS } from "../../utils/dapgSync";
 import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
 import { formatInAppTimeZone, formatPointageInAppTimeZone } from "../../utils/timezone";
 
@@ -185,7 +186,7 @@ export default function BeneficiairesPage() {
   const [agentFilter] = useState<"TOUS" | "Agent A." | "Agent B.">("TOUS");
   const [syncing, setSyncing] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
-  const { beneficiaires, meta, loading, error, refetch } = useBeneficiaires(page, limit);
+  const { beneficiaires, meta, loading, error, refetch } = useBeneficiaires(page, limit, search);
 
   const query = search.trim().toLowerCase();
   function getAgentLabel(beneficiaire: Beneficiaire) {
@@ -200,9 +201,9 @@ export default function BeneficiairesPage() {
     const numero = getNumeroDossier(b).toLowerCase();
     const matchesSearch = fullName.includes(query) || numero.includes(query);
     const matchesStatus =
-      statusFilter === "TOUS" || getComplianceStatus(b) === statusFilter;
+      query || statusFilter === "TOUS" || getComplianceStatus(b) === statusFilter;
     const matchesRisk =
-      riskFilter === "TOUS" || getRiskLevel(b) === riskFilter;
+      query || riskFilter === "TOUS" || getRiskLevel(b) === riskFilter;
     const matchesAgent =
       agentFilter === "TOUS" || getAgentLabel(b) === agentFilter;
 
@@ -243,6 +244,10 @@ export default function BeneficiairesPage() {
     setPage(1);
   }
 
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
   async function syncDapgDossiers() {
     try {
       setSyncing(true);
@@ -259,9 +264,8 @@ export default function BeneficiairesPage() {
   useEffect(() => {
     const lastSyncAt = Number(localStorage.getItem("scbap:last-dapg-sync-at") || "0");
     const now = Date.now();
-    const syncInterval = 30 * 1000; // 30 secondes entre les synchros automatiques
 
-    if (now - lastSyncAt < syncInterval) {
+    if (now - lastSyncAt < DAPG_AUTO_SYNC_INTERVAL_MS) {
       return;
     }
 
@@ -298,13 +302,13 @@ export default function BeneficiairesPage() {
           >
             <HelpCircle size={16} />
           </button>
-          <button
-            type="button"
+          <Link
+            to="/rapports/rediges"
             className="flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold text-on-error-container bg-error-container hover:bg-error-container/80 transition-colors uppercase tracking-wider"
           >
             <AlertTriangle size={14} />
             Alerte d&apos;urgence
-          </button>
+          </Link>
           <div className="hidden sm:flex items-center gap-3 pl-2">
             <div className="text-right">
               <p className="text-xs font-semibold text-on-surface">{userDisplayName}</p>
@@ -465,7 +469,7 @@ export default function BeneficiairesPage() {
         <div className="text-center py-20 text-on-surface-variant">
           <Users size={36} className="mx-auto mb-3 opacity-20" />
           <p className="text-sm">
-            {query ? "Aucun beneficiaire trouve sur cette page" : "Aucun beneficiaire trouve"}
+            {query ? "Aucun beneficiaire trouve" : "Aucun beneficiaire trouve"}
           </p>
         </div>
       ) : (

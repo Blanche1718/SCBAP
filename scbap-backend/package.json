@@ -23,6 +23,10 @@
     "seed:alertes:reset": "RESET_SEED=1 ts-node src/scripts/seed-alertes.ts",
     "simulate:bracelet": "ts-node src/scripts/simulate-bracelet.ts",
     "simulate:bracelet:alert": "BRACELET_SIMULATION_MODE=alert ts-node src/scripts/simulate-bracelet.ts",
+    "simulate:bracelet:zone": "BRACELET_SIMULATION_MODE=zone ts-node src/scripts/simulate-bracelet.ts",
+    "simulate:bracelet:battery": "BRACELET_SIMULATION_MODE=battery ts-node src/scripts/simulate-bracelet.ts",
+    "simulate:bracelet:signal": "BRACELET_SIMULATION_MODE=signal ts-node src/scripts/simulate-bracelet.ts",
+    "simulate:bracelet:tamper": "BRACELET_SIMULATION_MODE=tamper ts-node src/scripts/simulate-bracelet.ts",
     "backfill:beneficiaire-statuts": "ts-node src/scripts/backfill-beneficiaire-statuts.ts"
   },
   "keywords": [],

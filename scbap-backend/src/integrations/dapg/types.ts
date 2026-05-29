@@ -36,10 +36,13 @@ export interface DapgCommissionAvis {
 
 export interface DapgObligationSpecifique {
   id?: number | string | null;
+  obligation_id?: number | string | null;
   section?: string | null;
   code?: string | number | null;
   categorie?: string | null;
   libelle?: string | null;
+  texte?: string | null;
+  texte_formate?: string | null;
 }
 
 export interface DapgLiberationConditionnelle {

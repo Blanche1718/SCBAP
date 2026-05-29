@@ -15,6 +15,10 @@ export const CreateServiceExterneSchema = z.object({
   telephone: z.string().min(1).nullable().optional(),
 });
 
+export const UpdateServiceExterneSchema = CreateServiceExterneSchema.extend({
+  actif: z.boolean().optional(),
+});
+
 export const CreateAffectationServiceExterneSchema = z.object({
   serviceId: z.string().uuid().nullable().optional(),
   beneficiaireId: z.string().uuid(),
@@ -29,6 +33,9 @@ export const CreateAffectationServiceExterneSchema = z.object({
 
 export type CreateServiceExterneInput = z.infer<
   typeof CreateServiceExterneSchema
+>;
+export type UpdateServiceExterneInput = z.infer<
+  typeof UpdateServiceExterneSchema
 >;
 export type CreateAffectationServiceExterneInput = z.infer<
   typeof CreateAffectationServiceExterneSchema

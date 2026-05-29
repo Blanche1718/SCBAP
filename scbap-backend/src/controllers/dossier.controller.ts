@@ -45,6 +45,15 @@ function parsePaginationParam(
   return parsedValue;
 }
 
+function parseOptionalString(value: unknown) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 export async function getDossiersController(
   req: Request,
   res: Response,
@@ -53,7 +62,8 @@ export async function getDossiersController(
   try {
     const page = parsePaginationParam(req.query.page, "page", 1);
     const limit = parsePaginationParam(req.query.limit, "limit", 10);
-    const dossiers = await getDossiers(page, limit, req.user);
+    const search = parseOptionalString(req.query.search);
+    const dossiers = await getDossiers(page, limit, req.user, search);
 
     res.status(200).json({
       message: "Liste des dossiers recuperee avec succes",

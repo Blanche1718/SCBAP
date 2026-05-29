@@ -1,11 +1,4 @@
-/**
- * DASHBOARD SCBAP — Page d'accueil
- *
- * MODE ACTUEL : donnees fictives (mock)
- * Pour basculer sur l'API reelle, chercher les blocs marques :
- *   ── [MOCK] ──  →  desactiver
- *   ── [API]  ──  →  decommenter
- */
+
 
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
@@ -24,7 +17,7 @@ import {
   ChevronRight,
   Wifi,
   Battery,
-  Zap,
+  // Zap,
   RefreshCw,
   Settings,
 } from "lucide-react";
@@ -760,7 +753,7 @@ export default function DashboardPage() {
           icon: MapPin,
         },
         {
-          to: "/alertes",
+          to: "/rapports/rediges",
           title: "Alertes",
           description: "Incidents a traiter",
           icon: AlertTriangle,
@@ -777,6 +770,7 @@ export default function DashboardPage() {
           description: "Reglages du systeme",
           icon: Settings,
         },
+
       ];
 
   return (
@@ -833,12 +827,13 @@ export default function DashboardPage() {
             </label>
           )}
 
-          <button
-            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold text-on-error-container bg-error-container hover:bg-error-container/80 transition-colors"
+          <Link
+            to="/rapports/rediges"
+            className="flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold text-on-error-container bg-error-container hover:bg-error-container/80 transition-colors uppercase tracking-wider"
           >
-            <Zap size={14} />
-            ALERTE D'URGENCE
-          </button>
+            <AlertTriangle size={14} />
+            Alerte d&apos;urgence
+          </Link>
 
           <div className="relative">
             <button

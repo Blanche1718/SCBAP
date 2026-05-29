@@ -43,17 +43,36 @@ function parseDate(date?: string) {
 
 // SERVICE DE RECUPERATION DES DOSSIERS
 
-export async function getDossiers(page = 1, limit = 10, user?: AccessContext) {
+function buildDossierSearchFilter(search?: string): Prisma.DossierWhereInput {
+  const query = search?.trim();
+  if (!query) {
+    return {};
+  }
+
+  return {
+    OR: [
+      { nom: { contains: query, mode: "insensitive" } },
+      { prenom: { contains: query, mode: "insensitive" } },
+      { numeroDossier: { contains: query, mode: "insensitive" } },
+      { numeroMandatDepot: { contains: query, mode: "insensitive" } },
+      { infractions: { contains: query, mode: "insensitive" } },
+    ],
+  };
+}
+
+export async function getDossiers(page = 1, limit = 10, user?: AccessContext, search?: string) {
   if (page <= 0 || limit <= 0) {
     throw new HttpError(400, "Parametres de pagination invalides");
   }
   const skip = (page-1)*limit;
   const accessFilter = buildDossierAccessFilter(user);
+  const searchFilter = buildDossierSearchFilter(search);
   const [dossiers, total] = await prisma.$transaction([
     prisma.dossier.findMany({
       where: {
         deletedAt: null,
         ...accessFilter,
+        ...searchFilter,
       },
       include: {
         beneficiaire: true,
@@ -69,6 +88,7 @@ export async function getDossiers(page = 1, limit = 10, user?: AccessContext) {
       where: {
         deletedAt: null,
         ...accessFilter,
+        ...searchFilter,
       },
     }),
   ]);

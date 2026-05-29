@@ -63,9 +63,9 @@ export default function NotificationsPage() {
   const filters = useMemo(
     () => ({
       search,
-      type,
-      priorite,
-      lu,
+      type: search.trim() ? "" : type,
+      priorite: search.trim() ? "" : priorite,
+      lu: search.trim() ? "TOUS" : lu,
     }),
     [lu, priorite, search, type],
   );

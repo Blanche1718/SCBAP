@@ -45,6 +45,15 @@ function parsePaginationParam(
   return parsedValue;
 }
 
+function parseOptionalString(value: unknown) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function parseObligationsPayload(body: unknown) {
   if (!body || typeof body !== "object") {
     throw new HttpError(400, "Payload invalide");
@@ -101,7 +110,8 @@ export async function getBeneficiairesController(
   try {
     const page = parsePaginationParam(req.query.page, "page", 1);
     const limit = parsePaginationParam(req.query.limit, "limit", 10);
-    const beneficiaires = await getBeneficiaires(page, limit, req.user);
+    const search = parseOptionalString(req.query.search);
+    const beneficiaires = await getBeneficiaires(page, limit, req.user, search);
 
     res.status(200).json({
       message: "Liste des beneficiaires recuperee avec succes",

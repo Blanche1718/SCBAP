@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowUpRight,
+  Download,
   FileText,
   FolderOpen,
   Loader2,
@@ -68,7 +69,7 @@ export default function RapportsDocumentsPage() {
 
       const matchesSearch = !query || haystack.includes(query);
       const matchesSource =
-        sourceFilter === "TOUS" || document.source === sourceFilter || document.origin === sourceFilter;
+        query || sourceFilter === "TOUS" || document.source === sourceFilter || document.origin === sourceFilter;
 
       return matchesSearch && matchesSource;
     });
@@ -111,7 +112,7 @@ export default function RapportsDocumentsPage() {
               <ArrowLeft size={15} />
               Retour à Rapports
             </Link>
-            <h1 className="mt-3 text-[30px] font-extrabold text-[#17362e]">
+            <h1 className="mt-3 text-[30px] font-extrabold text-[#33d1aa]">
               Documents reçus
             </h1>
             <p className="mt-2 text-sm text-on-surface-variant">
@@ -209,7 +210,7 @@ export default function RapportsDocumentsPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="hidden grid-cols-[minmax(0,1.3fr)_140px_160px_140px_60px] items-center gap-4 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#17362e] md:grid">
+            <div className="hidden grid-cols-[minmax(0,1.3fr)_140px_160px_140px_60px] items-center gap-4 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-on-error-container md:grid">
               <span>Document</span>
               <span>Source</span>
               <span>Statut</span>
@@ -233,13 +234,13 @@ export default function RapportsDocumentsPage() {
                   }`}
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-on-surface">{document.titre}</p>
+                    <p className="text-sm font-bold text-on-error-container">{document.titre}</p>
                     <p className="mt-1 text-xs text-on-surface-variant">
                       {getBeneficiaireName(document)} • {document.typeDocument}
                     </p>
                   </div>
                   <div>
-                    <span className="inline-flex rounded-full bg-surface-high px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                    <span className="inline-flex rounded-full bg-surface-high px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-yellow-700">
                       {getDocumentSourceLabel(document.source)}
                     </span>
                   </div>
@@ -277,33 +278,21 @@ export default function RapportsDocumentsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">
-                    Bénéficiaire
-                  </p>
-                  <p className="mt-1 text-[13px] font-bold text-[#191c1c]">
-                    {getBeneficiaireName(selectedDocument)}
-                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">Bénéficiaire</p>
+                  <p className="mt-1 text-[13px] font-bold text-[#191c1c]">{getBeneficiaireName(selectedDocument)}</p>
                 </div>
                 <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">
-                    Dossier
-                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">Dossier</p>
                   <p className="mt-1 text-[13px] font-bold text-[#191c1c]">
                     {selectedDocument.beneficiaire.dossier?.numeroDossier ?? "—"}
                   </p>
                 </div>
                 <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">
-                    Type
-                  </p>
-                  <p className="mt-1 text-[13px] font-bold text-[#191c1c]">
-                    {selectedDocument.typeDocument}
-                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">Type</p>
+                  <p className="mt-1 text-[13px] font-bold text-[#191c1c]">{selectedDocument.typeDocument}</p>
                 </div>
                 <div className="rounded-lg bg-[#f2f4f3] p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">
-                    Reçu le
-                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#17362e]">Reçu le</p>
                   <p className="mt-1 text-[13px] font-bold text-[#191c1c]">
                     {formatDateTime(selectedDocument.uploadedAt || selectedDocument.createdAt)}
                   </p>
@@ -325,29 +314,33 @@ export default function RapportsDocumentsPage() {
                 </p>
               </div>
 
-              <div className="space-y-3">
-                <Link
-                  to={`/beneficiaires/${selectedDocument.beneficiaire.id}`}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[#17362e] to-[#2e4d44] px-4 py-3 text-[11px] font-extrabold uppercase tracking-[0.28em] text-white shadow-md transition hover:brightness-110"
-                >
-                  Ouvrir bénéficiaire
-                </Link>
-                {selectedDocumentHref ? (
-                  <a
-                    href={selectedDocumentHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#17362e] bg-white px-4 py-3 text-[11px] font-extrabold uppercase tracking-[0.24em] text-[#17362e] transition hover:bg-[#f2f4f3]"
-                  >
-                    <ArrowUpRight size={14} />
-                    Télécharger le document
-                  </a>
-                ) : (
-                  <div className="rounded-lg border border-dashed border-surface-high bg-surface-low px-4 py-3 text-xs text-on-surface-variant">
+              <div className="rounded-xl border border-surface-high bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-on-surface-variant">
                     Aucun lien de consultation n’est disponible pour ce document.
-                  </div>
-                )}
+                  </p>
+                  {selectedDocumentHref ? (
+                    <a
+                      href={selectedDocumentHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-[#2e4d44]"
+                    >
+                      <Download size={14} />
+                      Télécharger
+                    </a>
+                  ) : (
+                    <span className="text-xs font-semibold text-on-surface-variant">Fichier indisponible</span>
+                  )}
+                </div>
               </div>
+
+              <Link
+                to={`/beneficiaires/${selectedDocument.beneficiaire.id}`}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[#17362e] to-[#2e4d44] px-4 py-3 text-[11px] font-extrabold uppercase tracking-[0.28em] text-white shadow-md transition hover:brightness-110"
+              >
+                Ouvrir bénéficiaire
+              </Link>
             </div>
           </div>
         ) : null}

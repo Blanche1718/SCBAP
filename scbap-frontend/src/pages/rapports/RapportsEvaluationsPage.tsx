@@ -65,7 +65,7 @@ export default function RapportsEvaluationsPage() {
 
       const matchesSearch = !query || haystack.includes(query);
       const matchesConformite =
-        conformiteFilter === "TOUS" || evaluation.conformite === conformiteFilter;
+        query || conformiteFilter === "TOUS" || evaluation.conformite === conformiteFilter;
 
       return matchesSearch && matchesConformite;
     });

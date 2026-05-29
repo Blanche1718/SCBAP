@@ -28,6 +28,7 @@ import webhooksRouter from "./routes/webhooks.routes";
 import { initializeSurveillanceRealtime } from "./services/surveillance-realtime.service";
 import { initializeAbsenceCheckJob } from "./jobs/absence-check.job";
 import { initializeMonthlyRapportJob } from "./jobs/monthly-rapport.job";
+import { initializeSurveillanceHealthJob } from "./jobs/surveillance-health.job";
 
 
 const app = express();
@@ -76,6 +77,7 @@ server.listen(port, () => {
   startMqttSubscriber(handleMqttMessage);
   initializeAbsenceCheckJob();
   initializeMonthlyRapportJob();
+  initializeSurveillanceHealthJob();
 });
 
 export default app;

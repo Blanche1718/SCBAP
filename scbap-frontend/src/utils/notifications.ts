@@ -117,16 +117,24 @@ export function getNotificationTitle(notification: Notification) {
 }
 
 export function resolveNotificationTarget(notification: Notification) {
+  const beneficiaireId =
+    notification.beneficiaireId ??
+    notification.beneficiaire?.id ??
+    notification.pointage?.beneficiaire?.id ??
+    (notification.targetType === "BENEFICIAIRE" || notification.targetType === "BIOMETRIE"
+      ? notification.targetId
+      : null);
+
+  if (beneficiaireId) {
+    return `/beneficiaires/${encodeURIComponent(beneficiaireId)}`;
+  }
+
   if (notification.targetType === "ALERTE") {
     return `/alertes?alerte=${encodeURIComponent(notification.targetId)}`;
   }
 
   if (notification.targetType === "POINTAGE") {
     return `/pointages/${encodeURIComponent(notification.targetId)}`;
-  }
-
-  if (notification.targetType === "BENEFICIAIRE" || notification.targetType === "BIOMETRIE") {
-    return `/beneficiaires/${encodeURIComponent(notification.targetId)}`;
   }
 
   return "/notifications";

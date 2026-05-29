@@ -14,7 +14,7 @@ const DEFAULT_PAGINATION_META: PaginationMeta = {
   totalPages: 0,
 };
 
-export function useBeneficiaires(page = 1, limit = 10) {
+export function useBeneficiaires(page = 1, limit = 10, search = "") {
   const [beneficiaires, setBeneficiaires] = useState<Beneficiaire[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({
     ...DEFAULT_PAGINATION_META,
@@ -32,6 +32,8 @@ export function useBeneficiaires(page = 1, limit = 10) {
         page: String(page),
         limit: String(limit),
       });
+      const normalizedSearch = search.trim();
+      if (normalizedSearch) params.set("search", normalizedSearch);
       const res = await api.get<ApiResponse<PaginatedData<Beneficiaire>>>(
         `/beneficiaires?${params.toString()}`,
       );
@@ -42,7 +44,7 @@ export function useBeneficiaires(page = 1, limit = 10) {
     } finally {
       setLoading(false);
     }
-  }, [limit, page]);
+  }, [limit, page, search]);
 
   useEffect(() => { fetch(); }, [fetch]);
 

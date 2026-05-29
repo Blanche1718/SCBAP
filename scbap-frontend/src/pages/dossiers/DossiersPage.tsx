@@ -23,6 +23,7 @@ import { Button } from "../../components/ui";
 import { useToast } from "../../context/ToastContext";
 import { api } from "../../lib/api";
 import type { Dossier } from "../../types";
+import { DAPG_AUTO_SYNC_INTERVAL_MS } from "../../utils/dapgSync";
 import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
 import { formatInAppTimeZone } from "../../utils/timezone";
 
@@ -103,16 +104,10 @@ export default function DossiersPage() {
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const hasAutoSyncedRef = useRef(false);
-  const { dossiers, meta, loading, error, refetch } = useDossiers(page, limit);
+  const { dossiers, meta, loading, error, refetch } = useDossiers(page, limit, search);
 
   const query = search.trim().toLowerCase();
-  const filtered = dossiers.filter((d) => {
-    return (
-      d.nom.toLowerCase().includes(query) ||
-      d.prenom.toLowerCase().includes(query) ||
-      d.numeroDossier.toLowerCase().includes(query)
-    );
-  });
+  const filtered = dossiers;
 
   const counts = {
     total: meta.total,
@@ -144,6 +139,10 @@ export default function DossiersPage() {
     setLimit(nextLimit);
     setPage(1);
   }
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
   async function handleSyncDapg() {
     setSyncing(true);
@@ -203,8 +202,7 @@ export default function DossiersPage() {
     if (hasAutoSyncedRef.current) return;
     const lastSyncAt = Number(localStorage.getItem("scbap:last-dapg-sync-at") || "0");
     const now = Date.now();
-    const syncInterval = 30 * 1000; // 30 secondes entre les synchros automatiques
-    if (now - lastSyncAt < syncInterval) return;
+    if (now - lastSyncAt < DAPG_AUTO_SYNC_INTERVAL_MS) return;
 
     hasAutoSyncedRef.current = true;
     localStorage.setItem("scbap:last-dapg-sync-at", String(now));
@@ -339,9 +337,6 @@ export default function DossiersPage() {
           className="self-end lg:self-auto"
         />
       </div>
-      <p className="mb-5 text-xs text-on-secondary-container">
-        La recherche s&apos;applique aux dossiers chargés sur la page en cours.
-      </p>
 
       {/* ── Column headers ── */}
       <div className="hidden sm:grid grid-cols-[36px_minmax(0,1fr)_170px_130px_190px_60px_16px] items-center gap-4 px-5 py-2 mb-2">
@@ -392,7 +387,7 @@ export default function DossiersPage() {
         <div className="text-center py-20 text-on-surface-variant">
           <FileText size={36} className="mx-auto mb-3 opacity-20" />
           <p className="text-sm">
-            {query ? "Aucun dossier trouve sur cette page" : "Aucun dossier trouve"}
+            {query ? "Aucun dossier trouve" : "Aucun dossier trouve"}
           </p>
         </div>
       ) : (

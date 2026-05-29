@@ -4,17 +4,20 @@ import {
   AlertCircle,
   ArrowLeft,
   ClipboardList,
+  Building2,
   KeyRound,
   Loader2,
   Mail,
   MapPin,
   Phone,
+  Pencil,
   Plus,
   RefreshCw,
   Send,
   UserRound,
 } from "lucide-react";
 import { Button, Card, Input, Select, Textarea } from "../../components/ui/index";
+import { SideDrawer } from "../../components/ui/SideDrawer";
 import { useToast } from "../../context/ToastContext";
 import { useBeneficiaires } from "../../hooks/useBeneficiaires";
 import { useServiceExterne } from "../../hooks/useServicesExternes";
@@ -23,6 +26,7 @@ import type {
   ApiResponse,
   Beneficiaire,
   ServiceExterneAffectation,
+  ServiceExterneType,
 } from "../../types";
 import { ALL_PAGE_SIZE } from "../../utils/pagination";
 import {
@@ -36,23 +40,54 @@ type AffectationFormState = {
   beneficiaireId: string;
   obligationId: string;
   typeSuivi: string;
-  libelleSuivi: string;
   frequenceAttendue: string;
   lieuAttendu: string;
   horairesAttendus: string;
   modalitesConnues: boolean;
 };
 
+type ServiceFormState = {
+  nom: string;
+  type: ServiceExterneType;
+  email: string;
+  telephone: string;
+};
+
 const DEFAULT_FORM: AffectationFormState = {
   beneficiaireId: "",
   obligationId: "",
   typeSuivi: "",
-  libelleSuivi: "",
   frequenceAttendue: "",
   lieuAttendu: "",
   horairesAttendus: "",
   modalitesConnues: false,
 };
+
+const DEFAULT_SERVICE_FORM: ServiceFormState = {
+  nom: "",
+  type: "MEDICAL",
+  email: "",
+  telephone: "",
+};
+
+const TYPE_SUIVI_OPTIONS = [
+  { value: "Suivi médical", label: "Suivi médical" },
+  { value: "Suivi social", label: "Suivi social" },
+  { value: "Suivi emploi", label: "Suivi emploi" },
+  { value: "Suivi formation", label: "Suivi formation" },
+  { value: "Suivi psychologique", label: "Suivi psychologique" },
+  { value: "Contrôle administratif", label: "Contrôle administratif" },
+  { value: "Autre suivi", label: "Autre suivi" },
+];
+
+const FREQUENCE_SUIVI_OPTIONS = [
+  { value: "Quotidien", label: "Quotidien" },
+  { value: "Hebdomadaire", label: "Hebdomadaire" },
+  { value: "Bimensuel", label: "Bimensuel" },
+  { value: "Mensuel", label: "Mensuel" },
+  { value: "Trimestriel", label: "Trimestriel" },
+  { value: "Ponctuel", label: "Ponctuel" },
+];
 
 function formatDateTime(value?: string | null) {
   if (!value) {
@@ -102,6 +137,17 @@ function getObligationLabel(affectation: ServiceExterneAffectation) {
   );
 }
 
+function getBeneficiaireObligationLabel(obligation: NonNullable<Beneficiaire["obligations"]>[number]) {
+  return (
+    obligation.description ||
+    obligation.libelle ||
+    obligation.type ||
+    obligation.categorie?.nom ||
+    obligation.code ||
+    obligation.id
+  );
+}
+
 export default function ServiceDetailPage() {
   const { id } = useParams();
   const { showToast } = useToast();
@@ -112,27 +158,89 @@ export default function ServiceDetailPage() {
     error: beneficiairesError,
   } = useBeneficiaires(1, ALL_PAGE_SIZE);
   const [form, setForm] = useState<AffectationFormState>(DEFAULT_FORM);
+  const [serviceForm, setServiceForm] = useState<ServiceFormState>(DEFAULT_SERVICE_FORM);
   const [saving, setSaving] = useState(false);
+  const [savingService, setSavingService] = useState(false);
   const [resending, setResending] = useState(false);
   const [newAccessCode, setNewAccessCode] = useState<string | null>(null);
+  const [affectationDrawerOpen, setAffectationDrawerOpen] = useState(false);
+  const [serviceDrawerOpen, setServiceDrawerOpen] = useState(false);
+  const [selectedBeneficiaireDetail, setSelectedBeneficiaireDetail] = useState<Beneficiaire | null>(null);
+  const [selectedBeneficiaireLoading, setSelectedBeneficiaireLoading] = useState(false);
 
   const selectedBeneficiaire = useMemo(
     () => beneficiaires.find((beneficiaire) => beneficiaire.id === form.beneficiaireId) ?? null,
     [beneficiaires, form.beneficiaireId],
   );
+  const selectedAffectationBeneficiaire = selectedBeneficiaireDetail ?? selectedBeneficiaire;
+  const selectedObligations = selectedAffectationBeneficiaire?.obligations ?? [];
+  const selectedObligation = selectedObligations.find((obligation) => obligation.id === form.obligationId) ?? null;
 
   useEffect(() => {
-    if (!selectedBeneficiaire) {
+    if (!selectedAffectationBeneficiaire) {
       return;
     }
 
     if (
       form.obligationId &&
-      !selectedBeneficiaire.obligations?.some((obligation) => obligation.id === form.obligationId)
+      !selectedObligations.some((obligation) => obligation.id === form.obligationId)
     ) {
       setForm((current) => ({ ...current, obligationId: "" }));
     }
-  }, [form.obligationId, selectedBeneficiaire]);
+  }, [form.obligationId, selectedAffectationBeneficiaire, selectedObligations]);
+
+  useEffect(() => {
+    if (!form.beneficiaireId) {
+      setSelectedBeneficiaireDetail(null);
+      return;
+    }
+
+    let active = true;
+    setSelectedBeneficiaireLoading(true);
+
+    api.get<ApiResponse<Beneficiaire>>(`/beneficiaires/${form.beneficiaireId}`)
+      .then((res) => {
+        if (active) {
+          setSelectedBeneficiaireDetail(res.data);
+        }
+      })
+      .catch((e) => {
+        if (active) {
+          setSelectedBeneficiaireDetail(null);
+          showToast((e as Error).message, "error");
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setSelectedBeneficiaireLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [form.beneficiaireId, showToast]);
+
+  useEffect(() => {
+    if (!newAccessCode) return;
+
+    const timeout = window.setTimeout(() => {
+      setNewAccessCode(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timeout);
+  }, [newAccessCode]);
+
+  function openServiceDrawer() {
+    if (!service) return;
+    setServiceForm({
+      nom: service.nom,
+      type: service.type as ServiceExterneType,
+      email: service.email,
+      telephone: service.telephone ?? "",
+    });
+    setServiceDrawerOpen(true);
+  }
 
   async function handleCreateAffectation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -151,7 +259,9 @@ export default function ServiceDetailPage() {
           beneficiaireId: form.beneficiaireId,
           obligationId: form.obligationId || null,
           typeSuivi: form.typeSuivi.trim(),
-          libelleSuivi: form.libelleSuivi.trim(),
+          libelleSuivi: selectedObligation
+            ? getBeneficiaireObligationLabel(selectedObligation)
+            : form.typeSuivi.trim(),
           frequenceAttendue: form.frequenceAttendue.trim() || null,
           lieuAttendu: form.lieuAttendu.trim() || null,
           horairesAttendus: form.horairesAttendus.trim()
@@ -162,6 +272,7 @@ export default function ServiceDetailPage() {
       );
 
       setForm(DEFAULT_FORM);
+      setAffectationDrawerOpen(false);
       showToast(
         "Affectation créée avec succès. Le code d'accès a été envoyé par email au service partenaire.",
         "success",
@@ -171,6 +282,33 @@ export default function ServiceDetailPage() {
       showToast((e as Error).message, "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleUpdateService(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!service) {
+      return;
+    }
+
+    setSavingService(true);
+
+    try {
+      await api.put<ApiResponse<unknown>>(`/services-externes/${service.id}`, {
+        nom: serviceForm.nom.trim(),
+        type: serviceForm.type,
+        email: serviceForm.email.trim().toLowerCase(),
+        telephone: serviceForm.telephone.trim() || null,
+        actif: service.actif,
+      });
+      setServiceDrawerOpen(false);
+      showToast("Service mis à jour avec succès.", "success");
+      await refetch();
+    } catch (e) {
+      showToast((e as Error).message, "error");
+    } finally {
+      setSavingService(false);
     }
   }
 
@@ -256,6 +394,16 @@ export default function ServiceDetailPage() {
                   type="button"
                   variant="ghost"
                   size="sm"
+                  className="border border-surface-high bg-white"
+                  onClick={openServiceDrawer}
+                >
+                  <Pencil size={14} />
+                  Modifier
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   className="border border-primary/20 text-primary"
                   onClick={handleResendAccessCode}
                   disabled={resending}
@@ -289,10 +437,22 @@ export default function ServiceDetailPage() {
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_420px]">
             <Card className="border border-surface-high p-0 shadow-sm">
               <div className="border-b border-surface-high px-5 py-5">
-                <h2 className="text-lg font-bold text-on-surface">Bénéficiaires affectés</h2>
-                <p className="mt-1 text-sm text-on-surface-variant">
-                  Chaque ligne donne le code de suivi à transmettre au bénéficiaire pour son service partenaire.
-                </p>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-on-surface">Bénéficiaires affectés</h2>
+                    <p className="mt-1 text-sm text-on-surface-variant">
+                      Chaque ligne donne le code de suivi à transmettre au bénéficiaire pour son service partenaire.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setAffectationDrawerOpen(true)}
+                  >
+                    <Plus size={14} />
+                    Affecter un bénéficiaire
+                  </Button>
+                </div>
               </div>
 
               {service.affectations.length === 0 ? (
@@ -397,143 +557,6 @@ export default function ServiceDetailPage() {
 
             <div className="space-y-6">
               <Card className="border border-surface-high shadow-sm">
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-on-surface">
-                      Affecter un nouveau bénéficiaire
-                    </h2>
-                    <p className="mt-1 text-sm text-on-surface-variant">
-                      Renseigne le suivi attendu pour générer immédiatement son code de suivi.
-                    </p>
-                  </div>
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-fixed text-[#2e4d44]">
-                    <Plus size={18} />
-                  </div>
-                </div>
-
-                {beneficiairesError && (
-                  <div className="mb-4 flex items-start gap-3 rounded-xl border border-error/20 bg-error/10 px-4 py-3 text-sm text-on-error-container">
-                    <AlertCircle size={18} className="mt-0.5 shrink-0" />
-                    <span>{beneficiairesError}</span>
-                  </div>
-                )}
-
-                <form className="space-y-4" onSubmit={handleCreateAffectation}>
-                  <Select
-                    label="Bénéficiaire"
-                    value={form.beneficiaireId}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        beneficiaireId: event.target.value,
-                      }))
-                    }
-                    options={beneficiaires.map((beneficiaire) => ({
-                      value: beneficiaire.id,
-                      label: getBeneficiaireLabel(beneficiaire),
-                    }))}
-                    disabled={beneficiairesLoading}
-                    required
-                  />
-
-                  <Select
-                    label="Obligation liée"
-                    value={form.obligationId}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        obligationId: event.target.value,
-                      }))
-                    }
-                    options={(selectedBeneficiaire?.obligations || []).map((obligation) => ({
-                      value: obligation.id,
-                      label:
-                        obligation.description ||
-                        obligation.type ||
-                        obligation.categorie?.nom ||
-                        obligation.id,
-                    }))}
-                    disabled={!selectedBeneficiaire}
-                  />
-
-                  <Input
-                    label="Type de suivi"
-                    value={form.typeSuivi}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, typeSuivi: event.target.value }))
-                    }
-                    placeholder="Ex: Suivi médical mensuel"
-                    required
-                  />
-
-                  <Input
-                    label="Libellé du suivi"
-                    value={form.libelleSuivi}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, libelleSuivi: event.target.value }))
-                    }
-                    placeholder="Ex: Contrôle mensuel avec compte-rendu"
-                    required
-                  />
-
-                  <Input
-                    label="Fréquence attendue"
-                    value={form.frequenceAttendue}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        frequenceAttendue: event.target.value,
-                      }))
-                    }
-                    placeholder="Ex: Chaque mois"
-                  />
-
-                  <Input
-                    label="Lieu attendu"
-                    value={form.lieuAttendu}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, lieuAttendu: event.target.value }))
-                    }
-                    placeholder="Ex: Agence de placement Akpakpa"
-                  />
-
-                  <Textarea
-                    label="Horaires / modalités"
-                    value={form.horairesAttendus}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        horairesAttendus: event.target.value,
-                      }))
-                    }
-                    placeholder="Ex: Tous les lundis à 08h ou selon planning communiqué par le partenaire"
-                    rows={4}
-                  />
-
-                  <label className="flex items-start gap-3 rounded-xl border border-surface-high bg-surface-low px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={form.modalitesConnues}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          modalitesConnues: event.target.checked,
-                        }))
-                      }
-                      className="mt-1 h-4 w-4 rounded border-surface-high text-primary"
-                    />
-                    <span className="text-sm text-on-surface-variant">
-                      Les modalités de suivi sont déjà connues au moment de l’affectation.
-                    </span>
-                  </label>
-
-                  <Button type="submit" className="w-full" loading={saving}>
-                    Créer l’affectation
-                  </Button>
-                </form>
-              </Card>
-
-              <Card className="border border-surface-high shadow-sm">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#17362e] text-white">
                     <KeyRound size={18} />
@@ -554,6 +577,205 @@ export default function ServiceDetailPage() {
           </div>
         </div>
       )}
+      <SideDrawer
+        open={serviceDrawerOpen && !!service}
+        onClose={() => setServiceDrawerOpen(false)}
+        showCloseButton
+      >
+        <div className="flex h-full flex-col overflow-y-auto p-6">
+          <div className="pr-12">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-fixed text-[#2e4d44]">
+              <Building2 size={18} />
+            </div>
+            <h2 className="mt-5 text-2xl font-extrabold text-[#17362e]">Modifier le service</h2>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Les informations actuelles sont pré-remplies depuis la fiche du service.
+            </p>
+          </div>
+
+          <form className="mt-8 space-y-4" onSubmit={handleUpdateService}>
+            <Input
+              label="Nom du service"
+              value={serviceForm.nom}
+              onChange={(event) =>
+                setServiceForm((current) => ({ ...current, nom: event.target.value }))
+              }
+              required
+            />
+            <Select
+              label="Type de service"
+              value={serviceForm.type}
+              onChange={(event) =>
+                setServiceForm((current) => ({
+                  ...current,
+                  type: event.target.value as ServiceExterneType,
+                }))
+              }
+              options={Object.entries(SERVICE_EXTERNE_TYPE_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              }))}
+            />
+            <Input
+              label="Adresse email"
+              type="email"
+              value={serviceForm.email}
+              onChange={(event) =>
+                setServiceForm((current) => ({ ...current, email: event.target.value }))
+              }
+              required
+            />
+            <Input
+              label="Téléphone"
+              value={serviceForm.telephone}
+              onChange={(event) =>
+                setServiceForm((current) => ({ ...current, telephone: event.target.value }))
+              }
+              placeholder="Optionnel"
+            />
+            <Button type="submit" className="w-full" loading={savingService}>
+              Enregistrer les modifications
+            </Button>
+          </form>
+        </div>
+      </SideDrawer>
+
+      <SideDrawer
+        open={affectationDrawerOpen}
+        onClose={() => setAffectationDrawerOpen(false)}
+        showCloseButton
+      >
+        <div className="flex h-full flex-col overflow-y-auto p-6">
+          <div className="pr-12">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-fixed text-[#2e4d44]">
+              <Plus size={18} />
+            </div>
+            <h2 className="mt-5 text-2xl font-extrabold text-[#17362e]">
+              Affecter un bénéficiaire
+            </h2>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Renseigne le suivi attendu pour générer immédiatement son code de suivi.
+            </p>
+          </div>
+
+          {beneficiairesError && (
+            <div className="mt-6 flex items-start gap-3 rounded-xl border border-error/20 bg-error/10 px-4 py-3 text-sm text-on-error-container">
+              <AlertCircle size={18} className="mt-0.5 shrink-0" />
+              <span>{beneficiairesError}</span>
+            </div>
+          )}
+
+          <form className="mt-8 space-y-4" onSubmit={handleCreateAffectation}>
+            <Select
+              label="Bénéficiaire"
+              value={form.beneficiaireId}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  beneficiaireId: event.target.value,
+                  obligationId: "",
+                }))
+              }
+              options={beneficiaires.map((beneficiaire) => ({
+                value: beneficiaire.id,
+                label: getBeneficiaireLabel(beneficiaire),
+              }))}
+              disabled={beneficiairesLoading}
+              required
+            />
+
+            <Select
+              label="Obligation liée"
+              value={form.obligationId}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  obligationId: event.target.value,
+                }))
+              }
+              options={selectedObligations.map((obligation) => ({
+                value: obligation.id,
+                label: getBeneficiaireObligationLabel(obligation),
+              }))}
+              disabled={!selectedAffectationBeneficiaire || selectedBeneficiaireLoading}
+            />
+            {form.beneficiaireId && selectedBeneficiaireLoading ? (
+              <p className="text-xs font-medium text-on-surface-variant">
+                Chargement des obligations du bénéficiaire...
+              </p>
+            ) : form.beneficiaireId && selectedObligations.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-surface-high bg-surface-low px-3 py-2 text-xs text-on-surface-variant">
+                Aucune obligation liée disponible pour ce bénéficiaire.
+              </p>
+            ) : null}
+
+            <Select
+              label="Type de suivi"
+              value={form.typeSuivi}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, typeSuivi: event.target.value }))
+              }
+              options={TYPE_SUIVI_OPTIONS}
+              required
+            />
+
+            <Select
+              label="Fréquence attendue"
+              value={form.frequenceAttendue}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  frequenceAttendue: event.target.value,
+                }))
+              }
+              options={FREQUENCE_SUIVI_OPTIONS}
+            />
+
+            <Input
+              label="Lieu attendu"
+              value={form.lieuAttendu}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, lieuAttendu: event.target.value }))
+              }
+              placeholder="Ex: Agence de placement Akpakpa"
+            />
+
+            <Textarea
+              label="Horaires / modalités"
+              value={form.horairesAttendus}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  horairesAttendus: event.target.value,
+                }))
+              }
+              placeholder="Ex: Tous les lundis à 08h ou selon planning communiqué par le partenaire"
+              rows={4}
+            />
+
+            {/* <label className="flex items-start gap-3 rounded-xl border border-surface-high bg-surface-low px-4 py-3">
+              <input
+                type="checkbox"
+                checked={form.modalitesConnues}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    modalitesConnues: event.target.checked,
+                  }))
+                }
+                className="mt-1 h-4 w-4 rounded border-surface-high text-primary"
+              />
+              <span className="text-sm text-on-surface-variant">
+                Les modalités de suivi sont déjà connues au moment de l’affectation.
+              </span>
+            </label> */}
+
+            <Button type="submit" className="w-full" loading={saving}>
+              Créer l’affectation
+            </Button>
+          </form>
+        </div>
+      </SideDrawer>
     </div>
   );
 }

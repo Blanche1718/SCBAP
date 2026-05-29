@@ -6,6 +6,7 @@ import {
   Building2,
   Cable,
   Loader2,
+  Pencil,
   Phone,
   Plus,
   RefreshCw,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { CompactPaginationControls } from "../../components/pagination/CompactPaginationControls";
 import { Button, Card, Input, Select } from "../../components/ui/index";
+import { SideDrawer } from "../../components/ui/SideDrawer";
 import { useToast } from "../../context/ToastContext";
 import { useServicesExternes } from "../../hooks/useServicesExternes";
 import { api } from "../../lib/api";
@@ -77,6 +79,8 @@ export default function ServicesPage() {
   const [typeFilter, setTypeFilter] = useState<"TOUS" | ServiceExterneType>("TOUS");
   const [form, setForm] = useState<ServiceFormState>(DEFAULT_FORM);
   const [saving, setSaving] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingService, setEditingService] = useState<ServiceExterne | null>(null);
 
   const filteredServices = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -92,7 +96,7 @@ export default function ServicesPage() {
         .toLowerCase();
 
       const matchesSearch = !query || haystack.includes(query);
-      const matchesType = typeFilter === "TOUS" || service.type === typeFilter;
+      const matchesType = query || typeFilter === "TOUS" || service.type === typeFilter;
 
       return matchesSearch && matchesType;
     });
@@ -136,23 +140,52 @@ export default function ServicesPage() {
     }
   }, [page, totalPages]);
 
-  async function handleCreateService(event: FormEvent<HTMLFormElement>) {
+  function openCreateDrawer() {
+    setEditingService(null);
+    setForm(DEFAULT_FORM);
+    setDrawerOpen(true);
+  }
+
+  function openEditDrawer(service: ServiceExterne) {
+    setEditingService(service);
+    setForm({
+      nom: service.nom,
+      type: service.type,
+      email: service.email,
+      telephone: service.telephone ?? "",
+    });
+    setDrawerOpen(true);
+  }
+
+  async function handleSubmitService(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
 
     try {
-      await api.post<ApiResponse<unknown>>(
-        "/services-externes",
-        {
-          nom: form.nom.trim(),
-          type: form.type,
-          email: form.email.trim().toLowerCase(),
-          telephone: form.telephone.trim() || null,
-        },
-      );
+      const payload = {
+        nom: form.nom.trim(),
+        type: form.type,
+        email: form.email.trim().toLowerCase(),
+        telephone: form.telephone.trim() || null,
+      };
+
+      if (editingService) {
+        await api.put<ApiResponse<ServiceExterne>>(
+          `/services-externes/${editingService.id}`,
+          {
+            ...payload,
+            actif: editingService.actif,
+          },
+        );
+        showToast("Service externe mis à jour avec succès.", "success");
+      } else {
+        await api.post<ApiResponse<unknown>>("/services-externes", payload);
+        showToast("Service externe créé avec succès. Le code d'accès a été envoyé par email.", "success");
+      }
 
       setForm(DEFAULT_FORM);
-      showToast("Service externe créé avec succès. Le code d'accès a été envoyé par email.", "success");
+      setEditingService(null);
+      setDrawerOpen(false);
       await refetch();
     } catch (e) {
       showToast((e as Error).message, "error");
@@ -213,7 +246,7 @@ export default function ServicesPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_420px]">
+      <div className="grid gap-6">
         <Card className="overflow-hidden border border-surface-high p-0 shadow-sm">
           <div className="border-b border-surface-high px-5 py-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -231,6 +264,14 @@ export default function ServicesPage() {
                   onPrevious={goToPreviousPage}
                   onNext={goToNextPage}
                 />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={openCreateDrawer}
+                >
+                  <Plus size={14} />
+                  Ajouter un service
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -318,13 +359,12 @@ export default function ServicesPage() {
           ) : (
             <div className="space-y-3 px-5 pb-5">
               {paginatedServices.map((service) => (
-                <Link
+                <div
                   key={service.id}
-                  to={`/services/${service.id}`}
-                  className="group block rounded-2xl border border-surface-high bg-white p-4 transition-all hover:border-primary/30 hover:bg-surface-low"
+                  className="group rounded-2xl border border-surface-high bg-white p-4 transition-all hover:border-primary/30 hover:bg-surface-low"
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
+                    <Link to={`/services/${service.id}`} className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-base font-bold text-on-error-container truncate">
                           {service.nom}
@@ -345,7 +385,7 @@ export default function ServicesPage() {
                           {service.telephone || "Téléphone non renseigné"}
                         </span>
                       </div>
-                    </div>
+                    </Link>
 
                     <div className="grid grid-cols-3 gap-3 rounded-2xl bg-surface-low px-4 py-3 text-center">
                       <div>
@@ -371,146 +411,105 @@ export default function ServicesPage() {
 
                   <div className="mt-4 flex items-center justify-between border-t border-surface-high pt-3 text-xs text-on-surface-variant">
                     <span>Créé le {formatDateTime(service.createdAt)}</span>
-                    <span className="inline-flex items-center gap-2 font-semibold text-primary">
-                      Ouvrir le service
-                      <ArrowRight
-                        size={14}
-                        className="transition-transform group-hover:translate-x-0.5"
-                      />
-                    </span>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditDrawer(service)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-surface-high bg-white px-3 py-2 font-semibold text-on-surface transition-colors hover:bg-surface-high"
+                      >
+                        <Pencil size={14} />
+                        Modifier
+                      </button>
+                      <Link
+                        to={`/services/${service.id}`}
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 font-semibold text-white transition-colors hover:bg-[#2e4d44]"
+                      >
+                        Ouvrir le service
+                        <ArrowRight
+                          size={14}
+                          className="transition-transform group-hover:translate-x-0.5"
+                        />
+                      </Link>
+                    </div>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}
         </Card>
-
-        <div className="space-y-6">
-          <Card className="border border-surface-high shadow-sm">
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-on-surface">Nouveau service</h2>
-                <p className="mt-1 text-sm text-on-surface-variant">
-                  Crée le service, envoie son code par email, puis ouvre sa fiche pour affecter les bénéficiaires.
-                </p>
-              </div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-fixed text-[#2e4d44]">
-                <Plus size={18} />
-              </div>
-            </div>
-
-            <form className="space-y-4" onSubmit={handleCreateService}>
-              <Input
-                label="Nom du service"
-                value={form.nom}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, nom: event.target.value }))
-                }
-                placeholder="Ex: Centre médical Saint Luc"
-                required
-              />
-
-              <Select
-                label="Type de service"
-                value={form.type}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    type: event.target.value as ServiceExterneType,
-                  }))
-                }
-                options={Object.entries(SERVICE_EXTERNE_TYPE_LABELS).map(([value, label]) => ({
-                  value,
-                  label,
-                }))}
-              />
-
-              <Input
-                label="Adresse email"
-                type="email"
-                value={form.email}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, email: event.target.value }))
-                }
-                placeholder="service@partenaire.bj"
-                required
-              />
-
-              <Input
-                label="Téléphone"
-                value={form.telephone}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, telephone: event.target.value }))
-                }
-                placeholder="Optionnel"
-              />
-
-              <Button type="submit" className="w-full" loading={saving}>
-                Créer le service
-              </Button>
-            </form>
-          </Card>
-
-          {/* La section suivante est commentée car l'e-mail de code d'accès n'est plus envoyé lors de la création du service.
-            {/* <Card className="border border-primary/15 bg-primary-fixed/40 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#33584b]">
-                    Dernier accès généré
-                  </p>
-                  <h3 className="mt-2 text-lg font-bold text-[#17362e]">
-                    {createdResult.service.nom}
-                  </h3>
-                  <p className="mt-1 text-sm text-[#33584b]">
-                    Le service a reçu son code par email. Tu peux aussi le garder pour la démonstration.
-                  </p>
-                </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[#17362e]">
-                  <Mail size={18} />
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-2xl bg-[#17362e] px-4 py-5 text-center text-white">
-                <p className="text-xs uppercase tracking-[0.24em] text-white/65">Code d'accès</p>
-                <p className="mt-2 text-3xl font-bold tracking-[0.24em]">
-                  {createdResult.codeAccesInitial}
-                </p>
-              </div>
-
-              <div className="mt-5 grid gap-3 text-sm text-[#33584b]">
-                <p>
-                  <span className="font-semibold text-[#17362e]">Destinataire :</span>{" "}
-                  {createdResult.notification.recipient}
-                </p>
-                <p>
-                  <span className="font-semibold text-[#17362e]">Portail :</span>{" "}
-                  {createdResult.notification.portailUrl}
-                </p>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Button
-                  type="button"
-                  onClick={() => navigate(`/services/${createdResult.service.id}`)}
-                >
-                  Ouvrir la fiche du service
-                </Button>
-              </div>
-            </Card>
-          )}
-         */}
-
-          <Card className="border border-surface-high shadow-sm">
-            <h3 className="text-base font-bold text-on-surface">Étapes côté terrain</h3>
-            <div className="mt-4 space-y-3 text-sm text-on-surface-variant">
-              <p>1. Créer le service et envoyer automatiquement son code d’accès.</p>
-              <p>2. Ouvrir la fiche du service pour lui affecter un ou plusieurs bénéficiaires.</p>
-              <p>3. Donner ensuite au bénéficiaire le code de suivi généré sur l’affectation.</p>
-              <p>4. Le service se connecte au portail et soumet ses évaluations mensuelles.</p>
-            </div>
-          </Card>
-        </div>
       </div>
+      <SideDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        showCloseButton
+      >
+        <div className="flex h-full flex-col overflow-y-auto p-6">
+          <div className="pr-12">
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
+              {editingService ? "Modification" : "Création"}
+            </p>
+            <h2 className="mt-2 text-2xl font-extrabold text-[#17362e]">
+              {editingService ? "Modifier le service" : "Ajouter un service"}
+            </h2>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              {editingService
+                ? "Mettez à jour les coordonnées et le type du service partenaire."
+                : "Créez le service partenaire avant de lui affecter des bénéficiaires."}
+            </p>
+          </div>
+
+          <form className="mt-8 space-y-4" onSubmit={handleSubmitService}>
+            <Input
+              label="Nom du service"
+              value={form.nom}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, nom: event.target.value }))
+              }
+              placeholder="Ex: Centre médical Saint Luc"
+              required
+            />
+
+            <Select
+              label="Type de service"
+              value={form.type}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  type: event.target.value as ServiceExterneType,
+                }))
+              }
+              options={Object.entries(SERVICE_EXTERNE_TYPE_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              }))}
+            />
+
+            <Input
+              label="Adresse email"
+              type="email"
+              value={form.email}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, email: event.target.value }))
+              }
+              placeholder="service@partenaire.bj"
+              required
+            />
+
+            <Input
+              label="Téléphone"
+              value={form.telephone}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, telephone: event.target.value }))
+              }
+              placeholder="Optionnel"
+            />
+
+            <Button type="submit" className="w-full" loading={saving}>
+              {editingService ? "Enregistrer les modifications" : "Créer le service"}
+            </Button>
+          </form>
+        </div>
+      </SideDrawer>
     </div>
   );
 }

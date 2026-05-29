@@ -10,7 +10,7 @@ import {
   MQTT_DEBUG,
 } from "../integrations/mqtt/config";
 
-type SimulationMode = "normal" | "alert";
+type SimulationMode = "normal" | "alert" | "zone" | "battery" | "strap" | "signal" | "tamper";
 type SimulationTarget = {
   deviceId: string;
   userId: string;
@@ -21,6 +21,10 @@ type SimulationTarget = {
 
 const MODE = (process.env.BRACELET_SIMULATION_MODE || "normal").trim() as SimulationMode;
 const DEVICE_ID = process.env.BRACELET_SIMULATION_DEVICE_ID?.trim() || "BR-SEED-001";
+const DEVICE_IDS = (process.env.BRACELET_SIMULATION_DEVICE_IDS || DEVICE_ID)
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 const USER_ID = process.env.BRACELET_SIMULATION_USER_ID?.trim() || "";
 const USER_NAME = process.env.BRACELET_SIMULATION_USER_NAME?.trim() || "";
 const USER_LAT = Number(process.env.BRACELET_SIMULATION_LATITUDE || "");
@@ -38,13 +42,13 @@ const authOptions =
     : {};
 
 let client: mqtt.MqttClient | null = null;
-let simulationTarget: SimulationTarget = {
+let simulationTargets: SimulationTarget[] = [{
   deviceId: DEVICE_ID,
   userId: USER_ID || "DET-UNKNOWN",
   userName: USER_NAME || "Beneficiaire Test",
   latitude: Number.isFinite(USER_LAT) ? USER_LAT : DEFAULT_LAT,
   longitude: Number.isFinite(USER_LNG) ? USER_LNG : DEFAULT_LNG,
-};
+}];
 
 function logDebug(...args: unknown[]) {
   if (MQTT_DEBUG) {
@@ -66,6 +70,42 @@ function isCoordinate(value: unknown): value is [number, number] {
 }
 
 function resolveCentroidFromGeometry(geometry: unknown): { latitude: number; longitude: number } | null {
+  if (typeof geometry === "string") {
+    try {
+      return resolveCentroidFromGeometry(JSON.parse(geometry));
+    } catch {
+      return null;
+    }
+  }
+
+  if (geometry && typeof geometry === "object" && !Array.isArray(geometry)) {
+    const candidate = geometry as {
+      type?: unknown;
+      geometry?: unknown;
+      coordinates?: unknown;
+    };
+
+    if (candidate.geometry) {
+      return resolveCentroidFromGeometry(candidate.geometry);
+    }
+
+    if (candidate.type === "Polygon" && Array.isArray(candidate.coordinates)) {
+      const ring = candidate.coordinates[0];
+      const points = Array.isArray(ring)
+        ? ring
+            .filter(isCoordinate)
+            .map(([lng, lat]) => [lat, lng] as [number, number])
+        : [];
+      return resolveCentroidFromGeometry(points);
+    }
+
+    if (candidate.coordinates) {
+      return resolveCentroidFromGeometry(candidate.coordinates);
+    }
+
+    return null;
+  }
+
   if (!Array.isArray(geometry) || geometry.length === 0) {
     return null;
   }
@@ -97,10 +137,10 @@ function resolveCentroidFromGeometry(geometry: unknown): { latitude: number; lon
   };
 }
 
-async function resolveSimulationTarget(): Promise<SimulationTarget> {
+async function resolveSimulationTarget(deviceId: string): Promise<SimulationTarget> {
   const bracelet = await prisma.bracelet.findUnique({
     where: {
-      codeImei: DEVICE_ID,
+      codeImei: deviceId,
     },
     include: {
       affectations: {
@@ -133,20 +173,23 @@ async function resolveSimulationTarget(): Promise<SimulationTarget> {
 
   if (!bracelet) {
     console.warn(
-      `[bracelet-sim] bracelet "${DEVICE_ID}" introuvable en base, utilisation des valeurs .env`,
+      `[bracelet-sim] bracelet "${deviceId}" introuvable en base, utilisation des valeurs .env`,
     );
-    return simulationTarget;
+    return {
+      ...simulationTargets[0],
+      deviceId,
+    };
   }
 
   const affectation = bracelet.affectations[0] ?? null;
   if (!affectation) {
     console.warn(
-      `[bracelet-sim] bracelet "${DEVICE_ID}" sans affectation active, utilisation des valeurs .env`,
+      `[bracelet-sim] bracelet "${deviceId}" sans affectation active, utilisation des valeurs .env`,
     );
     return {
-      ...simulationTarget,
+      ...simulationTargets[0],
       deviceId: bracelet.codeImei,
-      userId: USER_ID || bracelet.identifiantPorteur || simulationTarget.userId,
+      userId: USER_ID || bracelet.identifiantPorteur || simulationTargets[0].userId,
     };
   }
 
@@ -168,45 +211,57 @@ async function resolveSimulationTarget(): Promise<SimulationTarget> {
 
   return {
     deviceId: bracelet.codeImei,
-    userId: USER_ID || bracelet.identifiantPorteur || dossier.numeroDossier || simulationTarget.userId,
+    userId: USER_ID || bracelet.identifiantPorteur || dossier.numeroDossier || simulationTargets[0].userId,
     userName:
       USER_NAME ||
       [dossier.prenom, dossier.nom].filter(Boolean).join(" ").trim() ||
-      simulationTarget.userName,
+      simulationTargets[0].userName,
     latitude,
     longitude,
   };
 }
 
-function buildTelemetry() {
+function buildTelemetry(simulationTarget: SimulationTarget, targetIndex = 0) {
   const now = new Date();
   const alertMode = MODE === "alert";
-  const offsetLat = alertMode ? 0.02 : randomBetween(-0.0015, 0.0015);
-  const offsetLng = alertMode ? 0.02 : randomBetween(-0.0015, 0.0015);
-  const battery = alertMode ? randomBetween(8, 14) : randomBetween(48, 89);
-  const geofenceBreach = alertMode;
-  const zoneStatus = alertMode ? "OUTSIDE" : "INSIDE";
-  const strapStatus = alertMode ? 1 : 0;
-  const gpsLost = alertMode ? Math.random() > 0.5 : false;
-  const gprsLost = alertMode ? Math.random() > 0.6 : false;
-  const caseTamper = alertMode ? Math.random() > 0.7 : false;
+  const zoneAlert = alertMode || MODE === "zone";
+  const batteryAlert = alertMode || MODE === "battery";
+  const strapAlert = alertMode || MODE === "strap";
+  const signalAlert = alertMode || MODE === "signal";
+  const tamperAlert = alertMode || MODE === "tamper";
+  const drift = targetIndex * 0.004;
+  const offsetLat = zoneAlert ? 0.02 + drift : randomBetween(-0.0015, 0.0015) + drift;
+  const offsetLng = zoneAlert ? 0.02 + drift : randomBetween(-0.0015, 0.0015) + drift;
+  const battery = batteryAlert ? randomBetween(8, 14) : randomBetween(48, 89);
+  const geofenceBreach = zoneAlert;
+  const zoneStatus = zoneAlert ? "OUTSIDE" : "INSIDE";
+  const strapStatus = strapAlert ? 1 : 0;
+  const gpsLost = signalAlert ? true : false;
+  const gprsLost = signalAlert ? true : false;
+  const caseTamper = tamperAlert;
+  const status = geofenceBreach || strapStatus === 1 || caseTamper || signalAlert ? "ALERT" : "OK";
 
   return {
     device_id: simulationTarget.deviceId,
     user_id: simulationTarget.userId,
     user_name: simulationTarget.userName,
     timestamp: now.toISOString(),
+    heartbeat: status === "OK",
     location: {
       latitude: Number((simulationTarget.latitude + offsetLat).toFixed(6)),
       longitude: Number((simulationTarget.longitude + offsetLng).toFixed(6)),
       accuracy: alertMode ? 28 : 12,
+      presence_flag: !geofenceBreach,
+      rssi_dbm: signalAlert ? -102 : -65,
+      gps_fix: !gpsLost,
       zone_id: "HOME",
       zone_status: zoneStatus,
     },
     health: {
       battery_pct: Math.max(0, Math.min(100, Math.round(battery))),
-      gprs_signal: alertMode ? -108 : -84,
-      gps_satellites: alertMode ? 2 : 7,
+      power_source: "battery",
+      gprs_signal: signalAlert ? -108 : -84,
+      gps_satellites: signalAlert ? 2 : 7,
     },
     alerts: {
       strap_status: strapStatus,
@@ -216,32 +271,35 @@ function buildTelemetry() {
       case_tamper: caseTamper,
       power_loss: false,
     },
-    status: geofenceBreach || strapStatus === 1 ? "ALERT" : "OK",
+    status,
   };
 }
 
 function publishTelemetry() {
-  const payload = buildTelemetry();
-  const message = JSON.stringify(payload);
-
   if (!client) {
     return;
   }
 
-  client.publish(MQTT_TELEMETRY_TOPIC, message, { qos: 1 }, (error) => {
-    if (error) {
-      console.error("[bracelet-sim] publish error", error.message);
-      return;
-    }
+  simulationTargets.forEach((target, index) => {
+    const payload = buildTelemetry(target, index);
+    const message = JSON.stringify(payload);
+    const qos = payload.status === "OK" ? 0 : 1;
 
-    console.log(`[bracelet-sim] published ${payload.device_id} (${MODE})`);
-    logDebug(payload);
+    client?.publish(MQTT_TELEMETRY_TOPIC, message, { qos }, (error) => {
+      if (error) {
+        console.error("[bracelet-sim] publish error", error.message);
+        return;
+      }
+
+      console.log(`[bracelet-sim] published ${payload.device_id} (${MODE}, qos=${qos})`);
+      logDebug(payload);
+    });
   });
 }
 
 async function main() {
-  simulationTarget = await resolveSimulationTarget();
-  console.log("[bracelet-sim] target", simulationTarget);
+  simulationTargets = await Promise.all(DEVICE_IDS.map((deviceId) => resolveSimulationTarget(deviceId)));
+  console.log("[bracelet-sim] targets", simulationTargets);
 
   client = mqtt.connect(MQTT_BROKER_URL, {
     clientId: `${MQTT_CLIENT_ID}-simulator`,

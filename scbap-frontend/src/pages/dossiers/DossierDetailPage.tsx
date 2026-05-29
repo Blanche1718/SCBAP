@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useDossier } from "../../hooks/useDossiers";
 import { formatInAppTimeZone } from "../../utils/timezone";
+import { getDapgRawObligationsText } from "../../utils/dapgObligations";
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return "—";
   return formatInAppTimeZone(new Date(dateStr), {
@@ -82,6 +83,7 @@ export default function DossierDetailPage() {
   }
 
   // const statut = dossier.statut as StatutDossier;
+  const rawObligationsText = getDapgRawObligationsText(dossier);
 
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto">
@@ -241,25 +243,6 @@ export default function DossierDetailPage() {
           </div>
         </Section>
 
-        {/* Obligations */}
-        {dossier.obligations && (
-          <div className="rounded-lg bg-white p-4 sm:p-6">
-            <h2 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4 pb-3 border-b border-surface-low flex items-center gap-2">
-              <span className="w-6 h-6 rounded-md bg-error-container text-on-error-container flex items-center justify-center">
-                <FileText size={13} />
-              </span>
-              Obligations (texte brut DAPG)
-            </h2>
-            <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap bg-surface-low p-4 rounded-md">
-              {dossier.obligations}
-            </p>
-             <div className="mt-3 flex items-center gap-2 text-xs text-on-secondary-container">
-              <span className="inline-block w-2 h-2 rounded-full bg-on-error-container" />
-              Structuration des obligations en attente de validation par l'agent
-            </div>
-          </div>
-        )}
-
         {/* Observations */}
         {dossier.observations && (
           <div className="rounded-lg bg-white p-4 sm:p-6">
@@ -270,6 +253,25 @@ export default function DossierDetailPage() {
               Observations
             </h2>
             <p className="text-sm text-on-surface-variant leading-relaxed">{dossier.observations}</p>
+          </div>
+        )}
+
+        {/* Obligations */}
+        {rawObligationsText && (
+          <div className="rounded-lg bg-white p-4 sm:p-6">
+            <h2 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4 pb-3 border-b border-surface-low flex items-center gap-2">
+              <span className="w-6 h-6 rounded-md bg-error-container text-on-error-container flex items-center justify-center">
+                <FileText size={13} />
+              </span>
+              Obligations (texte brut DAPG)
+            </h2>
+            <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap bg-surface-low p-4 rounded-md">
+              {rawObligationsText}
+            </p>
+             <div className="mt-3 flex items-center gap-2 text-xs text-on-secondary-container">
+              <span className="inline-block w-2 h-2 rounded-full bg-on-error-container" />
+              Structuration des obligations en attente de validation par l'agent
+            </div>
           </div>
         )}
       </div>

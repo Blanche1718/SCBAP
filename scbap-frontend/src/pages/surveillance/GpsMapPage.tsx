@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Card } from "../../components/ui";
 import { api } from "../../lib/api";
 import "leaflet/dist/leaflet.css";
@@ -94,6 +94,10 @@ type SurveillanceMessage =
   | {
       type: "feed";
       payload: Record<string, unknown>;
+    }
+  | {
+      type: "alert";
+      payload: Record<string, unknown>;
     };
 
 type SurveillanceSnapshot = {
@@ -110,6 +114,15 @@ type SurveillanceZone = {
   type: "AUTORISEE" | "INTERDITE";
   polygons: LatLngExpression[][];
 };
+
+const SURVEILLANCE_BOUNDS = {
+  minLat: 5.4,
+  maxLat: 13.9,
+  minLng: -1.9,
+  maxLng: 4.8,
+};
+
+const DEFAULT_MAP_CENTER: LatLngExpression = [6.365, 2.395];
 
 const BASE_TRACKS: Track[] = [
   {
@@ -324,6 +337,109 @@ function offsetPolygon(polygon: LatLngExpression[], offsetLat: number, offsetLng
   });
 }
 
+function isWithinSurveillanceBounds(latitude: number, longitude: number) {
+  return (
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= SURVEILLANCE_BOUNDS.minLat &&
+    latitude <= SURVEILLANCE_BOUNDS.maxLat &&
+    longitude >= SURVEILLANCE_BOUNDS.minLng &&
+    longitude <= SURVEILLANCE_BOUNDS.maxLng
+  );
+}
+
+function toPoint(point: LatLngExpression): [number, number] | null {
+  if (Array.isArray(point)) {
+    return typeof point[0] === "number" && typeof point[1] === "number"
+      ? [point[0], point[1]]
+      : null;
+  }
+
+  const latLng = point as { lat?: unknown; lng?: unknown };
+  return typeof latLng.lat === "number" && typeof latLng.lng === "number"
+    ? [latLng.lat, latLng.lng]
+    : null;
+}
+
+function getPolygonCentroid(polygons: LatLngExpression[][]) {
+  const points = polygons.flatMap((polygon) => polygon.map(toPoint).filter((point): point is [number, number] => Boolean(point)));
+  if (points.length === 0) {
+    return null;
+  }
+
+  const totals = points.reduce(
+    (acc, [lat, lng]) => ({
+      latitude: acc.latitude + lat,
+      longitude: acc.longitude + lng,
+    }),
+    { latitude: 0, longitude: 0 },
+  );
+
+  return {
+    latitude: totals.latitude / points.length,
+    longitude: totals.longitude / points.length,
+  };
+}
+
+function isPointInsidePolygon(point: { latitude: number; longitude: number }, polygon: LatLngExpression[]) {
+  const points = polygon.map(toPoint).filter((candidate): candidate is [number, number] => Boolean(candidate));
+  let inside = false;
+
+  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
+    const [latI, lngI] = points[i];
+    const [latJ, lngJ] = points[j];
+    const intersects =
+      lngI > point.longitude !== lngJ > point.longitude &&
+      point.latitude < ((latJ - latI) * (point.longitude - lngI)) / (lngJ - lngI) + latI;
+
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
+}
+
+function isPointInsidePolygons(point: { latitude: number; longitude: number }, polygons: LatLngExpression[][]) {
+  return polygons.some((polygon) => polygon.length >= 3 && isPointInsidePolygon(point, polygon));
+}
+
+function resolveDisplayCoordinate(
+  latitude: unknown,
+  longitude: unknown,
+  fallback: { latitude: number; longitude: number },
+  options?: {
+    zoneStatus?: ZoneStatus;
+    authorizedZones?: SurveillanceZone[];
+  },
+) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  const authorizedPolygons =
+    options?.authorizedZones
+      ?.filter((zone) => zone.type === "AUTORISEE")
+      .flatMap((zone) => zone.polygons) ?? [];
+  const zoneCentroid = getPolygonCentroid(authorizedPolygons);
+
+  if (isWithinSurveillanceBounds(lat, lng)) {
+    if (
+      options?.zoneStatus === "INSIDE" &&
+      zoneCentroid &&
+      !isPointInsidePolygons({ latitude: lat, longitude: lng }, authorizedPolygons)
+    ) {
+      return zoneCentroid;
+    }
+
+    return { latitude: lat, longitude: lng };
+  }
+
+  if (options?.zoneStatus === "INSIDE" && zoneCentroid) {
+    return zoneCentroid;
+  }
+
+  return fallback;
+}
+
 function isCoordinate(value: unknown): value is [number, number] {
   return (
     Array.isArray(value) &&
@@ -333,18 +449,104 @@ function isCoordinate(value: unknown): value is [number, number] {
   );
 }
 
-function normalizeZonePolygons(value: unknown): LatLngExpression[][] {
-  if (!Array.isArray(value) || value.length === 0) {
+function parseJsonValue(value: unknown) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function toLeafletCoordinate(value: unknown, source: "RAW" | "GEOJSON" = "RAW"): [number, number] | null {
+  if (!isCoordinate(value)) {
+    return null;
+  }
+
+  const [first, second] = value;
+  return source === "GEOJSON" ? [second, first] : [first, second];
+}
+
+function normalizeRing(value: unknown, source: "RAW" | "GEOJSON" = "RAW"): LatLngExpression[] {
+  if (!Array.isArray(value)) {
     return [];
   }
 
-  const first = value[0];
+  return value
+    .map((point) => toLeafletCoordinate(point, source))
+    .filter((point): point is [number, number] => Boolean(point));
+}
+
+function normalizeZonePolygons(value: unknown): LatLngExpression[][] {
+  const raw = parseJsonValue(value);
+
+  if (!raw) {
+    return [];
+  }
+
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    const geometry = raw as {
+      type?: unknown;
+      geometry?: unknown;
+      coordinates?: unknown;
+    };
+
+    if (geometry.geometry) {
+      return normalizeZonePolygons(geometry.geometry);
+    }
+
+    if ("polygons" in geometry) {
+      return normalizeZonePolygons((geometry as { polygons?: unknown }).polygons);
+    }
+
+    if (geometry.type === "Polygon" && Array.isArray(geometry.coordinates)) {
+      const outerRing = geometry.coordinates[0];
+      const ring = normalizeRing(outerRing, "GEOJSON");
+      return ring.length >= 3 ? [ring] : [];
+    }
+
+    if (geometry.type === "MultiPolygon" && Array.isArray(geometry.coordinates)) {
+      return geometry.coordinates
+        .map((polygon) => normalizeRing(Array.isArray(polygon) ? polygon[0] : null, "GEOJSON"))
+        .filter((ring) => ring.length >= 3);
+    }
+
+    if (geometry.coordinates) {
+      return normalizeZonePolygons(geometry.coordinates);
+    }
+
+    return [];
+  }
+
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return [];
+  }
+
+  const first = raw[0];
   if (isCoordinate(first)) {
-    return [value as LatLngExpression[]];
+    const ring = normalizeRing(raw);
+    return ring.length >= 3 ? [ring] : [];
   }
 
   if (Array.isArray(first) && first.length > 0 && isCoordinate(first[0])) {
-    return value as LatLngExpression[][];
+    return raw
+      .map((ring) => normalizeRing(ring))
+      .filter((ring) => ring.length >= 3);
+  }
+
+  if (
+    Array.isArray(first) &&
+    first.length > 0 &&
+    Array.isArray(first[0]) &&
+    first[0].length > 0 &&
+    isCoordinate(first[0][0])
+  ) {
+    return raw
+      .map((polygon) => normalizeRing(Array.isArray(polygon) ? polygon[0] : null))
+      .filter((ring) => ring.length >= 3);
   }
 
   return [];
@@ -492,6 +694,55 @@ function MainMap({ tracks }: { tracks: Track[] }) {
   return null;
 }
 
+function TracksAutoFit({
+  tracks,
+  zones,
+  disabled,
+}: {
+  tracks: Track[];
+  zones: SurveillanceZone[];
+  disabled: boolean;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (disabled) {
+      return;
+    }
+
+    const points: [number, number][] = [];
+    for (const track of tracks) {
+      if (isWithinSurveillanceBounds(track.latitude, track.longitude)) {
+        points.push([track.latitude, track.longitude]);
+      }
+    }
+
+    for (const zone of zones) {
+      for (const polygon of zone.polygons) {
+        for (const point of polygon) {
+          if (Array.isArray(point) && isWithinSurveillanceBounds(point[0], point[1])) {
+            points.push([point[0], point[1]]);
+          }
+        }
+      }
+    }
+
+    if (points.length === 0) {
+      map.setView(DEFAULT_MAP_CENTER, 8);
+      return;
+    }
+
+    const bounds = L.latLngBounds(points);
+    map.fitBounds(bounds.pad(0.16), {
+      animate: true,
+      duration: 0.55,
+      maxZoom: points.length > 1 ? 10 : 12,
+    });
+  }, [disabled, map, tracks, zones]);
+
+  return null;
+}
+
 function SelectedTrackFocus({
   track,
   zones,
@@ -528,6 +779,19 @@ function SelectedTrackFocus({
 }
 
 export default function GpsMapPage() {
+  const mapSurfaceRef = useRef<HTMLElement | null>(null);
+  const infoPanelRef = useRef<HTMLDivElement | null>(null);
+  const panelDragRef = useRef<{
+    active: boolean;
+    pointerId: number | null;
+    offsetX: number;
+    offsetY: number;
+  }>({
+    active: false,
+    pointerId: null,
+    offsetX: 0,
+    offsetY: 0,
+  });
   const [snapshot, setSnapshot] = useState<SurveillanceSnapshot>(() => buildSnapshot());
   const [selectedRisk, setSelectedRisk] = useState<RiskLevel | "ALL">("ALL");
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
@@ -535,7 +799,7 @@ export default function GpsMapPage() {
   const [query, setQuery] = useState("");
   const [selectedTrackZones, setSelectedTrackZones] = useState<SurveillanceZone[]>([]);
   const [selectedTrackZonesError, setSelectedTrackZonesError] = useState<string | null>(null);
-  const [selectedTrackZonesRawCount, setSelectedTrackZonesRawCount] = useState<number | null>(null);
+  const [infoPanelPosition, setInfoPanelPosition] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const wsUrl = getSurveillanceWsUrl();
@@ -574,10 +838,20 @@ export default function GpsMapPage() {
                   ? "AT_RISK"
                   : "COMPLIANT";
 
+            const displayCoordinate = resolveDisplayCoordinate(
+              payload.location.latitude,
+              payload.location.longitude,
+              { latitude: found.latitude, longitude: found.longitude },
+              {
+                zoneStatus: payload.location.zone_status ?? found.zoneStatus,
+                authorizedZones: found.authorizedZones,
+              },
+            );
+
             const updatedTrack: Track = {
               ...found,
-              latitude: payload.location.latitude,
-              longitude: payload.location.longitude,
+              latitude: displayCoordinate.latitude,
+              longitude: displayCoordinate.longitude,
               batteryPct: payload.health?.battery_pct ?? found.batteryPct,
               signalDbm: payload.health?.gprs_signal ?? found.signalDbm,
               lastPing: payload.timestamp,
@@ -642,6 +916,32 @@ export default function GpsMapPage() {
             lastUpdated: new Date().toISOString(),
           }));
         }
+
+        if (message.type === "alert") {
+          const payload = message.payload;
+          const deviceId = String(payload.deviceId ?? payload.braceletId ?? "N/A");
+          const priority: FeedPriority =
+            String(payload.niveau ?? "").toUpperCase() === "CRITIQUE" ? "CRITICAL" : "MAINTENANCE";
+
+          setSnapshot((current) => ({
+            ...current,
+            feed: [
+              {
+                id: String(payload.id ?? `${Date.now()}`),
+                time: String(payload.declencheeLe ?? new Date().toISOString()),
+                type: String(payload.type ?? "Alerte"),
+                priority,
+                beneficiary:
+                  current.tracks.find((track) => track.deviceId === deviceId)?.name ??
+                  String(payload.beneficiaireId ?? "Bénéficiaire"),
+                message: String(payload.message ?? "Nouvelle alerte de surveillance"),
+                deviceId,
+              },
+              ...current.feed,
+            ].slice(0, 8),
+            lastUpdated: new Date().toISOString(),
+          }));
+        }
       } catch {
         // On ignore les messages non conformes pendant la phase de montage.
       }
@@ -689,8 +989,29 @@ export default function GpsMapPage() {
       return selectedTrackZones;
     }
 
-    return selectedTrack?.authorizedZones ?? [];
+    return selectedTrack?.authorizedZones.filter((zone) => zone.type === "AUTORISEE") ?? [];
   }, [selectedTrack?.authorizedZones, selectedTrackZones]);
+  const visibleAuthorizedZones = useMemo(() => {
+    const zoneByKey = new Map<string, SurveillanceZone>();
+
+    for (const track of filteredTracks) {
+      for (const zone of track.authorizedZones) {
+        if (zone.type !== "AUTORISEE" || zone.polygons.length === 0) {
+          continue;
+        }
+
+        zoneByKey.set(`${track.id}:${zone.id}`, zone);
+      }
+    }
+
+    for (const zone of selectedAuthorizedZones) {
+      if (zone.type === "AUTORISEE" && zone.polygons.length > 0) {
+        zoneByKey.set(`${selectedTrack?.id ?? "selected"}:${zone.id}`, zone);
+      }
+    }
+
+    return Array.from(zoneByKey.values());
+  }, [filteredTracks, selectedAuthorizedZones, selectedTrack?.id]);
   const kpis = useMemo(() => {
     const active = snapshot.tracks.filter((track) => track.active).length;
     const violations = snapshot.tracks.filter((track) => track.compliance === "VIOLATION").length;
@@ -698,7 +1019,104 @@ export default function GpsMapPage() {
     return { active, violations, lowBattery };
   }, [snapshot.tracks]);
 
-  const mapCenter: LatLngExpression = [6.365, 2.395];
+  const mapCenter: LatLngExpression = DEFAULT_MAP_CENTER;
+
+  const clampInfoPanelPosition = useCallback((position: { x: number; y: number }) => {
+    const surface = mapSurfaceRef.current;
+    const panel = infoPanelRef.current;
+
+    if (!surface || !panel) {
+      return position;
+    }
+
+    const surfaceRect = surface.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const margin = 16;
+    const maxX = Math.max(margin, surfaceRect.width - panelRect.width - margin);
+    const maxY = Math.max(margin, surfaceRect.height - panelRect.height - margin);
+
+    return {
+      x: Math.min(Math.max(position.x, margin), maxX),
+      y: Math.min(Math.max(position.y, margin), maxY),
+    };
+  }, []);
+
+  const handleInfoPanelPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      if ((event.target as HTMLElement).closest("button")) {
+        return;
+      }
+
+      const surface = mapSurfaceRef.current;
+      const panel = infoPanelRef.current;
+
+      if (!surface || !panel) {
+        return;
+      }
+
+      const surfaceRect = surface.getBoundingClientRect();
+      const panelRect = panel.getBoundingClientRect();
+      const currentPosition =
+        infoPanelPosition ??
+        clampInfoPanelPosition({
+          x: panelRect.left - surfaceRect.left,
+          y: panelRect.top - surfaceRect.top,
+        });
+
+      panelDragRef.current = {
+        active: true,
+        pointerId: event.pointerId,
+        offsetX: event.clientX - surfaceRect.left - currentPosition.x,
+        offsetY: event.clientY - surfaceRect.top - currentPosition.y,
+      };
+
+      setInfoPanelPosition(currentPosition);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    },
+    [clampInfoPanelPosition, infoPanelPosition],
+  );
+
+  const handleInfoPanelPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const drag = panelDragRef.current;
+      const surface = mapSurfaceRef.current;
+
+      if (!drag.active || drag.pointerId !== event.pointerId || !surface) {
+        return;
+      }
+
+      const surfaceRect = surface.getBoundingClientRect();
+      setInfoPanelPosition(
+        clampInfoPanelPosition({
+          x: event.clientX - surfaceRect.left - drag.offsetX,
+          y: event.clientY - surfaceRect.top - drag.offsetY,
+        }),
+      );
+    },
+    [clampInfoPanelPosition],
+  );
+
+  const handleInfoPanelPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = panelDragRef.current;
+
+    if (drag.pointerId === event.pointerId) {
+      panelDragRef.current = {
+        active: false,
+        pointerId: null,
+        offsetX: 0,
+        offsetY: 0,
+      };
+    }
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
 
   useEffect(() => {
     setShowDetails(false);
@@ -710,49 +1128,57 @@ export default function GpsMapPage() {
     if (!beneficiaireId) {
       setSelectedTrackZones([]);
       setSelectedTrackZonesError(null);
-      setSelectedTrackZonesRawCount(null);
       return;
     }
 
     let cancelled = false;
     setSelectedTrackZones([]);
     setSelectedTrackZonesError(null);
-    setSelectedTrackZonesRawCount(null);
 
     async function loadSelectedTrackZones() {
       try {
         const response = await api.get<{
           message: string;
-          data: Beneficiaire;
-        }>(`/beneficiaires/${beneficiaireId}`);
+          data: Zone[];
+        }>(`/beneficiaires/${beneficiaireId}/zones`);
 
         if (cancelled) {
           return;
         }
 
-        console.log("[surveillance] beneficiaire charge", {
+        let rawZones = response.data;
+        if (rawZones.length === 0) {
+          const detailResponse = await api.get<{
+            message: string;
+            data: Beneficiaire;
+          }>(`/beneficiaires/${beneficiaireId}`);
+          rawZones = detailResponse.data.zones ?? [];
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        console.log("[surveillance] zones chargees", {
           beneficiaireId,
-          zones: response.data.zones,
+          zones: rawZones,
         });
 
-        setSelectedTrackZonesRawCount(response.data.zones?.length ?? 0);
-
-        const authorizedZones = (response.data.zones ?? [])
-          .filter((zone) => zone.type === "AUTORISEE")
+        const zones = rawZones
           .map(mapZoneFromBeneficiaire)
+          .filter((zone) => zone.type === "AUTORISEE")
           .filter((zone) => zone.polygons.length > 0);
 
-        console.log("[surveillance] zones autorisees normalisees", {
+        console.log("[surveillance] zones normalisees", {
           beneficiaireId,
-          authorizedZones,
+          zones,
         });
 
-        setSelectedTrackZones(authorizedZones);
+        setSelectedTrackZones(zones);
       } catch (error) {
         if (!cancelled) {
           setSelectedTrackZones([]);
           setSelectedTrackZonesError((error as Error).message);
-          setSelectedTrackZonesRawCount(null);
         }
 
         console.error("[surveillance] impossible de charger les zones du beneficiaire", {
@@ -937,7 +1363,7 @@ export default function GpsMapPage() {
           </div>
         </aside>
 
-        <section className="relative min-h-[70vh] overflow-hidden">
+        <section ref={mapSurfaceRef} className="relative min-h-[70vh] overflow-hidden">
           <div className="absolute left-4 top-4 z-[800] flex flex-wrap gap-2">
               <div className="rounded-lg bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-sm font-semibold text-on-surface">
@@ -951,13 +1377,31 @@ export default function GpsMapPage() {
             </div>
 
           {selectedTrack && (
-            <div className="absolute right-4 top-4 z-[950] w-[18rem]">
+            <div
+              ref={infoPanelRef}
+              className={`absolute z-[950] w-[20rem] ${infoPanelPosition ? "" : "right-4 top-4"}`}
+              style={
+                infoPanelPosition
+                  ? {
+                      left: `${infoPanelPosition.x}px`,
+                      top: `${infoPanelPosition.y}px`,
+                    }
+                  : undefined
+              }
+              onPointerMove={handleInfoPanelPointerMove}
+              onPointerUp={handleInfoPanelPointerUp}
+              onPointerCancel={handleInfoPanelPointerUp}
+            >
               {!showDetails ? (
                 <div className="rounded-2xl bg-white/95 p-4 shadow-[0_18px_45px_rgba(15,23,42,0.18)] backdrop-blur-sm">
-                  <div className="flex items-start justify-between gap-3">
+                  <div
+                    className="-mx-1 -mt-1 flex cursor-move touch-none select-none items-start justify-between gap-3 rounded-xl px-1 py-1"
+                    onPointerDown={handleInfoPanelPointerDown}
+                    title="Déplacer la fiche"
+                  >
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-on-surface-variant">
-                        Détenu sélectionné
+                        Bracelet
                       </p>
                       <p className="mt-1 font-[Manrope] text-lg font-bold text-on-surface">{selectedTrack.name}</p>
                       <p className="mt-1 text-xs text-on-surface-variant">{selectedTrack.deviceId}</p>
@@ -966,13 +1410,43 @@ export default function GpsMapPage() {
                       {complianceLabel(selectedTrack.compliance).text}
                     </Badge>
                   </div>
-                  {selectedAuthorizedZones.length > 0 && (
-                    <div className="mt-3 rounded-lg bg-primary-fixed/20 border border-primary/30 p-2.5">
-                      <p className="text-xs font-semibold text-primary">
-                        ✓ {selectedAuthorizedZones.length} zone(s) sur la carte
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-md bg-surface-low p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        Batterie
+                      </p>
+                      <p className={`mt-1 font-bold ${batteryTone(selectedTrack.batteryPct)}`}>{selectedTrack.batteryPct}%</p>
+                    </div>
+                    <div className="rounded-md bg-surface-low p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        Signal
+                      </p>
+                      <p className="mt-1 font-bold text-on-surface">{selectedTrack.signalDbm} dBm</p>
+                    </div>
+                    <div className="rounded-md bg-surface-low p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        Zone
+                      </p>
+                      <p className="mt-1 font-bold text-on-surface">
+                        {selectedTrack.zoneStatus === "OUTSIDE"
+                          ? "Hors zone autorisée"
+                          : selectedTrack.zoneLabel || "Zone autorisée"}
                       </p>
                     </div>
-                  )}
+                    <div className="rounded-md bg-surface-low p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        Ping
+                      </p>
+                      <p className="mt-1 font-bold text-on-surface">{formatAgo(selectedTrack.lastPing)}</p>
+                    </div>
+                  </div>
+                  {selectedAuthorizedZones.length > 0 ? (
+                    <div className="mt-3 rounded-lg bg-primary-fixed/20 border border-primary/30 p-2.5">
+                      <p className="text-xs font-semibold text-primary">
+                        {selectedAuthorizedZones.length} zone(s) affichée(s) sur la carte
+                      </p>
+                    </div>
+                  ) : null}
                   {selectedTrackZonesError && (
                     <div className="mt-3 rounded-lg border border-error-container/40 bg-error-container/20 p-2.5">
                       <p className="text-xs font-semibold text-on-error-container">
@@ -980,16 +1454,6 @@ export default function GpsMapPage() {
                       </p>
                     </div>
                   )}
-                  <p className="mt-3 text-xs text-on-surface-variant">
-                    {selectedAuthorizedZones.length > 0
-                      ? `Zones autorisées affichées sur la carte (surligné en turquoise). Cliquer pour plus de détails.`
-                      : `Zones autorisées: ${selectedAuthorizedZones.length}. Clique sur le bouton pour ouvrir la carte de détail.`}
-                  </p>
-                  <div className="mt-2 rounded-lg bg-surface-low px-3 py-2 text-[10px] text-on-surface-variant">
-                    <p>ID bénéficiaire: {selectedTrack.id}</p>
-                    <p>Zones brutes reçues: {selectedTrackZonesRawCount ?? "—"}</p>
-                    <p>Zones autorisées affichables: {selectedAuthorizedZones.length}</p>
-                  </div>
                   <div className="mt-4 flex gap-2">
                     <button
                       type="button"
@@ -1009,7 +1473,11 @@ export default function GpsMapPage() {
                 </div>
               ) : (
                 <div className="rounded-2xl bg-white/96 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.22)] backdrop-blur-sm">
-                  <div className="flex items-start justify-between gap-3">
+                  <div
+                    className="-mx-1 -mt-1 flex cursor-move touch-none select-none items-start justify-between gap-3 rounded-xl px-1 py-1"
+                    onPointerDown={handleInfoPanelPointerDown}
+                    title="Déplacer la fiche"
+                  >
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-on-surface-variant">
                         Carte de détail
@@ -1090,11 +1558,33 @@ export default function GpsMapPage() {
             scrollWheelZoom
           >
             <MainMap tracks={filteredTracks} />
+            <TracksAutoFit
+              tracks={filteredTracks}
+              zones={visibleAuthorizedZones}
+              disabled={Boolean(selectedTrack)}
+            />
             <SelectedTrackFocus track={selectedTrack} zones={selectedAuthorizedZones} />
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+
+            {visibleAuthorizedZones.map((zone) =>
+              zone.polygons.map((polygon, polygonIndex) => (
+                <Polygon
+                  key={`visible-${zone.id}-${polygonIndex}`}
+                  positions={polygon}
+                  pathOptions={{
+                    color: "#0f766e",
+                    fillColor: "#99f6e4",
+                    fillOpacity: selectedTrack ? 0.08 : 0.14,
+                    weight: 1.4,
+                    opacity: 0.5,
+                    dashArray: "4, 7",
+                  }}
+                />
+              )),
+            )}
 
             {selectedAuthorizedZones.map((zone) =>
               zone.polygons.map((polygon, polygonIndex) => (
@@ -1126,7 +1616,6 @@ export default function GpsMapPage() {
                       <div className="space-y-1">
                         <p className="font-semibold text-on-surface">{zone.name}</p>
                         <p className="text-sm text-on-surface-variant">Zone autorisée</p>
-                        <p className="text-xs text-on-surface-variant mt-2">{zone.type === "AUTORISEE" ? "✓ Autorisée" : "✗ Interdite"}</p>
                       </div>
                     </Popup>
                   </Polygon>
@@ -1140,83 +1629,12 @@ export default function GpsMapPage() {
                 position={[track.latitude, track.longitude]}
                 icon={createMarkerIcon(track)}
                 eventHandlers={{
-                  click: () => setSelectedTrackId(track.id),
+                  click: () => {
+                    setSelectedTrackId(track.id);
+                    setShowDetails(false);
+                  },
                 }}
-              >
-                <Popup>
-                  <div className="min-w-56 space-y-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-on-surface">{track.name}</p>
-                        <p className="text-xs text-on-surface-variant">{track.deviceId}</p>
-                      </div>
-                      <Badge variant={complianceLabel(track.compliance).variant}>
-                        {complianceLabel(track.compliance).text}
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="rounded-md bg-surface-low p-2">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                          Batterie
-                        </p>
-                        <p className={`mt-1 font-bold ${batteryTone(track.batteryPct)}`}>{track.batteryPct}%</p>
-                      </div>
-                      <div className="rounded-md bg-surface-low p-2">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                          Signal
-                        </p>
-                        <p className="mt-1 font-bold text-on-surface">{track.signalDbm} dBm</p>
-                      </div>
-                      <div className="rounded-md bg-surface-low p-2">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                          Zone
-                        </p>
-                        <p className="mt-1 font-bold text-on-surface">
-                          {track.zoneStatus === "OUTSIDE"
-                            ? "Hors zone autorisée"
-                            : track.zoneLabel
-                              ? `Dans la zone ${track.zoneLabel}`
-                              : "Zone autorisée"}
-                        </p>
-                      </div>
-                      <div className="rounded-md bg-surface-low p-2">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                          Position
-                        </p>
-                        <p className="mt-1 font-mono text-[11px] font-bold text-on-surface">
-                          {track.latitude.toFixed(5)}, {track.longitude.toFixed(5)}
-                        </p>
-                      </div>
-                      <div className="rounded-md bg-surface-low p-2">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                          Ping
-                        </p>
-                        <p className="mt-1 font-bold text-on-surface">{formatAgo(track.lastPing)}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedTrackId(track.id);
-                          setShowDetails(false);
-                        }}
-                        className="flex-1 rounded-md bg-gradient-to-br from-primary to-primary-container px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white"
-                      >
-                        Voir les détails
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedTrackId(null)}
-                        className="rounded-md px-3 py-2 text-[10px] font-semibold text-on-surface-variant transition hover:bg-surface-high"
-                      >
-                        Fermer
-                      </button>
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
+              />
             ))}
 
           </MapContainer>

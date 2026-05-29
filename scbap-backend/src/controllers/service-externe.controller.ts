@@ -3,6 +3,7 @@ import { HttpError } from "../errorHandler";
 import {
   CreateAffectationServiceExterneSchema,
   CreateServiceExterneSchema,
+  UpdateServiceExterneSchema,
 } from "../schemas/service-externe.schema";
 import {
   createAffectationServiceExterne,
@@ -10,6 +11,7 @@ import {
   getServiceExterneById,
   listServicesExternes,
   resetServiceAccessCode,
+  updateServiceExterne,
 } from "../services/service-externe.service";
 
 const UUID_REGEX =
@@ -69,6 +71,25 @@ export async function getServiceExterneByIdController(
 
     res.status(200).json({
       message: "Service externe recupere avec succes",
+      data: service,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateServiceExterneController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const serviceId = parseServiceExterneId(req.params.id);
+    const input = UpdateServiceExterneSchema.parse(req.body);
+    const service = await updateServiceExterne(serviceId, input);
+
+    res.status(200).json({
+      message: "Service externe mis a jour avec succes",
       data: service,
     });
   } catch (error) {

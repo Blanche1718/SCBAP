@@ -8,11 +8,13 @@ import {
   ChevronRight,
   KeyRound,
   Loader2,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
   Save,
   Shield,
+  Trash2,
   UserRound,
   UserRoundCog,
   Users,
@@ -64,6 +66,7 @@ type FormState = {
 };
 
 type AdminSection = "MENU" | "USERS" | "OBLIGATIONS" | "NFC";
+type UserDrawerMode = "CREATE" | "EDIT";
 
 type ObligationReference = {
   id: string;
@@ -109,6 +112,7 @@ export default function AdministrationPage() {
   const [adminSection, setAdminSection] = useState<AdminSection>("MENU");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [userCreateDrawerOpen, setUserCreateDrawerOpen] = useState(false);
+  const [userDrawerMode, setUserDrawerMode] = useState<UserDrawerMode>("CREATE");
   const [createForm, setCreateForm] = useState<FormState>(DEFAULT_FORM);
   const [meta, setMeta] = useState<UsersMeta>({ roles: [], structures: [] });
   const [obligationReferences, setObligationReferences] = useState<ObligationReference[]>([]);
@@ -135,6 +139,15 @@ export default function AdministrationPage() {
     () => users.find((user) => user.id === selectedId) ?? null,
     [selectedId, users],
   );
+
+  useEffect(() => {
+    function returnToMenu() {
+      setAdminSection("MENU");
+    }
+
+    window.addEventListener("scbap:administration-home", returnToMenu);
+    return () => window.removeEventListener("scbap:administration-home", returnToMenu);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -247,6 +260,27 @@ export default function AdministrationPage() {
       setPage(totalPages);
     }
   }, [page, totalPages]);
+
+  function openCreateUserDrawer() {
+    setUserDrawerMode("CREATE");
+    setCreateForm(DEFAULT_FORM);
+    setUserCreateDrawerOpen(true);
+  }
+
+  function openEditUserDrawer(user: UserRow) {
+    setSelectedId(user.id);
+    setForm({
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      telephone: user.telephone ?? "",
+      statut: user.statut,
+      roleId: user.role.id,
+      structureId: user.structure.id,
+    });
+    setUserDrawerMode("EDIT");
+    setUserCreateDrawerOpen(true);
+  }
 
   useEffect(() => {
     if (adminSection === "OBLIGATIONS" && obligationReferences.length === 0) {
@@ -376,6 +410,7 @@ export default function AdministrationPage() {
         current.map((user) => (user.id === updatedUser.id ? updatedUser : user)),
       );
       setSelectedId(updatedUser.id);
+      setUserCreateDrawerOpen(false);
       showToast("Utilisateur mis à jour avec succès.", "success");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Erreur lors de la mise à jour", "error");
@@ -612,6 +647,7 @@ export default function AdministrationPage() {
             {obligationReferences.map((reference) => (
               <div key={reference.id} className="grid gap-3 rounded-lg border border-surface-high bg-white p-4 md:grid-cols-[140px_minmax(0,1fr)_180px_110px_150px] md:items-center">
                 <input
+                  title="Code de l'obligation"
                   value={reference.code}
                   onChange={(event) =>
                     setObligationReferences((current) =>
@@ -621,6 +657,7 @@ export default function AdministrationPage() {
                   className="rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                 />
                 <input
+                  title="Libellé de l'obligation"
                   value={reference.libelle}
                   onChange={(event) =>
                     setObligationReferences((current) =>
@@ -647,17 +684,21 @@ export default function AdministrationPage() {
                     type="button"
                     onClick={() => void handleUpdateReference(reference)}
                     disabled={editingReferenceId === reference.id}
-                    className="rounded-md bg-primary px-3 py-2 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-60"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary text-white transition-colors hover:bg-[#2e4d44] disabled:opacity-60"
+                    aria-label="Enregistrer"
+                    title="Enregistrer"
                   >
-                    Enregistrer
+                    <Save size={15} />
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleDeleteReference(reference.id)}
                     disabled={editingReferenceId === reference.id}
-                    className="rounded-md bg-error-container px-3 py-2 text-xs font-bold uppercase tracking-wider text-on-error-container disabled:opacity-60"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-error-container text-on-error-container transition-colors hover:bg-error-container/80 disabled:opacity-60"
+                    aria-label="Supprimer"
+                    title="Supprimer"
                   >
-                    Supprimer
+                    <Trash2 size={15} />
                   </button>
                 </div>
               </div>
@@ -735,7 +776,7 @@ export default function AdministrationPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setUserCreateDrawerOpen(true)}
+            onClick={openCreateUserDrawer}
             className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#2e4d44]"
           >
             <Plus size={14} />
@@ -851,9 +892,9 @@ export default function AdministrationPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.3fr_0.85fr]">
+      <div>
         <div>
-          <div className="hidden sm:grid grid-cols-[40px_minmax(0,1fr)_170px_170px_120px_170px] items-center gap-4 px-5 py-2 mb-2">
+          <div className="hidden sm:grid grid-cols-[40px_minmax(0,1.4fr)_170px_minmax(180px,0.8fr)_120px_96px] items-center gap-4 px-5 py-2 mb-2">
             <div className="w-10 shrink-0" />
             <div className="text-xs font-semibold uppercase tracking-wider text-on-error-container flex items-center gap-2">
               <UserRound size={12} className="text-on-error-container shrink-0" />
@@ -907,10 +948,17 @@ export default function AdministrationPage() {
                       isSelected ? "bg-[#eef8f4] hover:border-primary" : "hover:border-surface-high"
                     }`}
                   >
-                    <button
-                      type="button"
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedId(user.id)}
-                      className="w-full grid grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[40px_minmax(0,1fr)_170px_170px_120px_170px] items-center gap-4 px-5 py-4 rounded-lg bg-white hover:bg-surface transition-colors text-left"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedId(user.id);
+                        }
+                      }}
+                      className="w-full grid cursor-pointer grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[40px_minmax(0,1.4fr)_170px_minmax(180px,0.8fr)_120px_96px] items-center gap-4 rounded-lg bg-white px-5 py-4 text-left transition-colors hover:bg-surface"
                     >
                       <div className="w-10 h-10 rounded-md bg-[#6f0015] text-error-container flex items-center justify-center text-xs font-bold shrink-0">
                         {(user.prenom[0] ?? "A") + (user.nom[0] ?? "P")}
@@ -947,26 +995,41 @@ export default function AdministrationPage() {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
-                          className="inline-flex items-center justify-center gap-2 rounded-md bg-surface-low px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#2e4d44] hover:bg-surface-high transition-colors"
-                          onClick={() => setSelectedId(user.id)}
+                          className="group relative inline-flex h-9 w-9 items-center justify-center rounded-md bg-surface-low text-[#2e4d44] transition-colors hover:bg-surface-high"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openEditUserDrawer(user);
+                          }}
+                          aria-label="Modifier"
+                          title="Modifier"
                         >
-                          Modifier
+                          <Pencil size={14} />
+                          <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 whitespace-nowrap rounded-md bg-[#17362e] px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                            Modifier
+                          </span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleResetPassword(user.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleResetPassword(user.id);
+                          }}
                           disabled={resettingId === user.id}
-                          className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#2e4d44] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="group relative inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary text-white transition-colors hover:bg-[#2e4d44] disabled:cursor-not-allowed disabled:opacity-60"
+                          aria-label="Réinitialiser le mot de passe"
+                          title="Réinitialiser le mot de passe"
                         >
                           {resettingId === user.id ? (
                             <Loader2 size={14} className="animate-spin" />
                           ) : (
                             <KeyRound size={14} />
                           )}
-                          Reset
+                          <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 whitespace-nowrap rounded-md bg-[#17362e] px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                            Réinitialiser le mot de passe
+                          </span>
                         </button>
                       </div>
-                    </button>
+                    </div>
                   </div>
                 );
               })}
@@ -1026,7 +1089,7 @@ export default function AdministrationPage() {
           </div>
         </div>
 
-        <aside className="space-y-4">
+        {/* <aside className="space-y-4">
           <div className="rounded-lg bg-white p-5">
             <div className="mb-4 flex items-center gap-3">
               <div className="w-9 h-9 rounded-md bg-primary-fixed flex items-center justify-center text-[#2e4d44]">
@@ -1158,7 +1221,7 @@ export default function AdministrationPage() {
               personnelle.
             </p>
           </div>
-        </aside>
+        </aside> */}
       </div>
     </div>
 
@@ -1166,42 +1229,42 @@ export default function AdministrationPage() {
       <div className="flex h-full flex-col overflow-y-auto p-6">
         <div className="pr-12">
           <span className="mb-3 inline-block rounded-full bg-primary-fixed px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-[#2e4d44]">
-            Nouvel accès
+            {userDrawerMode === "CREATE" ? "Nouvel accès" : "Modification"}
           </span>
           <h2 className="text-[28px] font-extrabold leading-tight text-[#17362e]">
-            Nouvel utilisateur
+            {userDrawerMode === "CREATE" ? "Nouvel utilisateur" : "Modifier l'utilisateur"}
           </h2>
         </div>
-        <form className="mt-8 space-y-4" onSubmit={handleCreateUser}>
+        <form className="mt-8 space-y-4" onSubmit={userDrawerMode === "CREATE" ? handleCreateUser : handleSave}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
               Nom
-              <input value={createForm.nom} onChange={(event) => setCreateForm({ ...createForm, nom: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required />
+              <input value={userDrawerMode === "CREATE" ? createForm.nom : form.nom} onChange={(event) => userDrawerMode === "CREATE" ? setCreateForm({ ...createForm, nom: event.target.value }) : setForm({ ...form, nom: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required />
             </label>
             <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
               Prénom
-              <input value={createForm.prenom} onChange={(event) => setCreateForm({ ...createForm, prenom: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required />
+              <input value={userDrawerMode === "CREATE" ? createForm.prenom : form.prenom} onChange={(event) => userDrawerMode === "CREATE" ? setCreateForm({ ...createForm, prenom: event.target.value }) : setForm({ ...form, prenom: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required />
             </label>
           </div>
           <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
             Email
-            <input type="email" value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required />
+            <input type="email" value={userDrawerMode === "CREATE" ? createForm.email : form.email} onChange={(event) => userDrawerMode === "CREATE" ? setCreateForm({ ...createForm, email: event.target.value }) : setForm({ ...form, email: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary disabled:opacity-60" required disabled={userDrawerMode === "EDIT"} />
           </label>
           <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
             Téléphone
-            <input value={createForm.telephone} onChange={(event) => setCreateForm({ ...createForm, telephone: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" />
+            <input value={userDrawerMode === "CREATE" ? createForm.telephone : form.telephone} onChange={(event) => userDrawerMode === "CREATE" ? setCreateForm({ ...createForm, telephone: event.target.value }) : setForm({ ...form, telephone: event.target.value })} className="mt-2 w-full rounded-md bg-surface-highest px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" />
           </label>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
               Rôle
-              <select value={createForm.roleId} onChange={(event) => setCreateForm({ ...createForm, roleId: event.target.value })} className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required>
+              <select value={userDrawerMode === "CREATE" ? createForm.roleId : form.roleId} onChange={(event) => userDrawerMode === "CREATE" ? setCreateForm({ ...createForm, roleId: event.target.value }) : setForm({ ...form, roleId: event.target.value })} className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required>
                 <option value="">Sélectionner</option>
                 {meta.roles.map((role) => <option key={role.id} value={role.id}>{role.nom}</option>)}
               </select>
             </label>
             <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
               Structure
-              <select value={createForm.structureId} onChange={(event) => setCreateForm({ ...createForm, structureId: event.target.value })} className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required>
+              <select value={userDrawerMode === "CREATE" ? createForm.structureId : form.structureId} onChange={(event) => userDrawerMode === "CREATE" ? setCreateForm({ ...createForm, structureId: event.target.value }) : setForm({ ...form, structureId: event.target.value })} className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary" required>
                 <option value="">Sélectionner</option>
                 {meta.structures.map((structure) => <option key={structure.id} value={structure.id}>{structure.nom}</option>)}
               </select>
@@ -1209,15 +1272,15 @@ export default function AdministrationPage() {
           </div>
           <label className="text-xs font-semibold uppercase tracking-wider text-on-secondary-container">
             Statut
-            <select value={createForm.statut} onChange={(event) => setCreateForm({ ...createForm, statut: event.target.value })} className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary">
+            <select value={userDrawerMode === "CREATE" ? createForm.statut : form.statut} onChange={(event) => userDrawerMode === "CREATE" ? setCreateForm({ ...createForm, statut: event.target.value }) : setForm({ ...form, statut: event.target.value })} className="mt-2 w-full rounded-md bg-surface-low px-3 py-2 text-sm outline-none focus:border-b-2 focus:border-primary">
               <option value="ACTIF">ACTIF</option>
               <option value="INACTIF">INACTIF</option>
               <option value="SUSPENDU">SUSPENDU</option>
             </select>
           </label>
           <button type="submit" disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#2e4d44] disabled:opacity-60">
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-            Créer l'utilisateur
+            {saving ? <Loader2 size={15} className="animate-spin" /> : userDrawerMode === "CREATE" ? <Plus size={15} /> : <Save size={15} />}
+            {userDrawerMode === "CREATE" ? "Créer l'utilisateur" : "Enregistrer les modifications"}
           </button>
         </form>
       </div>

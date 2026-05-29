@@ -1,73 +1,144 @@
-# React + TypeScript + Vite
+# SCBAP Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interface web React/Vite de SCBAP, la plateforme de suivi des beneficiaires sous mesure judiciaire.
 
-Currently, two official plugins are available:
+Elle couvre les ecrans principaux de l'application :
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- tableau de bord ;
+- authentification ;
+- dossiers et beneficiaires ;
+- obligations et pointages ;
+- alertes et notifications ;
+- services externes ;
+- rapports ;
+- surveillance GPS des bracelets electroniques ;
+- portail public d'evaluation des services partenaires.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Prerequis
 
-## Expanding the ESLint configuration
+- Node.js 20 ou plus recent
+- npm
+- backend SCBAP lance sur `http://localhost:3000`
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Installation
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Depuis le dossier frontend :
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd scbap-frontend
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Configuration
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Le fichier local `.env` doit contenir au minimum :
+
+```env
+VITE_API_URL=http://localhost:3000
+VITE_APP_TIME_ZONE=Africa/Porto-Novo
 ```
+
+Variable optionnelle pour forcer l'URL WebSocket de surveillance :
+
+```env
+VITE_SURVEILLANCE_WS_URL=ws://localhost:3000/ws/surveillance
+```
+
+Si `VITE_SURVEILLANCE_WS_URL` n'est pas definie, l'application construit automatiquement l'URL WebSocket depuis l'hote courant.
+
+---
+
+## Lancement en developpement
+
+```bash
+npm run dev
+```
+
+Vite demarre generalement sur :
+
+```text
+http://localhost:5173
+```
+
+---
+
+## Commandes utiles
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run preview
+```
+
+| Commande | Role |
+| --- | --- |
+| `npm run dev` | Lance le serveur Vite en developpement. |
+| `npm run build` | Compile TypeScript puis genere le build de production. |
+| `npm run lint` | Lance ESLint sur le frontend. |
+| `npm run preview` | Sert localement le build genere. |
+
+---
+
+## Structure rapide
+
+```text
+src/
+├─ App.tsx
+├─ main.tsx
+├─ auth/
+├─ components/
+├─ context/
+├─ hooks/
+├─ lib/
+├─ pages/
+├─ types/
+└─ utils/
+```
+
+Reperes importants :
+
+- `src/lib/api.ts` : client API base sur `VITE_API_URL`.
+- `src/auth/` : contexte et stockage d'authentification.
+- `src/pages/surveillance/GpsMapPage.tsx` : carte GPS temps reel.
+- `src/pages/alertes/AlertesPage.tsx` : alertes de surveillance.
+- `src/pages/portal/` : portail public pour les services externes.
+- `src/components/layout/AppLayout.tsx` : navigation principale.
+
+---
+
+## Flux bracelet electronique
+
+Le frontend ne se connecte pas directement au broker MQTT.
+
+Le flux est :
+
+```text
+Bracelet ou simulateur MQTT
+        -> backend SCBAP
+        -> WebSocket /ws/surveillance
+        -> pages Surveillance GPS et Alertes
+```
+
+La documentation technique du contrat MQTT est disponible ici :
+
+```text
+../docs/bracelet-electronique-mqtt.md
+```
+
+---
+
+## Verification rapide
+
+1. Lancer le backend sur `http://localhost:3000`.
+2. Lancer le frontend avec `npm run dev`.
+3. Se connecter a l'application.
+4. Ouvrir le dashboard, les dossiers, les alertes et la page Surveillance GPS.
+5. Pour tester la surveillance, lancer le simulateur bracelet cote backend.
+

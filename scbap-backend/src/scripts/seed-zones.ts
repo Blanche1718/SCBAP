@@ -2,7 +2,7 @@ import "dotenv/config";
 import prisma from "../prisma";
 
 const RESET_SEED = process.env.RESET_SEED === "1";
-const TARGET_COUNT = 5;
+const TARGET_COUNT = Number(process.env.ZONE_SEED_TARGET_COUNT ?? "20");
 const ZONE_PREFIX = "SEED -";
 
 type JurisdictionKey = "Cotonou" | "Porto-Novo" | "Parakou" | "Abomey" | "Natitingou";
@@ -52,6 +52,18 @@ async function main() {
   const beneficiaires = await prisma.beneficiaire.findMany({
     orderBy: {
       createdAt: "asc",
+    },
+    where: {
+      affectationsBracelet: {
+        some: {
+          dateFin: null,
+          bracelet: {
+            codeImei: {
+              startsWith: "BR-SEED",
+            },
+          },
+        },
+      },
     },
     include: {
       dossier: {

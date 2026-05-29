@@ -16,6 +16,35 @@ function normalizeTimeValue(value?: string | number | null) {
   return String(value);
 }
 
+function normalizeText(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+  const text = String(value).trim();
+  return text || undefined;
+}
+
+function buildRawObligationsText(payload: DapgLiberationConditionnelle) {
+  const directText = normalizeText(payload.obligations);
+  if (directText) {
+    return directText;
+  }
+
+  if (!Array.isArray(payload.obligations_specifiques)) {
+    return undefined;
+  }
+
+  const texts = payload.obligations_specifiques
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return undefined;
+      }
+
+      return normalizeText((item as Record<string, unknown>).texte);
+    })
+    .filter((item): item is string => item !== undefined);
+
+  return texts.length ? texts.join("\n") : undefined;
+}
+
 export function mapDapgLiberationConditionnelleToDossierCreateInput(
   payload: DapgLiberationConditionnelle,
 ): Prisma.DossierUncheckedCreateInput {
@@ -68,7 +97,7 @@ export function mapDapgLiberationConditionnelleToDossierCreateInput(
     decisionDapg: payload.decision_dapg ?? "acceptée",
     dateDecisionDapg: parseDate(payload.date_decision_dapg),
     dureeTempsEpreuve: normalizeTimeValue(payload.duree_temps_epreuve),
-    obligations: payload.obligations ?? undefined,
+    obligations: buildRawObligationsText(payload),
     observations: payload.observations ?? payload.observations_commission ?? undefined,
     othersData,
     statut: "accepte_dapg",

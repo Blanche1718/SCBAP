@@ -31,14 +31,16 @@ export function normalizeSpecificObligation(
   const rawInput = input as Record<string, unknown>;
   const code = normalizeText(input.code);
   const categorie = normalizeText(input.categorie);
-  const libelle = normalizeText(input.libelle);
+  const libelle = normalizeText(input.libelle)
+    ?? normalizeText(input.texte)
+    ?? normalizeText(input.texte_formate);
 
   if (!code || !categorie || !libelle) {
     return null;
   }
 
   return {
-    dapgId: normalizeDapgId(rawInput.id ?? rawInput.dapgId),
+    dapgId: normalizeDapgId(rawInput.obligation_id ?? rawInput.id ?? rawInput.dapgId),
     section: normalizeText(input.section),
     code,
     categorie,

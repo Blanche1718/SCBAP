@@ -33,6 +33,7 @@ const webhooks_routes_1 = __importDefault(require("./routes/webhooks.routes"));
 const surveillance_realtime_service_1 = require("./services/surveillance-realtime.service");
 const absence_check_job_1 = require("./jobs/absence-check.job");
 const monthly_rapport_job_1 = require("./jobs/monthly-rapport.job");
+const surveillance_health_job_1 = require("./jobs/surveillance-health.job");
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
     origin: true,
@@ -71,5 +72,6 @@ server.listen(port, () => {
     (0, client_1.startMqttSubscriber)(mqtt_service_1.handleMqttMessage);
     (0, absence_check_job_1.initializeAbsenceCheckJob)();
     (0, monthly_rapport_job_1.initializeMonthlyRapportJob)();
+    (0, surveillance_health_job_1.initializeSurveillanceHealthJob)();
 });
 exports.default = app;

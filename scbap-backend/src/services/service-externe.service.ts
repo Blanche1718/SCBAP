@@ -5,6 +5,7 @@ import { HttpError } from "../errorHandler";
 import {
   type CreateAffectationServiceExterneInput,
   type CreateServiceExterneInput,
+  type UpdateServiceExterneInput,
 } from "../schemas/service-externe.schema";
 import { sendServiceExterneAccessCodeEmail } from "./mail.service";
 import {
@@ -180,7 +181,7 @@ function mapAffectation(affectation: AffectationRecord) {
   };
 }
 
-async function assertUniqueServiceExterneEmail(email: string) {
+async function assertUniqueServiceExterneEmail(email: string, excludeId?: string) {
   const existing = await prisma.serviceExterne.findUnique({
     where: {
       email: email.trim().toLowerCase(),
@@ -190,7 +191,7 @@ async function assertUniqueServiceExterneEmail(email: string) {
     },
   });
 
-  if (existing) {
+  if (existing && existing.id !== excludeId) {
     throw new HttpError(409, "Un service externe existe deja avec cet email");
   }
 }
@@ -339,6 +340,38 @@ export async function resetServiceAccessCode(serviceId: string) {
   });
 
   return { codeAccesInitial, notification };
+}
+
+export async function updateServiceExterne(serviceId: string, input: UpdateServiceExterneInput) {
+  await getServiceExterneRecord(serviceId);
+
+  const normalizedEmail = input.email.trim().toLowerCase();
+  await assertUniqueServiceExterneEmail(normalizedEmail, serviceId);
+
+  const service = await prisma.serviceExterne.update({
+    where: { id: serviceId },
+    data: {
+      nom: input.nom.trim(),
+      type: input.type,
+      email: normalizedEmail,
+      telephone: input.telephone?.trim() || null,
+      actif: input.actif,
+    },
+    include: {
+      affectations: {
+        select: {
+          actif: true,
+        },
+      },
+      _count: {
+        select: {
+          evaluations: true,
+        },
+      },
+    },
+  });
+
+  return mapServiceExterne(service);
 }
 
 export async function listServicesExternes() {
