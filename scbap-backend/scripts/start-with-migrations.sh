@@ -34,9 +34,9 @@ echo "---- end of prisma/schema.prisma ----"
 PRISMA_LOG=/tmp/prisma-migrate.log
 rm -f "$PRISMA_LOG"
 
-echo "Running: npx prisma migrate status --schema=prisma/schema.prisma"
+echo "Running: npx prisma migrate status"
 set +e
-npx prisma migrate status --schema=prisma/schema.prisma > "$PRISMA_LOG" 2>&1
+npx prisma migrate status > "$PRISMA_LOG" 2>&1
 STATUS_CODE=$?
 set -e
 cat "$PRISMA_LOG" || true
@@ -47,10 +47,10 @@ if [ "$STATUS_CODE" -ne 0 ]; then
   echo "--- end prisma migrate status log ---"
 fi
 
-echo "Running: npx prisma migrate deploy --schema=prisma/schema.prisma"
+echo "Running: npx prisma migrate deploy"
 # Run prisma and capture exit code portably (avoid relying on pipefail)
 set +e
-npx prisma migrate deploy --schema=prisma/schema.prisma > "$PRISMA_LOG" 2>&1
+npx prisma migrate deploy > "$PRISMA_LOG" 2>&1
 EXIT_CODE=$?
 set -e
 cat "$PRISMA_LOG" || true
