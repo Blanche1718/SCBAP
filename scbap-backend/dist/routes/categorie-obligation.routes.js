@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const categorie_obligation_controller_1 = require("../controllers/categorie-obligation.controller");
+const categorieObligationRouter = (0, express_1.Router)();
+categorieObligationRouter.get("/", categorie_obligation_controller_1.getCategoriesObligationController);
+categorieObligationRouter.get("/:id", categorie_obligation_controller_1.getCategorieObligationByIdController);
+categorieObligationRouter.post("/", categorie_obligation_controller_1.createCategorieObligationController);
+categorieObligationRouter.put("/:id", categorie_obligation_controller_1.updateCategorieObligationController);
+categorieObligationRouter.delete("/:id", categorie_obligation_controller_1.deleteCategorieObligationController);
+exports.default = categorieObligationRouter;

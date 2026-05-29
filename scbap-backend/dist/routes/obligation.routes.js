@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const obligation_controller_1 = require("../controllers/obligation.controller");
+const auth_middleware_1 = require("../auth/auth.middleware");
+const obligationRouter = (0, express_1.Router)();
+obligationRouter.get("/references/specifiques", (0, auth_middleware_1.requireRole)("ADMIN"), obligation_controller_1.listSpecificObligationReferencesController);
+obligationRouter.post("/references/specifiques/sync", (0, auth_middleware_1.requireRole)("ADMIN"), obligation_controller_1.syncSpecificObligationReferencesController);
+obligationRouter.put("/references/specifiques/:id", (0, auth_middleware_1.requireRole)("ADMIN"), obligation_controller_1.updateSpecificObligationReferenceController);
+obligationRouter.delete("/references/specifiques/:id", (0, auth_middleware_1.requireRole)("ADMIN"), obligation_controller_1.deleteSpecificObligationReferenceController);
+obligationRouter.get("/:id", obligation_controller_1.getObligationByIdController);
+obligationRouter.put("/:id", obligation_controller_1.updateObligationController);
+obligationRouter.patch("/:id/validate", obligation_controller_1.validateObligationController);
+exports.default = obligationRouter;

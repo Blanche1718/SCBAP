@@ -1,93 +1,357 @@
 # SCBAP
 
+SCBAP est une plateforme de suivi et de supervision de personnes sous mesure judiciaire au Benin.
 
+Le depot contient deux applications :
 
-## Getting started
+- `scbap-backend` : API Node.js / Express / Prisma / PostgreSQL ;
+- `scbap-frontend` : interface web React / Vite.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Le projet couvre deja les principaux flux metiers : authentification, dossiers, beneficiaires, obligations, pointages, biometrie, documents, services externes, rapports, alertes et fondations de surveillance electronique par bracelet.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+---
 
-## Add your files
+## Architecture
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
+```text
+scbap/
+├─ scbap-backend/     API, Prisma, integrations, jobs, scripts
+├─ scbap-frontend/    application web React/Vite
+└─ docs/              documentation fonctionnelle et technique
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/Blanche1718/scbap.git
-git branch -M main
-git push -uf origin main
+
+### Backend
+
+Le backend suit une organisation simple :
+
+- `src/routes` : routes HTTP ;
+- `src/controllers` : entree/sortie HTTP ;
+- `src/services` : logique metier ;
+- `src/schemas` : validation Zod ;
+- `src/integrations` : clients externes ;
+- `src/jobs` : taches planifiees ;
+- `src/scripts` : seeds, backfills et simulations ;
+- `prisma` : schema et migrations.
+
+### Frontend
+
+Le frontend est organise autour de :
+
+- `src/pages` : ecrans applicatifs ;
+- `src/components` : composants reutilisables ;
+- `src/auth` : contexte et stockage d'authentification ;
+- `src/hooks` : chargement de donnees ;
+- `src/lib` : client API ;
+- `src/types` et `src/utils` : types et helpers.
+
+---
+
+## Modules Principaux
+
+- **Dashboard** : indicateurs globaux et filtrage par juridiction.
+- **Dossiers** : import/synchronisation DAPG, consultation, edition, export.
+- **Beneficiaires** : profil technique lie au dossier, statut, biometrie, NFC, QR code.
+- **Obligations** : obligations importees ou saisies manuellement.
+- **Pointages** : pointage manuel, NFC, biometrie et historique.
+- **Biometrie** : lancement d'enrolement et suivi via API justice.
+- **Documents** : stockage des fichiers via MinIO.
+- **Services externes** : portail public et evaluations partenaires.
+- **Rapports** : generation et suivi des rapports.
+- **Surveillance electronique** : reception MQTT, positions GPS, alertes, incidents et carte temps reel.
+
+---
+
+## Technologies
+
+| Couche | Technologies |
+| --- | --- |
+| Backend | Node.js, Express 5, TypeScript, Prisma 7, PostgreSQL, Zod |
+| Frontend | React 19, Vite 8, React Router 7, Tailwind CSS 4 |
+| Stockage | MinIO |
+| Temps reel | WebSocket |
+| Bracelet | MQTT |
+| Integrations | DAPG, API biometrie justice, NFC/Famoco |
+
+---
+
+## Prerequis
+
+- Node.js 20 ou plus recent ;
+- npm ;
+- PostgreSQL 14+ ;
+- Docker si MinIO est lance localement ;
+- Mosquitto ou un autre broker MQTT pour tester le bracelet ;
+- les cles d'acces aux APIs externes si les integrations reelles sont utilisees.
+
+---
+
+## Installation Locale
+
+### 1. Installer les dependances
+
+```bash
+cd scbap-backend
+npm install
+
+cd ../scbap-frontend
+npm install
 ```
 
-## Integrate with your tools
+### 2. Preparer PostgreSQL
 
-* [Set up project integrations](https://gitlab.com/Blanche1718/scbap/-/settings/integrations)
+Creer une base `scbap`, puis renseigner `DATABASE_URL` dans `scbap-backend/.env`.
 
-## Collaborate with your team
+Exemple :
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+```env
+DATABASE_URL="postgresql://postgres:1234@localhost:5432/scbap"
+```
 
-## Test and Deploy
+### 3. Demarrer MinIO
 
-Use the built-in continuous integration in GitLab.
+```bash
+cd scbap-backend
+docker compose -f docker-compose.minio.yml up -d
+```
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+### 4. Configurer les fichiers d'environnement
 
-***
+Pour le backend local, copiez le fichier d'exemple :
 
-# Editing this README
+```bash
+cd scbap-backend
+cp .env.development.example .env.development
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Pour la production, copiez le fichier d'exemple :
 
-## Suggestions for a good README
+```bash
+cp .env.production.example .env.production
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Le backend charge automatiquement :
+- `.env`
+- `.env.local`
+- `.env.development`
+- `.env.development.local`
+- `.env.production`
+- `.env.production.local`
 
-## Name
-Choose a self-explaining name for your project.
+Variables de base importantes pour le backend :
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+```env
+NODE_ENV=development
+DATABASE_URL="postgresql://postgres:1234@localhost:5432/scbap"
+JWT_SECRET=change-me
+PORTAIL_JWT_SECRET=change-me-too
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+BIOMETRIE_API_BASE_URL=http://pprod-fingerprints.justice.bj
+BIOMETRIE_API_KEY=
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+MINIO_ENDPOINT=http://localhost:9002
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=scbap-documents
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+MQTT_BROKER_URL=mqtt://localhost:1883
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Pour le frontend local, copiez le fichier d'exemple :
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+```bash
+cd scbap-frontend
+cp .env.development.example .env.development
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Pour la production frontend, copiez le fichier d'exemple :
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```bash
+cp .env.production.example .env.production
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Variables de base pour le frontend :
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```env
+VITE_API_URL=http://localhost:3000
+VITE_APP_TIME_ZONE=Africa/Porto-Novo
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+Pour le detail complet du frontend, voir [scbap-frontend/README.md](scbap-frontend/README.md).
 
-## License
-For open source projects, say how it is licensed.
+### 5. Appliquer Prisma
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Depuis `scbap-backend` :
+
+```bash
+npx prisma generate
+npx prisma migrate deploy --config prisma.config.ts
+```
+
+### 6. Charger des donnees de test
+
+Depuis `scbap-backend` :
+
+```bash
+npm run seed:categories-obligations
+npm run seed:juridictions
+npm run seed:admin
+npm run seed:users-juridiction
+npm run seed:dossiers
+npm run seed:pointages
+npm run seed:alertes
+```
+
+Pour la surveillance electronique :
+
+```bash
+npm run seed:bracelets
+npm run seed:zones
+```
+
+### 7. Lancer les applications
+
+Backend :
+
+```bash
+cd scbap-backend
+npm run dev
+```
+
+Frontend :
+
+```bash
+cd scbap-frontend
+npm run dev
+```
+
+URLs locales :
+
+- backend : `http://localhost:3000`
+- frontend : `http://localhost:5173`
+- portail public : `http://localhost:5173/portail`
+
+---
+
+## Commandes Utiles
+
+### Backend
+
+```bash
+npm run dev
+npm run build
+npm run start
+```
+
+Seeds et scripts courants :
+
+```bash
+npm run seed:admin
+npm run seed:dossiers
+npm run seed:pointages
+npm run seed:alertes
+npm run seed:bracelets
+npm run seed:zones
+npm run backfill:beneficiaire-statuts
+```
+
+Simulation bracelet :
+
+```bash
+npm run simulate:bracelet
+npm run simulate:bracelet:zone
+npm run simulate:bracelet:battery
+npm run simulate:bracelet:signal
+npm run simulate:bracelet:tamper
+```
+
+### Frontend
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run preview
+```
+
+---
+
+## Bracelet Electronique
+
+Le bracelet physique ne communique pas directement avec le frontend.
+
+Flux attendu :
+
+```text
+Bracelet ou simulateur
+        -> broker MQTT
+        -> backend SCBAP
+        -> PostgreSQL + alertes
+        -> WebSocket
+        -> interface web
+```
+
+Topic MQTT principal :
+
+```text
+scbap/bracelets/telemetry
+```
+
+Le guide complet a transmettre au fabricant est ici :
+
+- [docs/bracelet-electronique-mqtt.md](docs/bracelet-electronique-mqtt.md)
+
+---
+
+## Integrations Externes
+
+| Integration | Usage |
+| --- | --- |
+| DAPG | Import et synchronisation des dossiers. |
+| API biometrie justice | Enrolement et suivi biometrie. |
+| NFC/Famoco | Recherche ou pointage via identifiant NFC. |
+| MinIO | Stockage documentaire. |
+| MQTT | Reception des donnees bracelet. |
+
+Les integrations peuvent etre utilisees en mode reel si les cles sont disponibles, ou simulees avec les seeds/scripts pour les demonstrations locales.
+
+---
+
+## Verification Rapide
+
+1. Lancer PostgreSQL et MinIO.
+2. Lancer le backend avec `npm run dev`.
+3. Lancer le frontend avec `npm run dev`.
+4. Se connecter avec un utilisateur seed.
+5. Verifier le dashboard, les dossiers, les beneficiaires et les pointages.
+6. Lancer `npm run seed:bracelets` puis `npm run simulate:bracelet`.
+7. Ouvrir la page Surveillance GPS et verifier la remontee temps reel.
+
+---
+
+## Depannage Court
+
+| Probleme | Verification |
+| --- | --- |
+| Le backend ne demarre pas | Verifier `DATABASE_URL`, PostgreSQL et `JWT_SECRET`. |
+| Prisma echoue | Relancer `npx prisma generate`, puis verifier les migrations. |
+| Le frontend ne voit pas l'API | Verifier `VITE_API_URL` et que le backend ecoute sur le bon port. |
+| Les documents ne s'ouvrent pas | Verifier MinIO, le bucket et les variables `MINIO_*`. |
+| Les positions bracelet n'arrivent pas | Verifier le broker MQTT, `MQTT_BROKER_URL`, le topic et le `device_id`. |
+| Les alertes ne s'affichent pas en temps reel | Verifier `/ws/surveillance` et la page Alertes/Surveillance. |
+
+---
+
+## Documentation
+
+- [README frontend](scbap-frontend/README.md)
+- [Contrat MQTT bracelet](docs/bracelet-electronique-mqtt.md)
+- [Cahier des charges](docs/cahier-des-charges-scbap.md)
+
+---
+
+## Etat Du Projet
+
+Le socle backend/frontend est operationnel pour une demonstration locale : gestion metier, documents, biometrie, pointages, portail public, rapports et surveillance electronique simulee.
+
+La prochaine etape importante cote bracelet est de remplacer le simulateur MQTT par un prototype physique qui publie le meme payload sur le meme topic.
+

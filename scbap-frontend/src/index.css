@@ -1,0 +1,56 @@
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #f8faf9;
+  --color-surface-low: #f2f4f3;
+  --color-surface-lowest: #ffffff;
+  --color-surface-high: #e6e9e8;
+  --color-surface-highest: #e1e3e2;
+  --color-primary: #17362e;
+  --color-primary-container: #2e4d44;
+  --color-primary-fixed: #c7eade;
+  --color-on-primary: #ffffff;
+  --color-on-primary-fixed-variant: #2e4d44;
+  --color-secondary-container: #d3e3de;
+  --color-on-secondary-container: #576662;
+  --color-on-surface: #191c1c;
+  --color-on-surface-variant: #414845;
+  --color-outline-variant: #c1c8c4;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  --font-display: "Manrope", sans-serif;
+  --font-body: "Manrope", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --radius-sm: 0.125rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+}
+
+* { box-sizing: border-box; }
+body {
+  font-family: "Manrope", sans-serif;
+  background-color: #f8faf9;
+  color: #191c1c;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c1c8c4; border-radius: 99px; }
+
+.leaflet-marker-icon.scbap-person-marker {
+  background: transparent;
+  border: 0;
+}
+
+.leaflet-marker-icon.scbap-person-marker:hover .scbap-person-marker__core > div {
+  transform: scale(1.06);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.28), 0 0 0 5px rgba(23, 54, 46, 0.14);
+}

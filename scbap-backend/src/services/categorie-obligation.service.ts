@@ -1,0 +1,189 @@
+import { HttpError } from "../errorHandler";
+import prisma from "../prisma";
+import {
+  CategorieObligationSchema,
+  UpdateCategorieObligationSchema,
+} from "../schemas/categorie-obligation.schema";
+import { z } from "zod";
+
+type CreateCategorieObligationInput = z.infer<typeof CategorieObligationSchema>;
+type UpdateCategorieObligationInput = z.infer<
+  typeof UpdateCategorieObligationSchema
+>;
+
+export const DAPG_CATEGORIES_OBLIGATION = [
+  {
+    nom: "Obligations de domiciliation",
+    description: "Categorie officielle DAPG des obligations de domiciliation.",
+  },
+  {
+    nom: "Obligations de pointage au commissariat de la localité",
+    description: "Categorie officielle DAPG des obligations de pointage.",
+  },
+  {
+    nom: "Obligations générales de conduite",
+    description: "Categorie officielle DAPG des obligations generales de conduite.",
+  },
+  {
+    nom: "Insertion professionnelle",
+    description: "Categorie officielle DAPG des obligations d'insertion professionnelle.",
+  },
+  {
+    nom: "Suivi social et médical",
+    description: "Categorie officielle DAPG des obligations de suivi social et medical.",
+  },
+  {
+    nom: "Relations avec les victimes",
+    description: "Categorie officielle DAPG des obligations relatives aux victimes.",
+  },
+  {
+    nom: "Interdictions liées aux substances",
+    description: "Categorie officielle DAPG des interdictions liees aux substances.",
+  },
+  {
+    nom: "Obligations particulières complémentaires",
+    description: "Categorie officielle DAPG des obligations particulieres complementaires.",
+  },
+];
+
+export const LEGACY_CATEGORIES_OBLIGATION = [
+  {
+    nom: "POINTAGE",
+    description: "Obligation de se presenter a une structure a une frequence definie.",
+  },
+  {
+    nom: "COUVRE_FEU",
+    description: "Restriction horaire de presence obligatoire au domicile.",
+  },
+  {
+    nom: "INTERDICTION_ZONE",
+    description: "Interdiction d'acceder a une zone specifique.",
+  },
+  {
+    nom: "SUIVI_MEDICAL",
+    description: "Obligation de suivi medical regulier.",
+  },
+  {
+    nom: "OBLIGATION_TRAVAIL",
+    description: "Obligation d'activite professionnelle ou de formation.",
+  },
+];
+
+export const DEFAULT_CATEGORIES_OBLIGATION = [
+  ...DAPG_CATEGORIES_OBLIGATION,
+  ...LEGACY_CATEGORIES_OBLIGATION,
+];
+
+async function ensureCategoryNameAvailable(nom: string, excludeId?: string) {
+  const existingCategory = await prisma.categorieObligation.findFirst({
+    where: {
+      nom: {
+        equals: nom,
+        mode: "insensitive",
+      },
+      ...(excludeId !== undefined && {
+        NOT: {
+          id: excludeId,
+        },
+      }),
+    },
+  });
+
+  if (existingCategory) {
+    throw new HttpError(
+      409,
+      "Une categorie d'obligation avec ce nom existe deja",
+    );
+  }
+}
+
+export async function getCategoriesObligation() {
+  return prisma.categorieObligation.findMany({
+    orderBy: {
+      nom: "asc",
+    },
+  });
+}
+
+export async function getCategorieObligationById(id: string) {
+  return prisma.categorieObligation.findUniqueOrThrow({
+    where: { id },
+    include: {
+      obligations: true,
+    },
+  });
+}
+
+export async function createCategorieObligation(
+  input: CreateCategorieObligationInput,
+) {
+  const data = CategorieObligationSchema.parse(input);
+
+  await ensureCategoryNameAvailable(data.nom);
+
+  return prisma.categorieObligation.create({
+    data,
+  });
+}
+
+export async function updateCategorieObligation(
+  id: string,
+  input: UpdateCategorieObligationInput,
+) {
+  const data = UpdateCategorieObligationSchema.parse(input);
+
+  await prisma.categorieObligation.findUniqueOrThrow({
+    where: { id },
+  });
+
+  if (data.nom !== undefined) {
+    await ensureCategoryNameAvailable(data.nom, id);
+  }
+
+  return prisma.categorieObligation.update({
+    where: { id },
+    data,
+  });
+}
+
+export async function deleteCategorieObligation(id: string) {
+  await prisma.categorieObligation.findUniqueOrThrow({
+    where: { id },
+  });
+
+  return prisma.categorieObligation.delete({
+    where: { id },
+  });
+}
+
+export async function seedCategoriesObligation() {
+  const existingCategories = await prisma.categorieObligation.findMany({
+    select: {
+      nom: true,
+    },
+  });
+
+  const existingNames = new Set(
+    existingCategories.map((category: { nom: string }) => category.nom.toLowerCase()),
+  );
+
+  const categoriesToCreate = DEFAULT_CATEGORIES_OBLIGATION.filter(
+    (category: { nom: string }) => !existingNames.has(category.nom.toLowerCase()),
+  );
+
+  if (categoriesToCreate.length === 0) {
+    return {
+      createdCount: 0,
+      createdCategories: [] as typeof DEFAULT_CATEGORIES_OBLIGATION,
+    };
+  }
+
+  await prisma.categorieObligation.createMany({
+    data: categoriesToCreate,
+  });
+
+  return {
+    createdCount: categoriesToCreate.length,
+    createdCategories: categoriesToCreate,
+  };
+}

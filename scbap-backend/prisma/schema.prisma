@@ -4,23 +4,37 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-} 
+}
 
 // =====================
 // STRUCTURE
 // =====================
 
 model Structure {
-  id          Int      @id @default(autoincrement())
+  id          String   @id @default(uuid())
   nom         String
   code        String   @unique
-  type        String   // PRISON, COMMISSARIAT, SPIP, TRIBUNAL, MAIRIE
+  type        String // PRISON, COMMISSARIAT, SPIP, TRIBUNAL, MAIRIE...
   juridiction String?
   createdAt   DateTime @default(now()) @map("created_at")
 
-  users       User[]
+  users User[]
 
   @@map("structures")
+}
+
+// =====================
+// JURIDICTION
+// =====================
+
+model Juridiction {
+  id        String   @id
+  nom       String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  dossiers Dossier[]
+
+  @@map("juridictions")
 }
 
 // =====================
@@ -28,7 +42,7 @@ model Structure {
 // =====================
 
 model Role {
-  id  Int    @id @default(autoincrement())
+  id  String @id @default(uuid())
   nom String
 
   users User[]
@@ -37,19 +51,20 @@ model Role {
 }
 
 model User {
-  id          Int       @id @default(autoincrement())
-  nom         String
-  prenom      String
-  email       String    @unique
-  telephone   String?
-  motDePasse  String    @map("mot_de_passe")
-  roleId      Int       @map("role_id")
-  structureId Int       @map("structure_id")
-  statut      String    // ACTIF, INACTIF, SUSPENDU
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id             String   @id @default(uuid())
+  nom            String
+  prenom         String
+  email          String   @unique
+  telephone      String?
+  motDePasse     String   @map("mot_de_passe")
+  sessionVersion Int      @default(0) @map("session_version")
+  roleId         String   @map("role_id")
+  structureId    String   @map("structure_id")
+  statut         String // ACTIF, INACTIF, SUSPENDU
+  createdAt      DateTime @default(now()) @map("created_at")
 
-  role        Role      @relation(fields: [roleId], references: [id])
-  structure   Structure @relation(fields: [structureId], references: [id])
+  role      Role      @relation(fields: [roleId], references: [id])
+  structure Structure @relation(fields: [structureId], references: [id])
 
   pointages            Pointage[]
   demandesTraitees     DemandeAutorisation[]
@@ -57,6 +72,7 @@ model User {
   rapports             Rapport[]
   notifications        Notification[]
   historiquesActions   HistoriqueAction[]
+  obligationsModifiees Obligation[]          @relation("ObligationModifiePar")
 
   @@map("users")
 }
@@ -66,35 +82,41 @@ model User {
 // =====================
 
 model Dossier {
-  id                  Int       @id @default(autoincrement())
-  numeroDossier       String    @unique @map("numero_dossier")
-  juridictionId       Int?      @map("juridiction_id")
-  prisonId            Int?      @map("prison_id")
-  nom                 String
-  prenom              String
-  dateNaissance       DateTime? @map("date_naissance") @db.Date
-  lieuNaissance       String?   @map("lieu_naissance")
-  nationalite         String?
-  sexe                String?   // M, F
-  profession          String?
-  adresse             String?
-  telephoneContact    String?   @map("telephone_contact")
-  infractions         String?
-  numeroMandatDepot   String    @map("numero_mandat_depot")
-  dateMandatDepot     DateTime  @map("date_mandat_depot") @db.Date
-  condamnation        String?
-  dateFinPeine        DateTime  @map("date_fin_peine") @db.Date
-  dureePeineMois      Int       @map("duree_peine_mois")
-  obligations         String?   // texte brut DAPG — source d'extraction
-  observations        String?
-  othersData          Json?     @map("others_data")
-  statut              String    
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-  deletedAt           DateTime? @map("deleted_at")
+  id                String    @id @default(uuid())
+  numeroDossier     String    @unique @map("numero_dossier")
+  juridictionId     String?   @map("juridiction_id")
+  prisonId          String?   @map("prison_id")
+  prisonName        String?   @map("prison_name")
+  nom               String
+  prenom            String
+  dateNaissance     DateTime? @map("date_naissance") @db.Date
+  lieuNaissance     String?   @map("lieu_naissance")
+  nationalite       String?
+  sexe              String? // M, F
+  profession        String?
+  adresse           String?
+  telephoneContact  String?   @map("telephone_contact")
+  infractions       String?
+  numeroMandatDepot String    @map("numero_mandat_depot")
+  dateMandatDepot   DateTime? @map("date_mandat_depot") @db.Date
+  condamnation      String?
+  dateFinPeine      DateTime? @map("date_fin_peine") @db.Date
+  dureePeineMois    Int?      @map("duree_peine_mois")
+  decisionDapg      String?   @map("decision_dapg")
+  dateDecisionDapg  DateTime? @map("date_decision_dapg")
+  dureeTempsEpreuve String?   @map("duree_temps_epreuve")
+  obligations       String? // texte brut DAPG — source d'extraction
+  observations      String?
+  othersData        Json?     @map("others_data")
+  statut            String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
 
-  beneficiaire        Beneficiaire? @relation("DossierToBeneficiaire")
-  obligationsDossier  Obligation[]
+  juridiction        Juridiction?  @relation(fields: [juridictionId], references: [id])
+  beneficiaire       Beneficiaire? @relation("DossierToBeneficiaire")
+  obligationsDossier Obligation[]
+  documents          Document[]
 
   @@map("dossiers")
 }
@@ -104,29 +126,82 @@ model Dossier {
 // =====================
 
 model Beneficiaire {
-  id        Int      @id @default(autoincrement())
-  dossierId Int      @unique @map("dossier_id")
-  statut    String   // ACTIF, SUSPENDU, REVOQUE, TERMINE
-  qrCode    String   @unique @map("qr_code")
-  createdAt DateTime @default(now()) @map("created_at")
+  id                                String    @id @default(uuid())
+  dossierId                         String    @unique @map("dossier_id")
+  statut                            String // statut technique existant
+  profilStatut                      String    @default("A_CONFIGURER") @map("profil_statut") // A_CONFIGURER, ACTIF, REVOQUE
+  biometrieEnrolementCode           String?   @unique @map("biometrie_enrolement_code")
+  biometrieEnrolementStatut         String    @default("AUCUN") @map("biometrie_enrolement_statut") // AUCUN, EN_COURS, CONFIRME, ECHEC
+  biometrieEnrolementDeepLinkFamoco String?   @map("biometrie_enrolement_deep_link_famoco")
+  biometrieEnrolementApplication    String?   @map("biometrie_enrolement_application")
+  biometrieEnrolementMany           String?   @map("biometrie_enrolement_many")
+  biometrieEnrolementDemandeeLe     DateTime? @map("biometrie_enrolement_demandee_le")
+  biometrieEnrolementConfirmeeLe    DateTime? @map("biometrie_enrolement_confirmee_le")
+  biometrieVerificationEssais       Int       @default(0) @map("biometrie_verification_essais")
+  biometrieDerniereVerificationLe   DateTime? @map("biometrie_derniere_verification_le")
+  biometrieProchaineVerificationLe  DateTime? @map("biometrie_prochaine_verification_le")
+  badgeNfc                          String?   @unique @map("badge_nfc")
+  badgeNfcAssocieLe                 DateTime? @map("badge_nfc_associe_le")
+  qrCode                            String    @unique @map("qr_code")
+  profilConfirme                    Boolean   @default(false) @map("profil_confirme")
+  profilConfirmeLe                  DateTime? @map("profil_confirme_le")
+  createdAt                         DateTime  @default(now()) @map("created_at")
 
-  dossier              Dossier               @relation( "DossierToBeneficiaire", fields: [dossierId], references: [id])
+  dossier Dossier @relation("DossierToBeneficiaire", fields: [dossierId], references: [id])
 
-  obligations          Obligation[]
-  pointages            Pointage[]
-  demandesAutorisation DemandeAutorisation[]
-  justificatifs        Justificatif[]
-  alertes              Alerte[]
-  notifications        Notification[]
-  rapports             Rapport[]
-  affectationsBracelet AffectationBracelet[]
-  positionsGPS         PositionGPS[]
-  zones                Zone[]
-  reglesHoraires       RegleHoraire[]
-  incidentsBracelet    IncidentBracelet[]
-  historiquesStatut    HistoriqueStatut[]
+  documents                    Document[]
+  obligations                  Obligation[]
+  pointages                    Pointage[]
+  demandesAutorisation         DemandeAutorisation[]
+  justificatifs                Justificatif[]
+  alertes                      Alerte[]
+  notifications                Notification[]
+  rapports                     Rapport[]
+  affectationsBracelet         AffectationBracelet[]
+  positionsGPS                 PositionGPS[]
+  zones                        Zone[]
+  reglesHoraires               RegleHoraire[]
+  reglesSurveillance           RegleSurveillance[]
+  alertesSurveillance          AlerteSurveillance[]
+  incidentsBracelet            IncidentBracelet[]
+  historiquesStatut            HistoriqueStatut[]
+  affectationsServicesExternes AffectationServiceExterne[]
+  evaluationsServicesExternes  EvaluationServiceExterne[]
 
   @@map("beneficiaires")
+}
+
+// =====================
+// DOCUMENT
+// =====================
+
+model Document {
+  id             String    @id @default(uuid())
+  beneficiaireId String    @map("beneficiaire_id")
+  dossierId      String    @map("dossier_id")
+  evaluationServiceExterneId String? @map("evaluation_service_externe_id")
+  typeDocument   String    @map("type_document")
+  titre          String
+  description    String?
+  source         String
+  statut         String
+  fileName       String?   @map("file_name")
+  mimeType       String?   @map("mime_type")
+  sizeBytes      Int?      @map("size_bytes")
+  bucket         String
+  objectKey      String    @unique @map("object_key")
+  externalUrl    String?   @map("external_url")
+  uploadedAt     DateTime? @map("uploaded_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  beneficiaire              Beneficiaire               @relation(fields: [beneficiaireId], references: [id])
+  dossier                   Dossier                    @relation(fields: [dossierId], references: [id])
+  evaluationServiceExterne  EvaluationServiceExterne?  @relation(fields: [evaluationServiceExterneId], references: [id])
+
+  @@index([beneficiaireId, createdAt(sort: Desc)])
+  @@index([evaluationServiceExterneId])
+  @@map("documents")
 }
 
 // =====================
@@ -134,13 +209,37 @@ model Beneficiaire {
 // =====================
 
 model CategorieObligation {
-  id          Int     @id @default(autoincrement())
-  nom         String  // POINTAGE, COUVRE_FEU, INTERDICTION_ZONE, SUIVI_MEDICAL
+  id          String  @id @default(uuid())
+  nom         String // POINTAGE, COUVRE_FEU, INTERDICTION_ZONE, SUIVI_MEDICAL
   description String?
 
-  obligations Obligation[]
+  obligations                    Obligation[]
+  obligationsSpecifiquesReferences ObligationSpecifiqueReference[]
 
   @@map("categories_obligations")
+}
+
+// =====================
+// REFERENTIEL OBLIGATIONS SPECIFIQUES DAPG
+// =====================
+
+model ObligationSpecifiqueReference {
+  id          String   @id @default(uuid())
+  dapgId      Int?     @map("dapg_id")
+  section     String?
+  code        String   @unique
+  categorieId String   @map("categorie_id")
+  libelle     String
+  active      Boolean  @default(true)
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  categorie CategorieObligation @relation(fields: [categorieId], references: [id])
+  obligations Obligation[]
+
+  @@index([categorieId])
+  @@map("obligations_specifiques_references")
 }
 
 // =====================
@@ -148,13 +247,18 @@ model CategorieObligation {
 // =====================
 
 model Obligation {
-  id                  Int       @id @default(autoincrement())
-  beneficiaireId      Int       @map("beneficiaire_id")
-  dossierId           Int       @map("dossier_id")
-  categorieId         Int       @map("categorie_id")
-  description         String?   // texte brut extrait de Dossier.obligations
-  type                String?   // POINTAGE, COUVRE_FEU, INTERDICTION_ZONE...
-  frequence           String?   // QUOTIDIEN, HEBDOMADAIRE, MENSUEL...
+  id                  String    @id @default(uuid())
+  beneficiaireId      String    @map("beneficiaire_id")
+  dossierId           String    @map("dossier_id")
+  categorieId         String    @map("categorie_id")
+  obligationSpecifiqueReferenceId String? @map("obligation_specifique_reference_id")
+  source              String? // DAPG_SPECIFIC, DAPG_RAW, MANUAL
+  code                String?
+  section             String?
+  libelle             String?
+  description         String? // texte brut extrait de Dossier.obligations
+  type                String? // POINTAGE, COUVRE_FEU, INTERDICTION_ZONE...
+  frequence           String? // QUOTIDIEN, HEBDOMADAIRE, MENSUEL...
   jourSemaine         String?   @map("jour_semaine")
   heure               DateTime? @db.Time
   lieu                String?
@@ -162,16 +266,119 @@ model Obligation {
   statutStructuration String?   @map("statut_structuration") // NON_STRUCTUREE, A_VERIFIER, VALIDE
   dateDebut           DateTime? @map("date_debut") @db.Date
   dateFin             DateTime? @map("date_fin") @db.Date
-  statut              String?   // EN_COURS, RESPECTEE, NON_RESPECTEE, SUSPENDUE
+  statut              String? // EN_COURS, RESPECTEE, NON_RESPECTEE, SUSPENDUE
+  raisonModification  String?   @map("raison_modification")
+  raisonAutre         String?   @map("raison_autre")
+  modifieLe           DateTime? @map("modifie_le")
+  modifiePar          String?   @map("modifie_par")
   createdAt           DateTime  @default(now()) @map("created_at")
 
-  beneficiaire        Beneficiaire        @relation(fields: [beneficiaireId], references: [id])
-  dossier             Dossier             @relation(fields: [dossierId], references: [id])
-  categorie           CategorieObligation @relation(fields: [categorieId], references: [id])
-  pointages           Pointage[]
-  reglesHoraires      RegleHoraire[]
+  beneficiaire                 Beneficiaire                @relation(fields: [beneficiaireId], references: [id])
+  dossier                      Dossier                     @relation(fields: [dossierId], references: [id])
+  categorie                    CategorieObligation         @relation(fields: [categorieId], references: [id])
+  obligationSpecifiqueReference ObligationSpecifiqueReference? @relation(fields: [obligationSpecifiqueReferenceId], references: [id])
+  modifieParUser               User?                       @relation("ObligationModifiePar", fields: [modifiePar], references: [id])
+  pointages                    Pointage[]
+  reglesHoraires               RegleHoraire[]
+  affectationsServicesExternes AffectationServiceExterne[]
+  evaluationsServicesExternes  EvaluationServiceExterne[]
 
+  @@index([obligationSpecifiqueReferenceId])
+  @@index([code])
   @@map("obligations")
+}
+
+// =====================
+// SERVICES EXTERNES
+// =====================
+
+model ServiceExterne {
+  id            String   @id @default(uuid())
+  nom           String
+  type          String // MEDICAL, EMPLOI, FORMATION, SOCIAL, AUTRE
+  email         String   @unique
+  telephone     String?
+  codeAccesHash String   @map("code_acces_hash")
+  actif         Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  affectations AffectationServiceExterne[]
+  evaluations  EvaluationServiceExterne[]
+
+  @@map("services_externes")
+}
+
+model AffectationServiceExterne {
+  id                String   @id @default(uuid())
+  serviceId         String?  @map("service_id")
+  beneficiaireId    String   @map("beneficiaire_id")
+  obligationId      String?  @map("obligation_id")
+  typeSuivi         String   @map("type_suivi")
+  libelleSuivi      String   @map("libelle_suivi")
+  codeSuivi         String   @unique @map("code_suivi")
+  frequenceAttendue String?  @map("frequence_attendue")
+  lieuAttendu       String?  @map("lieu_attendu")
+  horairesAttendus  Json?    @map("horaires_attendus")
+  modalitesConnues  Boolean  @default(false) @map("modalites_connues")
+  statut            String   @default("EN_ATTENTE") // EN_ATTENTE, ACTIVE, SUSPENDUE, TERMINEE
+  actif             Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  service      ServiceExterne?            @relation(fields: [serviceId], references: [id])
+  beneficiaire Beneficiaire               @relation(fields: [beneficiaireId], references: [id])
+  obligation   Obligation?                @relation(fields: [obligationId], references: [id])
+  evaluations  EvaluationServiceExterne[]
+
+  @@index([serviceId, actif])
+  @@index([beneficiaireId, actif])
+  @@index([obligationId])
+  @@map("affectations_services_externes")
+}
+
+model EvaluationServiceExterne {
+  id             String   @id @default(uuid())
+  affectationId  String   @map("affectation_id")
+  serviceId      String   @map("service_id")
+  beneficiaireId String   @map("beneficiaire_id")
+  obligationId   String?  @map("obligation_id")
+  periodeMois    DateTime @map("periode_mois") @db.Date
+  frequenceSuivi String   @default("MENSUEL") @map("frequence_suivi")
+  dateConstat    DateTime @map("date_constat") @db.Date
+  present        Boolean
+  conformite     String // SATISFAISANT, A_SURVEILLER, PREOCCUPANT
+  observations   String?
+  commentaire    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  affectation  AffectationServiceExterne @relation(fields: [affectationId], references: [id])
+  service      ServiceExterne            @relation(fields: [serviceId], references: [id])
+  beneficiaire Beneficiaire              @relation(fields: [beneficiaireId], references: [id])
+  obligation   Obligation?               @relation(fields: [obligationId], references: [id])
+  occurrences  EvaluationServiceExterneOccurrence[]
+  documents    Document[]
+
+  @@unique([affectationId, periodeMois])
+  @@index([beneficiaireId, periodeMois(sort: Desc)])
+  @@index([serviceId, periodeMois(sort: Desc)])
+  @@index([obligationId])
+  @@map("evaluations_services_externes")
+}
+
+model EvaluationServiceExterneOccurrence {
+  id           String   @id @default(uuid())
+  evaluationId String   @map("evaluation_id")
+  dateSuivi    DateTime @map("date_suivi") @db.Date
+  present      Boolean
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  evaluation EvaluationServiceExterne @relation(fields: [evaluationId], references: [id])
+
+  @@unique([evaluationId, dateSuivi])
+  @@index([dateSuivi])
+  @@map("evaluations_services_externes_occurrences")
 }
 
 // =====================
@@ -179,19 +386,26 @@ model Obligation {
 // =====================
 
 model Pointage {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
-  obligationId   Int      @map("obligation_id")
-  agentId        Int      @map("agent_id")
-  dateHeure      DateTime @map("date_heure")
-  lieu           String?
-  type           String   // QR_CODE, BIOMETRIE, VALIDATION_AGENT
-  statut         String   // VALIDE, REFUSE, ABSENT, ANOMALIE
-  commentaire    String?
+  id              String   @id @default(uuid())
+  beneficiaireId  String   @map("beneficiaire_id")
+  obligationId    String?  @map("obligation_id")
+  agentId         String?  @map("agent_id")
+  dateHeure       DateTime @map("date_heure")
+  lieu            String?
+  nfc             String?  @map("nfc")
+  centreNom       String?  @map("centre_nom")
+  deviceId        String?  @map("device_id")
+  type            String // QR_CODE, BIOMETRIE, VALIDATION_AGENT
+  statut          String // VALIDE, REFUSE, ABSENT, ANOMALIE
+  source          String   @default("SYSTEME") // SYSTEME, FAMOCO, MANUEL
+  externalSuccess Boolean? @map("external_success")
+  externalPayload Json?    @map("external_payload")
+  commentaire     String?
 
-  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
-  obligation     Obligation   @relation(fields: [obligationId], references: [id])
-  agent          User         @relation(fields: [agentId], references: [id])
+  beneficiaire  Beneficiaire   @relation(fields: [beneficiaireId], references: [id])
+  obligation    Obligation?    @relation(fields: [obligationId], references: [id])
+  agent         User?          @relation(fields: [agentId], references: [id])
+  notifications Notification[]
 
   @@map("pointages")
 }
@@ -201,20 +415,20 @@ model Pointage {
 // =====================
 
 model DemandeAutorisation {
-  id             Int       @id @default(autoincrement())
-  beneficiaireId Int       @map("beneficiaire_id")
-  type           String    // DEPLACEMENT, ABSENCE, AUTRE
+  id             String    @id @default(uuid())
+  beneficiaireId String    @map("beneficiaire_id")
+  type           String // DEPLACEMENT, ABSENCE, AUTRE
   motif          String?
   dateDebut      DateTime  @map("date_debut")
   dateFin        DateTime  @map("date_fin")
-  statut         String    // EN_ATTENTE, APPROUVEE, REFUSEE
-  traiteepar     Int?      @map("traitee_par")
+  statut         String // EN_ATTENTE, APPROUVEE, REFUSEE
+  traiteepar     String?   @map("traitee_par")
   dateTraitement DateTime? @map("date_traitement")
   commentaire    String?
   createdAt      DateTime  @default(now()) @map("created_at")
 
-  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
-  traitePar      User?        @relation(fields: [traiteepar], references: [id])
+  beneficiaire Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  traitePar    User?        @relation(fields: [traiteepar], references: [id])
 
   @@map("demandes_autorisation")
 }
@@ -224,17 +438,17 @@ model DemandeAutorisation {
 // =====================
 
 model Justificatif {
-  id             Int       @id @default(autoincrement())
-  beneficiaireId Int       @map("beneficiaire_id")
-  type           String    // TRAVAIL, FORMATION, MEDICAL, AUTRE
+  id             String    @id @default(uuid())
+  beneficiaireId String    @map("beneficiaire_id")
+  type           String // TRAVAIL, FORMATION, MEDICAL, AUTRE
   fichierUrl     String?   @map("fichier_url")
-  statut         String    // EN_ATTENTE, VALIDE, REJETE
-  validePar      Int?      @map("valide_par")
+  statut         String // EN_ATTENTE, VALIDE, REJETE
+  validePar      String?   @map("valide_par")
   dateValidation DateTime? @map("date_validation")
   commentaire    String?
 
-  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
-  validateur     User?        @relation(fields: [validePar], references: [id])
+  beneficiaire Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  validateur   User?        @relation(fields: [validePar], references: [id])
 
   @@map("justificatifs")
 }
@@ -244,17 +458,17 @@ model Justificatif {
 // =====================
 
 model Alerte {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
-  type           String   // ABSENCE_POINTAGE, SORTIE_ZONE, RETRAIT_BRACELET, BATTERIE_FAIBLE, POWER_FAIL
-  niveau         String   // CRITIQUE, NORMALE
+  id             String   @id @default(uuid())
+  beneficiaireId String   @map("beneficiaire_id")
+  type           String // ABSENCE_POINTAGE, SORTIE_ZONE, RETRAIT_BRACELET, BATTERIE_FAIBLE, POWER_FAIL
+  niveau         String // CRITIQUE, NORMALE
   message        String
-  source         String   // SYSTEME, AGENT, BRACELET
-  statut         String   // OUVERTE, TRAITEE, IGNOREE
+  source         String // SYSTEME, AGENT, BRACELET
+  statut         String // OUVERTE, TRAITEE, IGNOREE
   createdAt      DateTime @default(now()) @map("created_at")
 
-  beneficiaire   Beneficiaire   @relation(fields: [beneficiaireId], references: [id])
-  notifications  Notification[]
+  beneficiaire  Beneficiaire   @relation(fields: [beneficiaireId], references: [id])
+  notifications Notification[]
 
   @@map("alertes")
 }
@@ -264,20 +478,30 @@ model Alerte {
 // =====================
 
 model Notification {
-  id             Int       @id @default(autoincrement())
-  userId         Int?      @map("user_id")
-  beneficiaireId Int?      @map("beneficiaire_id")
-  alerteId       Int?      @map("alerte_id")
-  canal          String    // SMS, EMAIL, INTERFACE
+  id             String    @id @default(uuid())
+  userId         String?   @map("user_id")
+  beneficiaireId String?   @map("beneficiaire_id")
+  alerteId       String?   @map("alerte_id")
+  pointageId     String?   @map("pointage_id")
+  type           String // NOUVEAU_BENEFICIAIRE, BIOMETRIE_CONFIGUREE, SORTIE_ZONE...
+  priorite       String // CRITIQUE, NORMALE, INFO
+  targetType     String    @map("target_type")
+  targetId       String    @map("target_id")
+  canal          String // INTERFACE, EMAIL, SMS
   message        String
-  statut         String    // ENVOYE, ECHEC, EN_ATTENTE
+  statut         String // ENVOYE, ECHEC, EN_ATTENTE
   lu             Boolean   @default(false)
+  metadata       Json?     @map("metadata")
   dateEnvoi      DateTime? @map("date_envoi")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
-  user           User?         @relation(fields: [userId], references: [id])
-  beneficiaire   Beneficiaire? @relation(fields: [beneficiaireId], references: [id])
-  alerte         Alerte?       @relation(fields: [alerteId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+  beneficiaire Beneficiaire? @relation(fields: [beneficiaireId], references: [id])
+  alerte       Alerte?       @relation(fields: [alerteId], references: [id])
+  pointage     Pointage?     @relation(fields: [pointageId], references: [id])
 
+  @@index([lu, createdAt])
+  @@index([targetType, targetId])
   @@map("notifications")
 }
 
@@ -286,15 +510,20 @@ model Notification {
 // =====================
 
 model Rapport {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
-  generepar      Int      @map("genere_par")
-  type           String   // MENSUEL, URGENCE, VISITE
+  id             String   @id @default(uuid())
+  beneficiaireId String   @map("beneficiaire_id")
+  generepar      String   @map("genere_par")
+  type           String // MENSUEL, URGENCE, VISITE
+  titre          String?
+  statut         String   @default("BROUILLON") // BROUILLON, FINALISE
+  contenu        Json?
+  periodeDu      DateTime? @map("periode_du") @db.Date
+  periodeAu      DateTime? @map("periode_au") @db.Date
   fichierUrl     String?  @map("fichier_url")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
-  generePar      User         @relation(fields: [generepar], references: [id])
+  beneficiaire Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  generePar    User         @relation(fields: [generepar], references: [id])
 
   @@map("rapports")
 }
@@ -304,31 +533,36 @@ model Rapport {
 // =====================
 
 model Bracelet {
-  id                 Int       @id @default(autoincrement())
-  codeImei           String    @unique @map("code_imei")       // = device_id payload IoT
-  identifiantPorteur String?   @map("identifiant_porteur")     // = user_id payload IoT (ex: "DET-2024-883")
+  id                 String    @id @default(uuid())
+  codeImei           String    @unique @map("code_imei") // = device_id payload IoT
+  identifiantPorteur String?   @map("identifiant_porteur") // = user_id payload IoT (ex: "DET-2024-883")
   numeroSim          String?   @map("numero_sim")
   modele             String?
   fabricant          String?
-  statut             String    // DISPONIBLE, AFFECTE, EN_PANNE, RETIRE
+  statut             String // DISPONIBLE, AFFECTE, EN_PANNE, RETIRE
   dateActivation     DateTime? @map("date_activation")
+  dernierSignalLe    DateTime? @map("dernier_signal_le")
+  dernierePositionLe DateTime? @map("derniere_position_le")
+  statutConnexion    String?   @map("statut_connexion") // EN_LIGNE, HORS_LIGNE, INCONNU
 
-  affectations       AffectationBracelet[]
-  positionsGPS       PositionGPS[]
-  incidents          IncidentBracelet[]
+  affectations        AffectationBracelet[]
+  positionsGPS        PositionGPS[]
+  reglesSurveillance  RegleSurveillance[]
+  alertesSurveillance AlerteSurveillance[]
+  incidents           IncidentBracelet[]
 
   @@map("bracelets")
 }
 
 model AffectationBracelet {
-  id             Int       @id @default(autoincrement())
-  braceletId     Int       @map("bracelet_id")
-  beneficiaireId Int       @map("beneficiaire_id")
+  id             String    @id @default(uuid())
+  braceletId     String    @map("bracelet_id")
+  beneficiaireId String    @map("beneficiaire_id")
   dateDebut      DateTime  @map("date_debut")
   dateFin        DateTime? @map("date_fin")
 
-  bracelet       Bracelet     @relation(fields: [braceletId], references: [id])
-  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  bracelet     Bracelet     @relation(fields: [braceletId], references: [id])
+  beneficiaire Beneficiaire @relation(fields: [beneficiaireId], references: [id])
 
   @@map("affectations_bracelets")
 }
@@ -341,40 +575,107 @@ model AffectationBracelet {
 // Index composite déjà défini ci-dessous.
 
 model PositionGPS {
-  id             Int      @id @default(autoincrement())
-  braceletId     Int      @map("bracelet_id")
-  beneficiaireId Int      @map("beneficiaire_id")
+  id               String  @id @default(uuid())
+  braceletId       String  @map("bracelet_id")
+  beneficiaireId   String  @map("beneficiaire_id")
+  porteurExterneId String? @map("porteur_externe_id")
 
   // Bloc localisation
   latitude       Decimal
   longitude      Decimal
-  precision      Decimal?
+  precision      Decimal? @map("precision_m")
+  accuracyMeters Int?     @map("accuracy_meters")
   presenceFlag   Boolean? @map("presence_flag") // bracelet en contact avec son boîtier
-  rssiDbm        Int?     @map("rssi_dbm")      // puissance signal RF
+  rssiDbm        Int?     @map("rssi_dbm") // puissance signal RF
+  zoneExterneId  String?  @map("zone_externe_id")
+  zoneStatus     String?  @map("zone_status") // INSIDE, OUTSIDE, TRANSITION
 
   // Bloc santé
-  batterie       Int?                           // battery_pct %
-  powerSource    String?  @map("power_source")  // "battery" | "mains"
+  batterie      Int?    @map("battery_pct") // battery_pct %
+  powerSource   String? @map("power_source") // "battery" | "mains"
+  gprsSignal    Int?    @map("gprs_signal")
+  gpsSatellites Int?    @map("gps_satellites")
 
   // Bloc alertes
-  strapStatus    Int?     @map("strap_status")    // 0 = intact | 1 = boucle coupée
+  strapStatus    Int?     @map("strap_status") // 0 = intact | 1 = boucle coupée
   caseTamper     Boolean? @map("case_tamper")
   geofenceBreach Boolean? @map("geofence_breach")
+  gpsLost        Boolean? @map("gps_lost")
+  gprsLost       Boolean? @map("gprs_lost")
   powerLoss      Boolean? @map("power_loss")
 
   // Résumé état — valeurs CDC : OK | TAMPER | ZONE_EXIT | LOW_BATTERY | POWER_FAIL
   statutBracelet String?  @map("statut_bracelet")
   heartbeat      Boolean?
+  rawPayload     Json?    @map("raw_payload")
 
   // Note V1 : latitude/longitude = coordonnées fixes du domicile
   // pas de vrai GPS avant V2
-  dateHeure      DateTime @map("date_heure")
+  dateHeure DateTime @map("date_heure")
 
-  bracelet       Bracelet     @relation(fields: [braceletId], references: [id])
-  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  bracelet            Bracelet             @relation(fields: [braceletId], references: [id])
+  beneficiaire        Beneficiaire         @relation(fields: [beneficiaireId], references: [id])
+  alertesSurveillance AlerteSurveillance[]
 
   @@index([braceletId, dateHeure(sort: Desc)])
   @@map("positions_gps")
+}
+
+// =====================
+// REGLE SURVEILLANCE
+// =====================
+
+model RegleSurveillance {
+  id             String   @id @default(uuid())
+  beneficiaireId String?  @map("beneficiaire_id")
+  braceletId     String?  @map("bracelet_id")
+  type           String // SORTIE_ZONE, BATTERIE_FAIBLE, PERTE_SIGNAL, TAMPER, POWER_FAIL
+  seuil          Float?
+  unite          String? // %, minutes, metres, etc.
+  severite       String // CRITIQUE, NORMALE
+  actif          Boolean  @default(true)
+  parametres     Json?
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  beneficiaire Beneficiaire?        @relation(fields: [beneficiaireId], references: [id], onDelete: SetNull)
+  bracelet     Bracelet?            @relation(fields: [braceletId], references: [id], onDelete: SetNull)
+  alertes      AlerteSurveillance[]
+
+  @@index([beneficiaireId, actif])
+  @@index([braceletId, actif])
+  @@map("regles_surveillance")
+}
+
+// =====================
+// ALERTE SURVEILLANCE
+// =====================
+
+model AlerteSurveillance {
+  id                  String    @id @default(uuid())
+  beneficiaireId      String    @map("beneficiaire_id")
+  braceletId          String?   @map("bracelet_id")
+  regleSurveillanceId String?   @map("regle_surveillance_id")
+  positionGPSId       String?   @map("position_gps_id")
+  type                String // SORTIE_ZONE, BATTERIE_FAIBLE, PERTE_SIGNAL, TAMPER, POWER_FAIL, CONFIGURATION
+  niveau              String // CRITIQUE, NORMALE
+  message             String
+  source              String // SYSTEME, AGENT, BRACELET, SIMULATEUR
+  statut              String // OUVERTE, TRAITEE, IGNOREE
+  actionRecommandee   String?   @map("action_recommandee")
+  metadata            Json?
+  declencheeLe        DateTime  @default(now()) @map("declenchee_le")
+  resolueLe           DateTime? @map("resolue_le")
+
+  beneficiaire      Beneficiaire       @relation(fields: [beneficiaireId], references: [id], onDelete: Cascade)
+  bracelet          Bracelet?          @relation(fields: [braceletId], references: [id], onDelete: SetNull)
+  regleSurveillance RegleSurveillance? @relation(fields: [regleSurveillanceId], references: [id], onDelete: SetNull)
+  positionGPS       PositionGPS?       @relation(fields: [positionGPSId], references: [id], onDelete: SetNull)
+
+  @@index([beneficiaireId, declencheeLe(sort: Desc)])
+  @@index([statut, niveau])
+  @@map("alertes_surveillance")
 }
 
 // =====================
@@ -382,14 +683,14 @@ model PositionGPS {
 // =====================
 
 model Zone {
-  id             Int     @id @default(autoincrement())
-  beneficiaireId Int     @map("beneficiaire_id")
+  id             String @id @default(uuid())
+  beneficiaireId String @map("beneficiaire_id")
   nom            String
-  type           String  // AUTORISEE, INTERDITE
-  geometrie      Json?   // → geometry PostGIS en production
-  rayon          Int?    // mètres — zones circulaires
+  type           String // AUTORISEE, INTERDITE
+  geometrie      Json? // → geometry PostGIS en production
+  rayon          Int? // mètres — zones circulaires
 
-  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  beneficiaire Beneficiaire @relation(fields: [beneficiaireId], references: [id])
 
   @@map("zones")
 }
@@ -399,16 +700,16 @@ model Zone {
 // =====================
 
 model RegleHoraire {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
-  obligationId   Int      @map("obligation_id")
+  id             String   @id @default(uuid())
+  beneficiaireId String   @map("beneficiaire_id")
+  obligationId   String   @map("obligation_id")
   jourSemaine    String   @map("jour_semaine")
   heureDebut     DateTime @map("heure_debut") @db.Time
   heureFin       DateTime @map("heure_fin") @db.Time
-  type           String   // PRESENCE_OBLIGATOIRE, COUVRE_FEU
+  type           String // PRESENCE_OBLIGATOIRE, COUVRE_FEU
 
-  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
-  obligation     Obligation   @relation(fields: [obligationId], references: [id])
+  beneficiaire Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  obligation   Obligation   @relation(fields: [obligationId], references: [id])
 
   @@map("regles_horaires")
 }
@@ -418,16 +719,16 @@ model RegleHoraire {
 // =====================
 
 model IncidentBracelet {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
-  braceletId     Int      @map("bracelet_id")
-  type           String   // RETRAIT, PERTE_SIGNAL, BATTERIE_FAIBLE, ANOMALIE, POWER_FAIL
+  id             String   @id @default(uuid())
+  beneficiaireId String   @map("beneficiaire_id")
+  braceletId     String   @map("bracelet_id")
+  type           String // RETRAIT, PERTE_SIGNAL, BATTERIE_FAIBLE, ANOMALIE, POWER_FAIL
   description    String?
   dateHeure      DateTime @map("date_heure")
-  statut         String   // OUVERT, TRAITE, CLOS
+  statut         String // OUVERT, TRAITE, CLOS
 
-  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
-  bracelet       Bracelet     @relation(fields: [braceletId], references: [id])
+  beneficiaire Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  bracelet     Bracelet     @relation(fields: [braceletId], references: [id])
 
   @@map("incidents_bracelet")
 }
@@ -437,11 +738,11 @@ model IncidentBracelet {
 // =====================
 
 model HistoriqueAction {
-  id             Int      @id @default(autoincrement())
-  userId         Int      @map("user_id")
-  action         String   // CREATE, UPDATE, DELETE, LOGIN...
-  entite         String   // nom de la table concernée
-  entiteId       Int      @map("entite_id")
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  action         String // CREATE, UPDATE, DELETE, LOGIN...
+  entite         String // nom de la table concernée
+  entiteId       String   @map("entite_id")
   description    String?
   ancienneValeur Json?    @map("ancienne_valeur")
   nouvelleValeur Json?    @map("nouvelle_valeur")
@@ -449,7 +750,7 @@ model HistoriqueAction {
   userAgent      String?  @map("user_agent")
   dateAction     DateTime @default(now()) @map("date_action")
 
-  user           User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@map("historique_actions")
 }
@@ -459,13 +760,13 @@ model HistoriqueAction {
 // =====================
 
 model HistoriqueStatut {
-  id             Int      @id @default(autoincrement())
-  beneficiaireId Int      @map("beneficiaire_id")
+  id             String   @id @default(uuid())
+  beneficiaireId String   @map("beneficiaire_id")
   ancienStatut   String   @map("ancien_statut")
   nouveauStatut  String   @map("nouveau_statut")
   date           DateTime @default(now())
 
-  beneficiaire   Beneficiaire @relation(fields: [beneficiaireId], references: [id])
+  beneficiaire Beneficiaire @relation(fields: [beneficiaireId], references: [id])
 
   @@map("historique_statuts")
 }

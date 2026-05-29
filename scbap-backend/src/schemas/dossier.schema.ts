@@ -2,25 +2,46 @@ import { z } from "zod";
 
 export const DossierSchema = z.object({
   numero_dossier: z.string(),
-  juridiction_id: z.number().optional(),
-  prison_id: z.number().optional(),
+  juridiction_id: z.preprocess(
+    (value) => (value === undefined || value === null ? undefined : String(value)),
+    z.string().optional(),
+  ),
+  prison_id: z.preprocess(
+    (value) => (value === undefined || value === null ? undefined : String(value)),
+    z.string().optional(),
+  ),
+  prison_name: z.string().optional(),
   nom: z.string(),
   prenom: z.string(),
   date_naissance: z.string().optional(),
   lieu_naissance: z.string().optional(),
   nationalite: z.string().optional(),
- sexe: z.enum(["M", "F"]).optional(),
+  sexe: z.enum(["M", "F"]).optional(),
   profession: z.string().optional(),
   adresse: z.string().optional(),
   telephone_contact: z.string().optional(),
   infractions: z.string().optional(),
   numero_mandat_depot: z.string(),
-  date_mandat_depot: z.string(),
+  date_mandat_depot: z.string().optional(),
   condamnation: z.string().optional(),
-  date_fin_peine: z.string(),
-  duree_peine_mois: z.number(),
+  date_fin_peine: z.string().optional(),
+  duree_peine_mois: z.number().optional(),
+  decision_dapg: z.string().optional(),
+  date_decision_dapg: z.string().optional(),
+  duree_temps_epreuve: z.preprocess(
+    (value) => (value === undefined || value === null ? undefined : String(value)),
+    z.string().optional(),
+  ),
   observations: z.string().optional(),
   obligations: z.string().optional(), // texte brut venant de la DAPG
   others_data: z.record(z.string(), z.any()).optional(), // pour stocker des données supplémentaires sous forme de clé-valeur
-  statut: z.string(),
+  statut: z.string().optional(),
+  
 });
+
+export const UpdateDossierSchema = DossierSchema.partial().refine(
+  (data) => Object.keys(data).length > 0,
+  {
+    message: "Aucune donnee a mettre a jour",
+  },
+);
