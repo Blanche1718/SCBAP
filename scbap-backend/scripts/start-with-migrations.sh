@@ -29,13 +29,15 @@ PRISMA_LOG=/tmp/prisma-migrate.log
 rm -f "$PRISMA_LOG"
 
 echo "Running: npx prisma migrate deploy --schema=prisma/schema.prisma"
-npx prisma migrate deploy --schema=prisma/schema.prisma 2>&1 | tee "$PRISMA_LOG"
-EXIT_CODE=${PIPESTATUS[0]:-${PIPESTATUS[0]}}
+# Run prisma and capture exit code portably (avoid relying on pipefail)
+npx prisma migrate deploy --schema=prisma/schema.prisma > "$PRISMA_LOG" 2>&1
+EXIT_CODE=$?
+cat "$PRISMA_LOG" || true
 if [ "$EXIT_CODE" -ne 0 ]; then
   echo "ERROR: Prisma migrations failed with exit code $EXIT_CODE"
-  echo "--- Prisma migrate log start ---"
-  sed -n '1,200p' "$PRISMA_LOG" || true
-  echo "--- Prisma migrate log end ---"
+  echo "--- Prisma migrate log (full) ---"
+  sed -n '1,500p' "$PRISMA_LOG" || true
+  echo "--- end prisma migrate log ---"
   exit $EXIT_CODE
 fi
 
