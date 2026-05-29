@@ -13,9 +13,30 @@ fi
 
 echo "DATABASE_URL is present (hidden). Running Prisma migrations..."
 
-if ! npx prisma migrate deploy; then
-	echo "ERROR: Prisma migrations failed. See Prisma output above for details."
-	exit 1
+echo "Working directory: $(pwd)"
+echo "Node version: $(node --version)"
+echo "NPM version: $(npm --version)"
+echo "Prisma version:"
+npx prisma -v || true
+
+echo "Prisma schema exists:" 
+ls -la prisma || true
+echo "---- start of prisma/schema.prisma (first 200 lines) ----"
+sed -n '1,200p' prisma/schema.prisma || true
+echo "---- end of prisma/schema.prisma ----"
+
+PRISMA_LOG=/tmp/prisma-migrate.log
+rm -f "$PRISMA_LOG"
+
+echo "Running: npx prisma migrate deploy --schema=prisma/schema.prisma"
+npx prisma migrate deploy --schema=prisma/schema.prisma 2>&1 | tee "$PRISMA_LOG"
+EXIT_CODE=${PIPESTATUS[0]:-${PIPESTATUS[0]}}
+if [ "$EXIT_CODE" -ne 0 ]; then
+  echo "ERROR: Prisma migrations failed with exit code $EXIT_CODE"
+  echo "--- Prisma migrate log start ---"
+  sed -n '1,200p' "$PRISMA_LOG" || true
+  echo "--- Prisma migrate log end ---"
+  exit $EXIT_CODE
 fi
 
 echo "Migrations complete. Starting server..."
