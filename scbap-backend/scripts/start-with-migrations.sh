@@ -47,6 +47,11 @@ if [ "$STATUS_CODE" -ne 0 ]; then
   echo "--- end prisma migrate status log ---"
 fi
 
+if grep -q "Database schema is up to date" "$PRISMA_LOG"; then
+  echo "Database schema is already up to date. Starting server..."
+  exec node dist/index.js
+fi
+
 echo "Running: npx prisma migrate deploy"
 # Run prisma and capture exit code portably (avoid relying on pipefail)
 set +e
