@@ -7,7 +7,7 @@ const dotenvPath = process.env.DOTENV_CONFIG_PATH
   ? path.resolve(process.cwd(), process.env.DOTENV_CONFIG_PATH)
   : path.resolve(process.cwd(), process.env.NODE_ENV === "production" ? ".env.production" : ".env");
 
-dotenv.config({ path: dotenvPath });
+dotenv.config({ path: dotenvPath, quiet: true });
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -22,7 +22,7 @@ const adapter = new PrismaPg({
 
 const prisma = new PrismaClient({
   adapter,
-  log: process.env.NODE_ENV === "production" ? [] : ["query", "error", "warn"],
+  log: process.env.NODE_ENV === "production" ? [] : ["error", "warn"],
 });
 
 export default prisma;

@@ -85,7 +85,7 @@ export function validateEnv() {
     requireSecret("WEBHOOK_SECRET");
   }
 
-  logger.info("Environment validated", {
+  logger.debug("Environment validated", {
     nodeEnv: process.env.NODE_ENV,
     allowedOrigins: allowedOrigins.length,
   });

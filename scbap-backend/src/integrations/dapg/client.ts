@@ -3,9 +3,27 @@ import type { DapgLiberationConditionnelle, DapgObligationSpecifique } from "./t
 
 const DAPG_TIMEOUT_MS = 30_000;
 const RETRIABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+const DAPG_UNREACHABLE_MESSAGE =
+  "API DAPG injoignable depuis le serveur. Verifiez l'URL, le reseau Render ou une restriction IP cote DAPG.";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getErrorCauseCode(error: Error) {
+  const cause = "cause" in error ? (error as Error & { cause?: unknown }).cause : undefined;
+  return cause && typeof cause === "object" && "code" in cause
+    ? String((cause as { code?: unknown }).code)
+    : "";
+}
+
+function isRetriableNetworkError(error: Error) {
+  const causeCode = getErrorCauseCode(error);
+  return (
+    error.name === "AbortError" ||
+    /fetch failed|ECONNRESET|ETIMEDOUT|Connect Timeout/i.test(error.message) ||
+    /UND_ERR_CONNECT_TIMEOUT|ECONNRESET|ETIMEDOUT/i.test(causeCode)
+  );
 }
 
 async function dapgRequest<T>(path: string, attempt = 0): Promise<T> {
@@ -37,14 +55,13 @@ async function dapgRequest<T>(path: string, attempt = 0): Promise<T> {
 
     return response.json() as Promise<T>;
   } catch (error) {
-    if (attempt < 2 && error instanceof Error && error.name === "AbortError") {
-      await sleep(750 * (attempt + 1));
-      return dapgRequest<T>(path, attempt + 1);
-    }
+    if (error instanceof Error && isRetriableNetworkError(error)) {
+      if (attempt < 2) {
+        await sleep(750 * (attempt + 1));
+        return dapgRequest<T>(path, attempt + 1);
+      }
 
-    if (attempt < 2 && error instanceof Error && /fetch failed|ECONNRESET|ETIMEDOUT/i.test(error.message)) {
-      await sleep(750 * (attempt + 1));
-      return dapgRequest<T>(path, attempt + 1);
+      throw new Error(`${DAPG_UNREACHABLE_MESSAGE} Detail: ${serializeCause(error)}`);
     }
 
     throw error;

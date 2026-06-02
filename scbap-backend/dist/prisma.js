@@ -10,7 +10,7 @@ const client_1 = require("@prisma/client");
 const dotenvPath = process.env.DOTENV_CONFIG_PATH
     ? path_1.default.resolve(process.cwd(), process.env.DOTENV_CONFIG_PATH)
     : path_1.default.resolve(process.cwd(), process.env.NODE_ENV === "production" ? ".env.production" : ".env");
-dotenv_1.default.config({ path: dotenvPath });
+dotenv_1.default.config({ path: dotenvPath, quiet: true });
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
     throw new Error("DATABASE_URL est manquant dans l'environnement");
@@ -21,6 +21,6 @@ const adapter = new adapter_pg_1.PrismaPg({
 });
 const prisma = new client_1.PrismaClient({
     adapter,
-    log: process.env.NODE_ENV === "production" ? [] : ["query", "error", "warn"],
+    log: process.env.NODE_ENV === "production" ? [] : ["error", "warn"],
 });
 exports.default = prisma;

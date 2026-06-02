@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Search,
@@ -23,7 +23,6 @@ import { Button } from "../../components/ui";
 import { useToast } from "../../context/ToastContext";
 import { api } from "../../lib/api";
 import type { Dossier } from "../../types";
-import { DAPG_AUTO_SYNC_INTERVAL_MS } from "../../utils/dapgSync";
 import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
 import { formatInAppTimeZone } from "../../utils/timezone";
 
@@ -103,7 +102,6 @@ export default function DossiersPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
-  const hasAutoSyncedRef = useRef(false);
   const { dossiers, meta, loading, error, refetch } = useDossiers(page, limit, search);
 
   const query = search.trim().toLowerCase();
@@ -198,16 +196,6 @@ export default function DossiersPage() {
       setExporting(false);
     }
   }
-
-  useEffect(() => {
-    if (hasAutoSyncedRef.current) return;
-    const lastSyncAt = Number(localStorage.getItem("scbap:last-dapg-sync-at") || "0");
-    const now = Date.now();
-    if (now - lastSyncAt < DAPG_AUTO_SYNC_INTERVAL_MS) return;
-
-    hasAutoSyncedRef.current = true;
-    void handleSyncDapg();
-  }, []);
 
   return (
     <div className="p-4 sm:p-8 min-h-full bg-surface">

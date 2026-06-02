@@ -5,10 +5,15 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
   const startedAt = Date.now();
 
   res.on("finish", () => {
-    logger.info("HTTP request completed", {
+    const statusCode = res.statusCode;
+    if (statusCode < 400) {
+      return;
+    }
+
+    logger.warn("HTTP request failed", {
       method: req.method,
       path: req.originalUrl,
-      statusCode: res.statusCode,
+      statusCode,
       durationMs: Date.now() - startedAt,
       ip: req.ip,
     });

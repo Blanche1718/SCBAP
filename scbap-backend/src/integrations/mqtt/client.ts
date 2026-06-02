@@ -15,6 +15,7 @@ type MqttMessageHandler = (topic: string, payload: Buffer) => Promise<void> | vo
 
 let client: mqtt.MqttClient | null = null;
 let started = false;
+let lastErrorLogAt = 0;
 
 function logDebug(...args: unknown[]) {
   if (MQTT_DEBUG) {
@@ -73,7 +74,13 @@ export function startMqttSubscriber(onMessage: MqttMessageHandler) {
   });
 
   client.on("error", (error) => {
-    console.error("[mqtt] error", error.message);
+    const now = Date.now();
+    if (now - lastErrorLogAt < 60_000) {
+      return;
+    }
+
+    lastErrorLogAt = now;
+    console.error("[mqtt] error", error.message || "connection failed");
   });
 
   client.on("reconnect", () => {

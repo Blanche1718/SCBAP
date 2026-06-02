@@ -25,6 +25,7 @@ import portailRouter from "./routes/portail.routes";
 import rapportRouter from "./routes/rapport.routes";
 import { startBiometrieScheduler } from "./jobs/biometrie.scheduler";
 import { startMqttSubscriber } from "./integrations/mqtt/client";
+import { MQTT_ENABLED } from "./integrations/mqtt/config";
 import { handleMqttMessage } from "./services/mqtt.service";
 import webhooksRouter from "./routes/webhooks.routes";
 import { initializeSurveillanceRealtime } from "./services/surveillance-realtime.service";
@@ -38,13 +39,17 @@ const dotenvPath = process.env.DOTENV_CONFIG_PATH
   ? path.resolve(process.cwd(), process.env.DOTENV_CONFIG_PATH)
   : path.resolve(process.cwd(), ".env");
 
-dotenv.config({ path: dotenvPath });
+dotenv.config({ path: dotenvPath, quiet: true });
 
 const nodeEnv = process.env.NODE_ENV || "development";
 process.env.NODE_ENV = nodeEnv;
 
 if (!process.env.DOTENV_CONFIG_PATH) {
-  dotenv.config({ path: path.resolve(process.cwd(), `.env.${nodeEnv}`), override: true });
+  dotenv.config({
+    path: path.resolve(process.cwd(), `.env.${nodeEnv}`),
+    override: true,
+    quiet: true,
+  });
 }
 
 validateEnv();
@@ -110,9 +115,13 @@ const server = createServer(app);
 initializeSurveillanceRealtime(server);
 
 server.listen(port, () => {
-  logger.info("SCBAP backend started", { port });
+  logger.debug("SCBAP backend started", { port });
   startBiometrieScheduler();
-  startMqttSubscriber(handleMqttMessage);
+  if (MQTT_ENABLED) {
+    startMqttSubscriber(handleMqttMessage);
+  } else {
+    logger.debug("MQTT subscriber disabled; MQTT_BROKER_URL is not configured");
+  }
   initializeAbsenceCheckJob();
   initializeMonthlyRapportJob();
   initializeSurveillanceHealthJob();

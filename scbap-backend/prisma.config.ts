@@ -8,7 +8,7 @@ const dotenvPath = process.env.DOTENV_CONFIG_PATH
   ? path.resolve(process.cwd(), process.env.DOTENV_CONFIG_PATH)
   : path.resolve(process.cwd(), nodeEnv === "production" ? ".env.production" : ".env");
 
-dotenv.config({ path: dotenvPath });
+dotenv.config({ path: dotenvPath, quiet: true });
 
 export default {
   schema: "prisma/schema.prisma",

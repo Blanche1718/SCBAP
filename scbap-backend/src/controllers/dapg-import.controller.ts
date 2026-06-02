@@ -14,6 +14,15 @@ function parseExternalId(idParam: string | string[] | undefined) {
   return idParam.trim();
 }
 
+function forwardDapgError(error: unknown, next: NextFunction) {
+  if (error instanceof Error && error.message.includes("API DAPG injoignable")) {
+    next(new HttpError(502, error.message));
+    return;
+  }
+
+  next(error);
+}
+
 export async function syncDapgLiberationConditionnelleController(
   req: Request,
   res: Response,
@@ -28,8 +37,7 @@ export async function syncDapgLiberationConditionnelleController(
       data: dossier,
     });
   } catch (error) {
-    next(error);
-    console.error("Erreur lors de la synchronisation DAPG:", error);
+    forwardDapgError(error, next);
   }
 }
 
@@ -46,8 +54,7 @@ export async function syncAllDapgLiberationConditionnellesController(
       data: result,
     });
   } catch (error) {
-    next(error);
-    console.error("Erreur lors de la synchronisation DAPG globale:", error);
+    forwardDapgError(error, next);
   }
 }
 

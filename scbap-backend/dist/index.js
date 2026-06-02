@@ -30,6 +30,7 @@ const portail_routes_1 = __importDefault(require("./routes/portail.routes"));
 const rapport_routes_1 = __importDefault(require("./routes/rapport.routes"));
 const biometrie_scheduler_1 = require("./jobs/biometrie.scheduler");
 const client_1 = require("./integrations/mqtt/client");
+const config_1 = require("./integrations/mqtt/config");
 const mqtt_service_1 = require("./services/mqtt.service");
 const webhooks_routes_1 = __importDefault(require("./routes/webhooks.routes"));
 const surveillance_realtime_service_1 = require("./services/surveillance-realtime.service");
@@ -41,11 +42,15 @@ const logger_1 = require("./logger");
 const dotenvPath = process.env.DOTENV_CONFIG_PATH
     ? path_1.default.resolve(process.cwd(), process.env.DOTENV_CONFIG_PATH)
     : path_1.default.resolve(process.cwd(), ".env");
-dotenv_1.default.config({ path: dotenvPath });
+dotenv_1.default.config({ path: dotenvPath, quiet: true });
 const nodeEnv = process.env.NODE_ENV || "development";
 process.env.NODE_ENV = nodeEnv;
 if (!process.env.DOTENV_CONFIG_PATH) {
-    dotenv_1.default.config({ path: path_1.default.resolve(process.cwd(), `.env.${nodeEnv}`), override: true });
+    dotenv_1.default.config({
+        path: path_1.default.resolve(process.cwd(), `.env.${nodeEnv}`),
+        override: true,
+        quiet: true,
+    });
 }
 (0, env_1.validateEnv)();
 const app = (0, express_1.default)();
@@ -99,9 +104,14 @@ const port = Number(process.env.PORT) || 3000;
 const server = (0, http_1.createServer)(app);
 (0, surveillance_realtime_service_1.initializeSurveillanceRealtime)(server);
 server.listen(port, () => {
-    logger_1.logger.info("SCBAP backend started", { port });
+    logger_1.logger.debug("SCBAP backend started", { port });
     (0, biometrie_scheduler_1.startBiometrieScheduler)();
-    (0, client_1.startMqttSubscriber)(mqtt_service_1.handleMqttMessage);
+    if (config_1.MQTT_ENABLED) {
+        (0, client_1.startMqttSubscriber)(mqtt_service_1.handleMqttMessage);
+    }
+    else {
+        logger_1.logger.debug("MQTT subscriber disabled; MQTT_BROKER_URL is not configured");
+    }
     (0, absence_check_job_1.initializeAbsenceCheckJob)();
     (0, monthly_rapport_job_1.initializeMonthlyRapportJob)();
     (0, surveillance_health_job_1.initializeSurveillanceHealthJob)();
