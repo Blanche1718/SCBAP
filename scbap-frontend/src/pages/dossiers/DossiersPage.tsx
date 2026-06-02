@@ -26,6 +26,9 @@ import type { Dossier } from "../../types";
 import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
 import { formatInAppTimeZone } from "../../utils/timezone";
 
+const DAPG_SYNC_FAILED_NOTICE =
+  "La synchronisation automatique du système n'a pas abouti. Essayez manuellement pour récupérer les nouveaux dossiers.";
+
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return "—";
   return formatInAppTimeZone(new Date(dateStr), {
@@ -170,7 +173,8 @@ export default function DossiersPage() {
       }
       localStorage.setItem("scbap:last-dapg-sync-at", String(Date.now()));
     } catch (e) {
-      setSyncNotice((e as Error).message || "Synchronisation DAPG impossible.");
+      console.error("Erreur de synchronisation DAPG:", e);
+      setSyncNotice(DAPG_SYNC_FAILED_NOTICE);
     } finally {
       setSyncing(false);
     }

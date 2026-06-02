@@ -27,6 +27,9 @@ import { DAPG_AUTO_SYNC_INTERVAL_MS } from "../../utils/dapgSync";
 import { getPageSizeOptionLabel, getPageSizeOptions } from "../../utils/pagination";
 import { formatInAppTimeZone, formatPointageInAppTimeZone } from "../../utils/timezone";
 
+const DAPG_SYNC_FAILED_NOTICE =
+  "La synchronisation automatique du système n'a pas abouti. Essayez manuellement pour récupérer les nouveaux dossiers.";
+
 type ComplianceStatus = "NON_CONFORME" | "ACTIF" | "TERMINE" | "A_CONFIGURER";
 type RiskLevel = "Faible" | "Moyen" | "Eleve";
 
@@ -256,7 +259,8 @@ export default function BeneficiairesPage() {
       localStorage.setItem("scbap:last-dapg-sync-at", String(Date.now()));
       showToast("Synchronisation DAPG terminée.", "success");
     } catch (err) {
-      setSyncNotice((err as Error).message || "Synchronisation DAPG impossible.");
+      console.error("Erreur de synchronisation DAPG:", err);
+      setSyncNotice(DAPG_SYNC_FAILED_NOTICE);
     } finally {
       setSyncing(false);
     }
