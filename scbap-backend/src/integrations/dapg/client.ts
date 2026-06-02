@@ -53,6 +53,67 @@ async function dapgRequest<T>(path: string, attempt = 0): Promise<T> {
   }
 }
 
+function serializeCause(error: unknown) {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+
+  const cause = "cause" in error ? (error as Error & { cause?: unknown }).cause : undefined;
+  if (cause instanceof Error) {
+    return `${error.message}: ${cause.message}`;
+  }
+
+  return error.message;
+}
+
+export async function checkDapgConnection() {
+  const path = "/liberations-conditionnelles?page=1&per_page=1";
+  const url = `${DAPG_BASE_URL}${path}`;
+
+  if (!DAPG_API_KEY) {
+    return {
+      ok: false,
+      baseUrl: DAPG_BASE_URL,
+      apiKeyConfigured: false,
+      message: "DAPG_API_KEY manquante",
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DAPG_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": DAPG_API_KEY,
+      },
+      signal: controller.signal,
+    });
+    const body = await response.json().catch(() => null) as Partial<DapgPaginatedResponse<unknown>> | null;
+
+    return {
+      ok: response.ok && body?.success === true,
+      baseUrl: DAPG_BASE_URL,
+      apiKeyConfigured: true,
+      status: response.status,
+      success: body?.success ?? null,
+      total: typeof body?.total === "number" ? body.total : null,
+      received: Array.isArray(body?.data) ? body.data.length : null,
+      message: response.ok ? "Connexion DAPG OK" : `Erreur DAPG HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      baseUrl: DAPG_BASE_URL,
+      apiKeyConfigured: true,
+      message: serializeCause(error),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export interface DapgPaginatedResponse<T> {
   success: boolean;
   total: number;

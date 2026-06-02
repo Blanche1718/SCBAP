@@ -69,6 +69,12 @@ app.use(request_logger_1.requestLogger);
 app.use("/auth", auth_routes_1.default);
 app.use("/portail", portail_routes_1.default);
 app.use("/webhooks", webhooks_routes_1.default);
+app.get("/", (_req, res) => {
+    res.json({
+        name: "SCBAP backend",
+        status: "ok",
+    });
+});
 app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
 });

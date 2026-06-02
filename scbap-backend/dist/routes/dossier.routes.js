@@ -7,6 +7,7 @@ const dapg_import_controller_1 = require("../controllers/dapg-import.controller"
 const dossierRouter = (0, express_1.Router)();
 dossierRouter.get("/", dossier_controller_1.getDossiersController);
 dossierRouter.get("/export", dossier_controller_1.exportDossiersController);
+dossierRouter.get("/dapg/diagnostics", dapg_import_controller_1.checkDapgConnectionController);
 dossierRouter.post("/dapg/sync", dapg_import_controller_1.syncAllDapgLiberationConditionnellesController);
 dossierRouter.post("/dapg/:dapgId/sync", dapg_import_controller_1.syncDapgLiberationConditionnelleController);
 dossierRouter.post("/", dossier_controller_1.createDossierController);

@@ -4,6 +4,7 @@ import {
   syncAllDapgLiberationConditionnelles,
   syncDapgLiberationConditionnelle,
 } from "../services/dapg-import.service";
+import { checkDapgConnection } from "../integrations/dapg/client";
 
 function parseExternalId(idParam: string | string[] | undefined) {
   if (typeof idParam !== "string" || !idParam.trim()) {
@@ -47,5 +48,21 @@ export async function syncAllDapgLiberationConditionnellesController(
   } catch (error) {
     next(error);
     console.error("Erreur lors de la synchronisation DAPG globale:", error);
+  }
+}
+
+export async function checkDapgConnectionController(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const result = await checkDapgConnection();
+    res.status(result.ok ? 200 : 502).json({
+      message: result.message,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
   }
 }

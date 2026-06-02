@@ -12,6 +12,7 @@ import {
   getObligationsByDossierController,
 } from "../controllers/obligation.controller";
 import {
+  checkDapgConnectionController,
   syncDapgLiberationConditionnelleController,
   syncAllDapgLiberationConditionnellesController,
 } from "../controllers/dapg-import.controller";
@@ -20,6 +21,7 @@ const dossierRouter = Router();
 
 dossierRouter.get("/", getDossiersController);
 dossierRouter.get("/export", exportDossiersController);
+dossierRouter.get("/dapg/diagnostics", checkDapgConnectionController);
 dossierRouter.post("/dapg/sync", syncAllDapgLiberationConditionnellesController);
 dossierRouter.post("/dapg/:dapgId/sync", syncDapgLiberationConditionnelleController);
 dossierRouter.post("/", createDossierController);
