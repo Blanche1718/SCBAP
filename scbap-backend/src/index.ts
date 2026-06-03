@@ -75,7 +75,13 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization", "X-Webhook-Signature", "X-Webhook-Timestamp"],
   }),
 );
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      (req as express.Request & { rawBody?: string }).rawBody = buf.toString("utf8");
+    },
+  }),
+);
 app.use(requestLogger);
 app.use("/auth", authRouter);
 app.use("/portail", portailRouter);

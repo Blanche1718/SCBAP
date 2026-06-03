@@ -19,6 +19,11 @@ function normalizeSignature(signature: string) {
   return signature.startsWith("sha256=") ? signature.slice("sha256=".length) : signature;
 }
 
+function getSignedPayload(req: Request, timestamp: string) {
+  const rawBody = (req as Request & { rawBody?: string }).rawBody;
+  return `${timestamp}.${rawBody ?? JSON.stringify(req.body)}`;
+}
+
 export function verifyWebhookSignature(req: Request, _res: Response, next: NextFunction) {
   try {
     const signature = String(req.headers[SIGNATURE_HEADER] ?? "");
@@ -36,7 +41,7 @@ export function verifyWebhookSignature(req: Request, _res: Response, next: NextF
 
     const expected = crypto
       .createHmac("sha256", getWebhookSecret())
-      .update(`${timestamp}.${JSON.stringify(req.body)}`)
+      .update(getSignedPayload(req, timestamp))
       .digest("hex");
     const provided = normalizeSignature(signature);
 

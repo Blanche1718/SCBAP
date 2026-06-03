@@ -69,7 +69,11 @@ app.use((0, cors_1.default)({
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Webhook-Signature", "X-Webhook-Timestamp"],
 }));
-app.use(express_1.default.json());
+app.use(express_1.default.json({
+    verify: (req, _res, buf) => {
+        req.rawBody = buf.toString("utf8");
+    },
+}));
 app.use(request_logger_1.requestLogger);
 app.use("/auth", auth_routes_1.default);
 app.use("/portail", portail_routes_1.default);
