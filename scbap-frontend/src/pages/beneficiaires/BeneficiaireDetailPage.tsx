@@ -1229,40 +1229,7 @@ export default function BeneficiaireDetailPage() {
                 )}
               </Section>
 
-              <Section title="Pulse de conformité">
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs text-on-secondary-container">Stabilité bracelet</p>
-                    <div className="mt-2 h-2 rounded-full bg-surface-high">
-                      <div className="h-2 rounded-full bg-primary w-[88%]" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-on-secondary-container">Assiduité pointage</p>
-                    <div className="mt-2 h-2 rounded-full bg-surface-high">
-                      <div className="h-2 rounded-full bg-primary w-[96%]" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-on-secondary-container">Niveau de risque</p>
-                    <div className="mt-2 h-2 rounded-full bg-surface-high">
-                      <div className="h-2 rounded-full bg-on-error-container w-[34%]" />
-                    </div>
-                  </div>
-                  <div className="rounded-md bg-surface-low p-3 text-xs text-on-secondary-container">
-                    <div className="flex items-center gap-2 text-primary font-semibold">
-                      <Activity size={14} />
-                      Recommandation automatique
-                    </div>
-                    <p className="mt-2">
-                      Profil eligible a un assouplissement du suivi nocturne.
-                    </p>
-                  </div>
-                  <Link to="/rapports/rediges" className="block w-full mt-2 rounded-md bg-primary text-center text-white text-xs font-bold py-2 hover:bg-primary/90 transition-colors">
-                    Générer un dossier officiel
-                  </Link>
-                </div>
-              </Section>
+              {/* œœ */}
             </div>
           )}
 

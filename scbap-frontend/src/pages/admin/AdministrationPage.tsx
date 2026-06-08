@@ -18,7 +18,9 @@ import {
   UserRound,
   UserRoundCog,
   Users,
+  Eye,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { SideDrawer } from "../../components/ui/SideDrawer";
 import { useToast } from "../../context/ToastContext";
 import { api } from "../../lib/api";
@@ -121,6 +123,7 @@ export default function AdministrationPage() {
   const [editingReferenceId, setEditingReferenceId] = useState<string | null>(null);
   const [nfcSyncing, setNfcSyncing] = useState(false);
   const [nfcSyncResult, setNfcSyncResult] = useState<NfcSyncResult | null>(null);
+  const [nfcHistory, setNfcHistory] = useState<Array<any>>([]);
   const [nfcSyncError, setNfcSyncError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -205,6 +208,24 @@ export default function AdministrationPage() {
       structureId: selectedUser.structure.id,
     });
   }, [selectedUser]);
+
+  useEffect(() => {
+    void loadNfcHistory();
+  }, []);
+
+  const persistentNfcStats = useMemo(() => {
+    return {
+      fetched: nfcHistory.length,
+      recordsWithNfc: nfcHistory.filter((record) => record.status !== "missing").length,
+      matched: nfcHistory.filter((record) => ["matched", "updated", "unchanged"].includes(record.status)).length,
+      updated: nfcHistory.filter((record) => record.status === "updated").length,
+      unchanged: nfcHistory.filter((record) => record.status === "unchanged").length,
+      conflicts: nfcHistory.filter((record) => record.status === "conflict").length,
+      missingInScbap: nfcHistory.filter((record) => record.status === "missing").length,
+    };
+  }, [nfcHistory]);
+
+  const nfcStats = nfcSyncResult ?? persistentNfcStats;
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -447,6 +468,8 @@ export default function AdministrationPage() {
       setNfcSyncError(null);
       const res = await api.post<ApiResponse<NfcSyncResult>>("/biometrie/nfc/sync", {});
       setNfcSyncResult(res.data);
+      // refresh persistent history after sync
+      void loadNfcHistory();
       showToast(res.message || "Synchronisation NFC terminée.", "success");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erreur de synchronisation NFC";
@@ -454,6 +477,15 @@ export default function AdministrationPage() {
       showToast(message, "error");
     } finally {
       setNfcSyncing(false);
+    }
+  }
+
+  async function loadNfcHistory() {
+    try {
+      const res = await api.get<ApiResponse<any[]>>("/biometrie/nfc/history");
+      setNfcHistory(res.data || []);
+    } catch (err) {
+      // ignore history load errors
     }
   }
 
@@ -569,12 +601,12 @@ export default function AdministrationPage() {
 
         <div className="grid gap-4 md:grid-cols-3">
           {[
-            ["Détenus lus", nfcSyncResult?.fetched ?? 0],
-            ["NFC trouvés", nfcSyncResult?.recordsWithNfc ?? 0],
-            ["Bénéficiaires matchés", nfcSyncResult?.matched ?? 0],
-            ["Mis à jour", nfcSyncResult?.updated ?? 0],
-            ["Déjà à jour", nfcSyncResult?.unchanged ?? 0],
-            ["Non trouvés SCBAP", nfcSyncResult?.missingInScbap ?? 0],
+            ["Détenus lus", nfcStats.fetched],
+            ["NFC trouvés", nfcStats.recordsWithNfc],
+            ["Bénéficiaires matchés", nfcStats.matched],
+            ["Mis à jour", nfcStats.updated],
+            ["Déjà à jour", nfcStats.unchanged],
+            ["Non trouvés SCBAP", nfcStats.missingInScbap],
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg bg-white p-5">
               <p className="text-2xl font-bold text-on-surface">{value}</p>
@@ -599,6 +631,49 @@ export default function AdministrationPage() {
             </div>
           </div>
         ) : null}
+        {/* Matches list (persistent) */}
+        <div className="mt-6 rounded-lg bg-white p-4">
+          <h3 className="text-sm font-bold">Déténus associés récemment</h3>
+          <div className="mt-3">
+            <div className="hidden grid-cols-[1fr_1fr_200px_200px_96px] items-center gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-on-error-container md:grid">
+              <span>Nom</span>
+              <span>Prenoms</span>
+              <span>Numero Mandat</span>
+              <span>Numero Badge NFC</span>
+              <span className="text-right">Actions</span>
+            </div>
+
+            <div className="space-y-2 mt-2">
+              {nfcHistory
+                .filter((r) => ["matched", "updated", "unchanged"].includes(r.status))
+                .slice(0, 50)
+                .map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="grid gap-4 items-center px-4 py-3 rounded-lg border bg-white hover:bg-surface transition-colors md:grid-cols-[1fr_1fr_200px_200px_96px]"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{rec.beneficiaireNom ?? "—"}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm text-on-surface-variant truncate">{rec.beneficiairePrenom ?? "—"}</p>
+                    </div>
+                    <div className="text-sm font-mono text-on-surface-variant">{rec.numeroMandat ?? "—"}</div>
+                    <div className="text-sm font-mono">{rec.nfc ?? "—"}</div>
+                    <div className="flex items-center justify-end gap-2">
+                      <Link
+                        to={`/beneficiaires/${rec.beneficiaireId}`}
+                        className="w-8 h-8 rounded-md bg-surface-low flex items-center justify-center text-[#2e4d44] hover:bg-surface-high transition-colors"
+                        aria-label="Voir détail détenu"
+                      >
+                        <Eye size={14} />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

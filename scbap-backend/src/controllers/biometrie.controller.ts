@@ -10,6 +10,37 @@ import {
   forceVerifyBiometrieEnrolement,
 } from "../services/biometrie.service";
 import { syncBeneficiaireNfcBadges } from "../services/nfc-sync.service";
+import prisma from "../prisma";
+
+export async function getNfcSyncHistoryController(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const records = await prisma.nfcSyncRecord.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 400,
+    });
+
+    const uniqueRecordsMap = new Map<string, typeof records[number]>();
+    for (const record of records) {
+      const mandatKey = record.numeroMandat.trim().toUpperCase();
+      if (!uniqueRecordsMap.has(mandatKey)) {
+        uniqueRecordsMap.set(mandatKey, record);
+      }
+    }
+
+    const distinctRecords = Array.from(uniqueRecordsMap.values()).slice(0, 200);
+
+    res.status(200).json({
+      message: `Récupération de l'historique NFC (${distinctRecords.length})`,
+      data: distinctRecords,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 export async function startBiometrieEnrolementController(
   req: Request,
@@ -106,8 +137,13 @@ export async function syncNfcBadgesController(
 
     const result = await syncBeneficiaireNfcBadges();
 
+    const message =
+      result.updated > 0 || result.unchanged > 0
+        ? `${result.updated} NFC associé(s), ${result.unchanged} déjà à jour`
+        : `Synchronisation terminée : ${result.matched} mandat(s) trouvé(s) en base, ${result.missingInScbap} mandat(s) introuvable(s)`;
+
     res.status(200).json({
-      message: `${result.updated} NFC associé(s), ${result.unchanged} déjà à jour`,
+      message,
       data: result,
     });
   } catch (error) {

@@ -171,6 +171,21 @@ model Beneficiaire {
   @@map("beneficiaires")
 }
 
+// NFC synchronization records persisted for admin review
+model NfcSyncRecord {
+  id                  String   @id @default(uuid())
+  numeroMandat        String   @map("numero_mandat")
+  nfc                 String   @map("nfc")
+  status              String   @map("status")
+  beneficiaireId      String?  @map("beneficiaire_id")
+  beneficiaireNom     String?  @map("beneficiaire_nom")
+  beneficiairePrenom  String?  @map("beneficiaire_prenom")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("nfc_sync_records")
+}
+
 // =====================
 // DOCUMENT
 // =====================
