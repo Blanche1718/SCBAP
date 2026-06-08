@@ -1,35 +1,17 @@
 #!/bin/sh
 
-# Start with migrations on Render
+# Start backend after applying Prisma migrations.
 set -e
 
 echo "Container start - NODE_ENV=${NODE_ENV:-undefined}"
 
 if [ -z "$DATABASE_URL" ]; then
 	echo "ERROR: DATABASE_URL is not set. Prisma migrate deploy requires DATABASE_URL."
-	echo "Please set the DATABASE_URL environment variable in Render (not via .env file inside the image)."
+	echo "Please set the DATABASE_URL environment variable."
 	exit 1
 fi
 
 echo "DATABASE_URL is present (hidden). Running Prisma migrations..."
-
-echo "Working directory: $(pwd)"
-echo "Node version: $(node --version)"
-echo "NPM version: $(npm --version)"
-echo "Prisma version:"
-npx prisma -v || true
-
-echo "Parsed DATABASE_URL properties:"
-DB_HOST=$(echo "$DATABASE_URL" | sed -E 's#^[^:]+://([^:/@]+).*#\1#')
-DB_NAME=$(echo "$DATABASE_URL" | sed -E 's#^.*/([^?]+).*#\1#')
-echo "  host=$DB_HOST"
-echo "  database=$DB_NAME"
-
-echo "Prisma schema exists:" 
-ls -la prisma || true
-echo "---- start of prisma/schema.prisma (first 200 lines) ----"
-sed -n '1,200p' prisma/schema.prisma || true
-echo "---- end of prisma/schema.prisma ----"
 
 PRISMA_LOG=/tmp/prisma-migrate.log
 rm -f "$PRISMA_LOG"

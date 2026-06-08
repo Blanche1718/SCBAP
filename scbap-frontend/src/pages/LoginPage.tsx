@@ -103,7 +103,7 @@ export default function LoginPage() {
 
             <div className="w-full rounded-2xl border border-white/60 bg-white/96 p-5 text-on-surface shadow-[0_30px_90px_rgba(0,0,0,0.32)] backdrop-blur sm:p-7 lg:justify-self-start">
               <div className="mb-8 max-w-md">
-                <p className="text-sm font-bold text-primary">Bonjour,</p>
+                {/* <p className="text-sm font-bold text-primary">Bonjour,</p> */}
                 <h2 className="mt-1 text-3xl font-extrabold text-[#17362e]">
                   Connexion
                 </h2>
@@ -118,7 +118,7 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-on-surface">Identifiez-vous</h3>
-                  <p className="text-xs text-on-surface-variant">Session agent autorisée</p>
+                  {/* <p className="text-xs text-on-surface-variant">Session agent autorisée</p> */}
                 </div>
               </div>
 
@@ -182,9 +182,9 @@ export default function LoginPage() {
                 </button>
               </form>
 
-              <p className="mt-6 text-center text-[11px] font-medium leading-5 text-on-surface-variant">
+              {/* <p className="mt-6 text-center text-[11px] font-medium leading-5 text-on-surface-variant">
                 Accès réservé au personnel autorisé. Les connexions sont enregistrées.
-              </p>
+              </p> */}
             </div>
           </section>
         </div>

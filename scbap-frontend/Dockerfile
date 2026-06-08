@@ -7,7 +7,11 @@ ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_SURVEILLANCE_WS_URL=$VITE_SURVEILLANCE_WS_URL
 ENV VITE_APP_TIME_ZONE=$VITE_APP_TIME_ZONE
 COPY package*.json ./
-RUN npm ci
+RUN npm config set fetch-retries 5 \
+  && npm config set fetch-retry-mintimeout 20000 \
+  && npm config set fetch-retry-maxtimeout 120000 \
+  && npm config set fetch-timeout 600000 \
+  && npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 

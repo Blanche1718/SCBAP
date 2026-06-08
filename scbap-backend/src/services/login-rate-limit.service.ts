@@ -23,7 +23,8 @@ if (redisClient) {
   redisClient.on("error", (error) => {
     if (!redisUnavailableLogged) {
       redisUnavailableLogged = true;
-      logger.warn("Redis rate limiter unavailable, using development memory fallback", {
+      const log = process.env.NODE_ENV === "production" ? logger.warn : logger.debug;
+      log("Redis rate limiter unavailable, using development memory fallback", {
         error,
       });
     }
