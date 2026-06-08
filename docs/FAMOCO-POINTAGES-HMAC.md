@@ -2,16 +2,25 @@
 
 ## Endpoint
 
+Sur Render :
 
+```txt
 POST https://scbap.onrender.com/webhooks/pointages/biometrie
+```
 
+Sur les serveurs Justice avec `docker-compose.justice.yml` :
+
+```txt
+POST http://ADRESSE_DU_SERVEUR:8080/api/webhooks/pointages/biometrie
+```
 
 ## Headers obligatoires
 
+```txt
 Content-Type: application/json
 x-webhook-timestamp: <timestamp_unix_actuel>
 x-webhook-signature: sha256=<signature_hmac_sha256>
-
+```
 
 ### Role des headers
 
@@ -29,6 +38,7 @@ Signature HMAC SHA256 calculee a chaque requete avec le secret partage `WEBHOOK_
 
 ## Body JSON
 
+```json
 {
   "nfc": "BADGE_NFC_DU_BENEFICIAIRE",
   "timestamp": "2026-06-02T18:30:00.000Z",
@@ -36,6 +46,7 @@ Signature HMAC SHA256 calculee a chaque requete avec le secret partage `WEBHOOK_
   "deviceId": "FAMOCO-001",
   "success": true
 }
+```
 
 ## Calcul de la signature
 
