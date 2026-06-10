@@ -22,19 +22,18 @@ type TelemetryFinding = {
 const ALERT_DEDUPE_WINDOW_MS = Number(process.env.SURVEILLANCE_ALERT_DEDUPE_MINUTES ?? "10") * 60 * 1000;
 
 function parseTelemetryPayload(payload: Buffer | string | unknown): BraceletTelemetryInput {
-  // Le payload peut être un Buffer (MQTT), une string JSON, ou déjà un objet parsé
-  const raw =
-    Buffer.isBuffer(payload) ? payload.toString("utf-8") : typeof payload === "string" ? payload : payload;
+  let candidate: unknown;
 
-  let candidate: unknown = raw;
-  // Si c'est une string, on tente de parser le JSON. Sinon on suppose que c'est déjà un objet.
-
-  if (typeof raw === "string") {
+  if (Buffer.isBuffer(payload)) {
+    candidate = JSON.parse(payload.toString("utf-8"));
+  } else if (typeof payload === "string") {
     try {
-      candidate = JSON.parse(raw);
+      candidate = JSON.parse(payload);
     } catch {
       throw new HttpError(400, "Payload bracelet MQTT invalide");
     }
+  } else {
+    candidate = payload;
   }
 
   return BraceletTelemetrySchema.parse(candidate);
